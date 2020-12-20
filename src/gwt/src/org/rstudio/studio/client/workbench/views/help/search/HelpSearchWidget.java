@@ -1,7 +1,7 @@
 /*
  * HelpSearchWidget.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,6 +15,7 @@
 package org.rstudio.studio.client.workbench.views.help.search;
 
 
+import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.widget.SearchDisplay;
 import org.rstudio.core.client.widget.SearchWidget;
 
@@ -28,6 +29,7 @@ public class HelpSearchWidget extends SearchWidget
    public HelpSearchWidget(HelpSearchOracle oracle)
    {
       super("Search help", oracle);
+      ElementIds.assignElementId(this, ElementIds.SW_HELP);
    }
 
    @Override

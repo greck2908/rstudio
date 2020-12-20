@@ -1,7 +1,7 @@
 /*
  * JobState.java
  *
- * Copyright (C) 2009-18 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -68,7 +68,7 @@ public class JobState extends JsObject
 
    public final boolean hasJobs()
    {
-      for (String id : iterableKeys())
+      for (@SuppressWarnings("unused") String id : iterableKeys())
       {
          return true;
       }

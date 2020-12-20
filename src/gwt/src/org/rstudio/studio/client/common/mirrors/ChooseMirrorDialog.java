@@ -1,7 +1,7 @@
 /*
  * ChooseMirrorDialog.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -257,13 +257,13 @@ public class ChooseMirrorDialog extends ModalDialog<CRANMirror>
       Styles styles();
    }
    
-   static Resources RESOURCES = (Resources)GWT.create(Resources.class) ;
+   static Resources RESOURCES = (Resources)GWT.create(Resources.class);
    public static void ensureStylesInjected()
    {
       RESOURCES.styles().ensureInjected();
    }
    
-   private final GlobalDisplay globalDisplay_ ;
+   private final GlobalDisplay globalDisplay_;
    private final Source mirrorSource_;
    private ArrayList<CRANMirror> mirrors_ = null;
    private ListBox listBox_ = null;

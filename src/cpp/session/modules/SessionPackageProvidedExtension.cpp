@@ -1,7 +1,7 @@
 /*
  * SessionPackageProvidedExtension.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -110,10 +110,10 @@ bool Indexer::work()
 
    // invoke workers with package name + path
    FilePath pkgPath = pkgDirs_[index];
-   std::string pkgName = pkgPath.filename();
+   std::string pkgName = pkgPath.getFilename();
    for (boost::shared_ptr<Worker> pWorker : workers_)
    {
-      FilePath resourcePath = pkgPath.childPath(pWorker->resourcePath());
+      FilePath resourcePath = pkgPath.completeChildPath(pWorker->resourcePath());
       if (!resourcePath.exists())
          continue;
       
@@ -140,7 +140,7 @@ void Indexer::beginIndexing()
          continue;
 
       std::vector<core::FilePath> pkgPaths;
-      core::Error error = libPath.children(&pkgPaths);
+      core::Error error = libPath.getChildren(pkgPaths);
       if (error)
          LOG_ERROR(error);
 
@@ -217,14 +217,23 @@ void onConsoleInput(const std::string& input)
       return;
    
    static const char* const commands[] = {
-      "install.packages",
-      "utils::install.packages",
-      "remove.packages",
-      "utils::remove.packages",
-      "install_github",
-      "devtools::install_github",
-      "load_all",
+      "devtools::install_",
       "devtools::load_all",
+      "install.packages",
+      "install_github",
+      "load_all",
+      "pak::pkg_install",
+      "pak::pkg_remove",
+      "pkg_install",
+      "pkg_remove",
+      "remotes::install_",
+      "remove.packages",
+      "renv::install",
+      "renv::rebuild",
+      "renv::remove",
+      "renv::restore",
+      "utils::install.packages",
+      "utils::remove.packages",
    };
    
    std::string inputTrimmed = boost::algorithm::trim_copy(input);

@@ -1,7 +1,7 @@
 /*
  * MarkdownCompletionManager.java
  *
- * Copyright (C) 2009-18 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,6 +16,7 @@ package org.rstudio.studio.client.workbench.views.console.shell.assist;
 
 import org.rstudio.core.client.js.JsObject;
 import org.rstudio.studio.client.common.codetools.CodeToolsServerOperations;
+import org.rstudio.studio.client.workbench.views.console.shell.assist.CompletionRequester.QualifiedName;
 import org.rstudio.studio.client.workbench.views.source.editors.text.CompletionContext;
 import org.rstudio.studio.client.workbench.views.source.editors.text.DocDisplay;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Token;
@@ -45,13 +46,21 @@ public class MarkdownCompletionManager extends CompletionManagerBase
    {
       // NYI
    }
+   
+   @Override
+   public void showAdditionalHelp(QualifiedName completion)
+   {
+      // NYI
+   }
 
    @Override
-   public void getCompletions(String line, CompletionRequestContext context)
+   public boolean getCompletions(String line, CompletionRequestContext context)
    {
       // check for completion of href
       if (getCompletionsHref(context))
-         return;
+         return true;
+      
+      return false;
    }
    
    private boolean getCompletionsHref(CompletionRequestContext context)

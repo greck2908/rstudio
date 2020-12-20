@@ -1,7 +1,7 @@
 /*
  * SessionProjectTemplate.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,9 +20,9 @@
 
 #include <core/Algorithm.hpp>
 #include <core/Debug.hpp>
-#include <core/Error.hpp>
+#include <shared_core/Error.hpp>
 #include <core/Exec.hpp>
-#include <core/FilePath.hpp>
+#include <shared_core/FilePath.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/text/DcfParser.hpp>
 
@@ -72,7 +72,7 @@ void reportErrorsToConsole(const std::vector<Error>& errors,
       return;
    
    std::cout
-         << "Error(s) found while parsing '" + resourcePath.filename() + "':"
+         << "Error(s) found while parsing '" + resourcePath.getFilename() + "':"
          << std::endl;
    
    for (const Error& error : localErrors)
@@ -159,12 +159,12 @@ Error fromJson(
 
    core::Error error = core::json::readObject(
             object,
-            "parameter", &description.parameter,
-            "type",      &description.type,
-            "label",     &description.label,
-            "default",   &description.defaultValue,
-            "position",  &description.position,
-            "fields",    &description.fields);
+            "parameter", description.parameter,
+            "type",      description.type,
+            "label",     description.label,
+            "default",   description.defaultValue,
+            "position",  description.position,
+            "fields",    description.fields);
 
    if (error)
       return error;
@@ -196,19 +196,19 @@ Error fromJson(
 
    error = json::readObject(
             object,
-            "package",    &description.package,
-            "binding",    &description.binding,
-            "title",      &description.title,
-            "subtitle",   &description.subtitle,
-            "caption",    &description.caption,
-            "icon",       &description.icon,
-            "open_files", &description.openFiles);
+            "package",    description.package,
+            "binding",    description.binding,
+            "title",      description.title,
+            "subtitle",   description.subtitle,
+            "caption",    description.caption,
+            "icon",       description.icon,
+            "open_files", description.openFiles);
    
    if (error)
       return error;
    
    json::Array array;
-   error = json::readObject(object, "widgets", &array);
+   error = json::readObject(object, "widgets", array);
    if (error)
       return error;
    
@@ -217,11 +217,11 @@ Error fromJson(
       if (!json::isType<json::Object>(value))
          return json::errors::typeMismatch(
                   value,
-                  json::ObjectType,
+                  json::Type::OBJECT,
                   ERROR_LOCATION);
       
       ProjectTemplateWidgetDescription widget;
-      error = fromJson(value.get_obj(), &widget);
+      error = fromJson(value.getObject(), &widget);
       if (error)
          return error;
       
@@ -329,10 +329,10 @@ core::Error populate(
       else if (key == "Icon")
       {
          // read icon file from disk
-         FilePath iconPath = resourcePath.parent().complete(value);
+         FilePath iconPath = resourcePath.getParent().completePath(value);
          
          // skip if the file is too large
-         uintmax_t fileSize = iconPath.size();
+         uintmax_t fileSize = iconPath.getSize();
          if (fileSize > 1024 * 1024)
          {
             return systemError(
@@ -414,7 +414,7 @@ std::vector<Error> validate(const ProjectTemplateDescription& description,
    if (description.title.empty())
       result.push_back(errors::missingField("Title", resourcePath, location));
    
-   for (const ProjectTemplateWidgetDescription widget : description.widgets)
+   for (const ProjectTemplateWidgetDescription& widget : description.widgets)
    {
       std::vector<Error> widgetErrors =
             validateWidget(widget, resourcePath, location);
@@ -524,14 +524,14 @@ private:
       
       // loop over discovered files and attempt to read template descriptions
       std::vector<FilePath> children;
-      error = resourcePath.children(&children);
+      error = resourcePath.getChildren(children);
       if (error)
          LOG_ERROR(error);
       
       for (const FilePath& childPath : children)
       {
          // skip files that don't have a dcf extension
-         if (childPath.extension() != ".dcf")
+         if (childPath.getExtension() != ".dcf")
             continue;
          
          ProjectTemplateDescription description;

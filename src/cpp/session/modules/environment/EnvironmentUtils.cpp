@@ -1,7 +1,7 @@
 /*
  * EnvironmentUtils.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -55,7 +55,7 @@ json::Value descriptionOfVar(SEXP var)
    }
    else
    {
-      return value;
+      return json::Value(value);
    }
 }
 
@@ -154,11 +154,11 @@ json::Value languageVarToJson(SEXP env, std::string objectName)
    if (error)
    {
       LOG_ERROR(error);
-      return UNKNOWN_VALUE;
+      return json::Value(UNKNOWN_VALUE);
    }
    else
    {
-      return value;
+      return json::Value(value);
    }
 }
 
@@ -202,7 +202,7 @@ json::Value varToJson(SEXP env, const r::sexp::Variable& var)
          varJson["type"] = std::string("unknown");
          varJson["value"] =  (varSEXP == R_MissingArg) ?
                                  descriptionOfVar(varSEXP) :
-                                 UNKNOWN_VALUE;
+                                 json::Value(UNKNOWN_VALUE);
       }
       varJson["description"] = std::string("");
       varJson["contents"] = json::Array();

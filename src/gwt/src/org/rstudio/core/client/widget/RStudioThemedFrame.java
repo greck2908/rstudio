@@ -1,7 +1,7 @@
 /*
  * RStudioThemedFrame.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,6 +15,7 @@
 
 package org.rstudio.core.client.widget;
 
+import org.rstudio.core.client.BrowseCap;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.application.events.ThemeChangedEvent;
@@ -139,10 +140,15 @@ public class RStudioThemedFrame extends RStudioFrame
             if (removeBodyStyle) body.removeAttribute("style");
             
             RStudioThemes.initializeThemes(
-              RStudioGinjector.INSTANCE.getUIPrefs(),
-              document, document.getBody());
+               RStudioGinjector.INSTANCE.getUserPrefs(),
+               RStudioGinjector.INSTANCE.getUserState(),
+               document, document.getBody());
             
             body.addClassName("ace_editor_theme");
+            
+            // Add OS tag to the frame so that it can apply OS-specific CSS if
+            // needed.
+            body.addClassName(BrowseCap.operatingSystem());
          }
       }
    }

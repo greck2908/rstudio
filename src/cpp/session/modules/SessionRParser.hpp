@@ -1,7 +1,7 @@
 /*
- * RParser.hpp
+ * SessionRParser.hpp
  *
- * Copyright (C) 2009-2019 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -480,6 +480,20 @@ public:
                "unexpected assignment in argument list; did you mean to use '='?");
    }
    
+   void addLintItem(const RToken& rToken,
+                    LintType type,
+                    const std::string& message)
+   {
+      add(LintItem(rToken, type, message));
+   }
+   
+   void addLintItem(const ParseItem& item,
+                    LintType type,
+                    const std::string& message)
+   {
+      add(LintItem(item, type, message));
+   }
+   
    const std::vector<LintItem>& get() const
    {
       return lintItems_;
@@ -509,20 +523,6 @@ public:
    void dump();
    
 private:
-   
-   void addLintItem(const RToken& rToken,
-                    LintType type,
-                    const std::string& message)
-   {
-      add(LintItem(rToken, type, message));
-   }
-   
-   void addLintItem(const ParseItem& item,
-                    LintType type,
-                    const std::string& message)
-   {
-      add(LintItem(item, type, message));
-   }
    
    void add(const LintItem& item)
    {
@@ -604,23 +604,21 @@ public:
                          int column,
                          const std::string& name)
    {
-      DEBUG("--- Adding defined variable '" << name << "' (" << row << ", " << column << ")");
       definedSymbols_[name].push_back(Position(row, column));
-   }
-
-   void addDefinedSymbol(const RToken& rToken)
-   {
-      DEBUG("--- Adding defined variable '" << rToken.contentAsUtf8() << "'");
-      definedSymbols_[rToken.contentAsUtf8()].push_back(
-            Position(rToken.row(), rToken.column()));
    }
    
    void addDefinedSymbol(const RToken& rToken,
                          const Position& position)
    {
-      definedSymbols_[rToken.contentAsUtf8()].push_back(position);
+      std::string name = token_utils::getSymbolName(rToken);
+      definedSymbols_[name].push_back(position);
    }
    
+   void addDefinedSymbol(const RToken& rToken)
+   {
+      addDefinedSymbol(rToken, rToken.position());
+   }
+
    void addReferencedSymbol(int row,
                             int column,
                             const std::string& name)
@@ -630,14 +628,14 @@ public:
 
    void addReferencedSymbol(const RToken& rToken)
    {
-      referencedSymbols_[rToken.contentAsUtf8()].push_back(
-            Position(rToken.row(), rToken.column()));
+      std::string name = token_utils::getSymbolName(rToken);
+      referencedSymbols_[name].push_back(rToken.position());
    }
    
    void addNseReferencedSymbol(const RToken& rToken)
    {
-      nseReferencedSymbols_[rToken.contentAsUtf8()].push_back(
-               Position(rToken.row(), rToken.column()));
+      std::string name = token_utils::getSymbolName(rToken);
+      nseReferencedSymbols_[name].push_back(rToken.position());
    }
    
    void addInternalPackageSymbol(const std::string& package,

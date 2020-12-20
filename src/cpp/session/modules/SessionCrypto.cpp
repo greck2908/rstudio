@@ -1,7 +1,7 @@
 /*
  * SessionCrypto.cpp
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,7 +20,7 @@
 #include <boost/bind.hpp>
 
 #include <core/Log.hpp>
-#include <core/Error.hpp>
+#include <shared_core/Error.hpp>
 #include <core/Exec.hpp>
 
 #include <core/json/JsonRpc.hpp>
@@ -69,7 +69,7 @@ Error initialize()
    // install rpc methods
    using boost::bind;
    using namespace module_context;
-   ExecBlock initBlock ;
+   ExecBlock initBlock;
    initBlock.addFunctions()
       (bind(registerRpcMethod, "get_public_key", getPublicKey));
    return initBlock.execute();

@@ -1,7 +1,7 @@
 /*
  * Win32PtyTests.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -28,7 +28,7 @@
 #include <boost/algorithm/string/predicate.hpp>
 
 #include <core/system/System.hpp>
-#include <core/FilePath.hpp>
+#include <shared_core/FilePath.hpp>
 #include <core/StringUtils.hpp>
 #include <core/system/Environment.hpp>
 
@@ -93,7 +93,7 @@ TEST_CASE("Win32PtyTests")
             options.rows);
 
    FilePath cmd = expandComSpec();
-   std::string cmdExe = cmd.absolutePathNative();
+   std::string cmdExe = cmd.getAbsolutePathNative();
 
    SECTION("Agent not running")
    {

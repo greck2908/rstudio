@@ -1,7 +1,7 @@
 #
 # FindLibR.cmake
 #
-# Copyright (C) 2009-19 by RStudio, Inc.
+# Copyright (C) 2020 by RStudio, PBC
 #
 # This program is licensed to you under the terms of version 3 of the
 # GNU Affero General Public License. This program is distributed WITHOUT
@@ -21,12 +21,12 @@
 if(APPLE)
 
    find_library(LIBR_LIBRARIES R)
-
+   
    if(LIBR_LIBRARIES MATCHES ".*\\.framework")
       set(LIBR_HOME "${LIBR_LIBRARIES}/Resources" CACHE PATH "R home directory")
       set(LIBR_INCLUDE_DIRS "${LIBR_HOME}/include" CACHE PATH "R include directory")
       set(LIBR_DOC_DIR "${LIBR_HOME}/doc" CACHE PATH "R doc directory")
-      set(LIBR_EXECUTABLE "${LIBR_HOME}/R" CACHE PATH "R executable")
+      set(LIBR_EXECUTABLE "${LIBR_HOME}/bin/R" CACHE PATH "R executable")
    else()
       get_filename_component(_LIBR_LIBRARIES "${LIBR_LIBRARIES}" REALPATH)
       get_filename_component(_LIBR_LIBRARIES_DIR "${_LIBR_LIBRARIES}" PATH)

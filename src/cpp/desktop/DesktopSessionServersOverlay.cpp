@@ -1,7 +1,7 @@
 /*
  * DesktopSessionServersOverlay.cpp
  *
- * Copyright (C) 2019 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -28,7 +28,7 @@ DesktopSessionServers& sessionServers()
 
 DesktopSessionServers::DesktopSessionServers() = default;
 
-void DesktopSessionServers::showSessionServerOptionsDialog()
+void DesktopSessionServers::showSessionServerOptionsDialog(QWidget* parent)
 {
 }
 
@@ -38,12 +38,46 @@ LaunchLocationResult DesktopSessionServers::showSessionLaunchLocationDialog()
    return result;
 }
 
+void DesktopSessionServers::setPendingSessionServerReconnect(const SessionServer& server)
+{
+}
+
+boost::optional<SessionServer> DesktopSessionServers::getPendingSessionServerReconnect()
+{
+   return boost::none;
+}
+
+QJsonObject SessionServerPathMapping::toJson() const
+{
+   return QJsonObject();
+}
+
+SessionServerPathMapping SessionServerPathMapping::fromJson(const QJsonObject& pathMappingJson)
+{
+   return SessionServerPathMapping();
+}
+
 const std::string& SessionServer::label() const
 {
    if (!name().empty())
       return name();
    else
       return url();
+}
+
+QJsonObject SessionServer::toJson() const
+{
+   return QJsonObject();
+}
+
+SessionServer SessionServer::fromJson(const QJsonObject& sessionServerJson)
+{
+   return SessionServer();
+}
+
+bool SessionServer::cookieBelongs(const QNetworkCookie& cookie) const
+{
+   return false;
 }
 
 Error SessionServer::test()
@@ -72,6 +106,11 @@ void SessionServerSettings::save(const std::vector<SessionServer>& servers,
                                  SessionLocation sessionLocation,
                                  CloseServerSessions closeServerSessionsOnExit)
 {
+}
+
+boost::signals2::scoped_connection SessionServerSettings::addSaveHandler(const boost::function<void()>& onSave)
+{
+   return boost::signals2::scoped_connection();
 }
 
 } // namespace desktop

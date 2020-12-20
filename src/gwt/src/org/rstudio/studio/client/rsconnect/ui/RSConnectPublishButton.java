@@ -1,7 +1,7 @@
 /*
  * RSConnectPublishButton.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,7 +21,9 @@ import org.rstudio.core.client.Debug;
 import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.command.AppCommand;
+import org.rstudio.core.client.command.EnabledChangedEvent;
 import org.rstudio.core.client.command.EnabledChangedHandler;
+import org.rstudio.core.client.command.VisibleChangedEvent;
 import org.rstudio.core.client.command.VisibleChangedHandler;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.widget.OperationWithInput;
@@ -57,7 +59,8 @@ import org.rstudio.studio.client.shiny.model.ShinyApplicationParams;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.SessionInfo;
-import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UserState;
 
 import com.google.gwt.core.client.JsArray;
 import com.google.gwt.core.client.Scheduler;
@@ -110,16 +113,12 @@ public class RSConnectPublishButton extends Composite
                   onPublishButtonClick();
                }
             });
-      
-      publishButton_.getElement().setId(ElementIds.ID_PREFIX + 
-            ElementIds.PUBLISH_ITEM + "_" + host);
+
       panel.add(publishButton_);
       
       // create drop menu of previous deployments/other commands
       publishMenu_ = new DeploymentPopupMenu();
       publishMenuButton_ = new ToolbarMenuButton(ToolbarButton.NoText, "Publish options", publishMenu_, true);
-      publishMenuButton_.getElement().setId(ElementIds.ID_PREFIX + 
-            ElementIds.PUBLISH_SHOW_DEPLOYMENTS + "_" + host);
       panel.add(publishMenuButton_);
       
       // initialize composite widget
@@ -143,7 +142,8 @@ public class RSConnectPublishButton extends Composite
          EventBus events, 
          Commands commands,
          GlobalDisplay display,
-         Provider<UIPrefs> pUiPrefs,
+         Provider<UserPrefs> pUserPrefs,
+         Provider<UserState> pUserState,
          Session session,
          PlotPublishMRUList plotMru)
    {
@@ -153,7 +153,8 @@ public class RSConnectPublishButton extends Composite
       commands_ = commands;
       display_ = display;
       session_ = session;
-      pUiPrefs_ = pUiPrefs;
+      pUserPrefs_ = pUserPrefs;
+      pUserState_ = pUserState;
       plotMru_ = plotMru;
       
       // initialize visibility if requested
@@ -163,7 +164,7 @@ public class RSConnectPublishButton extends Composite
                new VisibleChangedHandler()
          {
             @Override
-            public void onVisibleChanged(AppCommand command)
+            public void onVisibleChanged(VisibleChangedEvent event)
             {
                applyVisibility();
             }
@@ -173,7 +174,7 @@ public class RSConnectPublishButton extends Composite
                new EnabledChangedHandler()
          {
             @Override
-            public void onEnabledChanged(AppCommand command)
+            public void onEnabledChanged(EnabledChangedEvent event)
             {
                applyVisibility();
             }
@@ -385,8 +386,18 @@ public class RSConnectPublishButton extends Composite
       onPublishButtonClick();
    }
 
+   @Override
+   protected void onAttach()
+   {
+      super.onAttach();
+
+      ElementIds.assignElementId(
+            publishButton_, ElementIds.PUBLISH_ITEM + "_" + host_);
+      ElementIds.assignElementId(
+            publishMenuButton_, ElementIds.PUBLISH_SHOW_DEPLOYMENTS + "_" + host_);
+   }
+
    // Private methods --------------------------------------------------------
-   
 
    private void onPublishButtonClick()
    {
@@ -683,7 +694,7 @@ public class RSConnectPublishButton extends Composite
    // destinations
    private boolean recomputeMenuVisibility()
    {
-      if (pUiPrefs_.get().enableRStudioConnect().getGlobalValue())
+      if (pUserState_.get().enableRsconnectPublishUi().getGlobalValue())
       {
          // always show the menu when RSConnect is enabled
          return true;
@@ -709,12 +720,12 @@ public class RSConnectPublishButton extends Composite
    {
       // if all publishing is disabled, hide ourselves 
       if (!session_.getSessionInfo().getAllowPublish() ||
-          !pUiPrefs_.get().showPublishUi().getGlobalValue())
+          !pUserState_.get().showPublishUi().getGlobalValue())
          return false;
       
       // if both internal and external publishing is disabled, hide ourselves
       if (!session_.getSessionInfo().getAllowExternalPublish() &&
-          !pUiPrefs_.get().enableRStudioConnect().getGlobalValue())
+          !pUserState_.get().enableRsconnectPublishUi().getGlobalValue())
          return false;
       
       // if we're bound to a command's visibility/enabled state, check that
@@ -741,7 +752,7 @@ public class RSConnectPublishButton extends Composite
 
       // If publishing to Connect is disabled, then we can't publish APIs
       if (contentType_ == RSConnect.CONTENT_TYPE_PLUMBER_API &&
-          !pUiPrefs_.get().enableRStudioConnect().getGlobalValue())
+          !pUserState_.get().enableRsconnectPublishUi().getGlobalValue())
       {
          return false;
       }
@@ -957,7 +968,9 @@ public class RSConnectPublishButton extends Composite
    private Commands commands_;
    private GlobalDisplay display_;
    private Session session_;
-   private Provider<UIPrefs> pUiPrefs_;
+   @SuppressWarnings("unused")
+   private Provider<UserPrefs> pUserPrefs_;
+   private Provider<UserState> pUserState_;
    private PlotPublishMRUList plotMru_;
 
    private String contentPath_;

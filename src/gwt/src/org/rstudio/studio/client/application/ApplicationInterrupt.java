@@ -1,7 +1,7 @@
 /*
  * ApplicationInterrupt.java
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -89,18 +89,21 @@ public class ApplicationInterrupt
          
          eventBus_.fireEvent(new InterruptStatusEvent(
                InterruptStatusEvent.INTERRUPT_INITIATED));
-         server_.interrupt(new VoidServerRequestCallback() {
+         
+         server_.interrupt(new ServerRequestCallback<Boolean>()
+         {
             @Override
-            public void onSuccess()
+            public void onResponseReceived(Boolean response)
             {
                eventBus_.fireEvent(new InterruptStatusEvent(
                      InterruptStatusEvent.INTERRUPT_COMPLETED));
                finishInterrupt(handler);
             }
-            
+
             @Override
-            public void onFailure()
+            public void onError(ServerError error)
             {
+               Debug.logError(error);
                finishInterrupt(handler);
             }
          });
@@ -118,9 +121,9 @@ public class ApplicationInterrupt
    }
 
    public void interruptR(final InterruptHandler handler,
-                          List<Integer> errorHandlerTypes,
-                          int replacedWithHandlerType) {
-      final int originalDebugType = errorManager_.getErrorHandlerType();
+                          List<String> errorHandlerTypes,
+                          String replacedWithHandlerType) {
+      final String originalDebugType = errorManager_.getErrorHandlerType();
       
       if (!errorHandlerTypes.contains(originalDebugType)) {
          interruptR(handler);

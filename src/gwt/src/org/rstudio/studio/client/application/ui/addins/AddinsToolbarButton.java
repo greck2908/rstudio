@@ -1,7 +1,7 @@
 /*
  * AddinsToolbarButton.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.MapUtil;
 import org.rstudio.core.client.js.JsUtil;
 import org.rstudio.core.client.resources.CoreResources;
@@ -71,6 +72,7 @@ public class AddinsToolbarButton extends ToolbarMenuButton
       
       RStudioGinjector.INSTANCE.injectMembers(this);
       
+      ElementIds.assignElementId(this, ElementIds.ADDINS_TOOLBAR_BUTTON);
       menu_ = getMenu();
       
       menu_.setAutoHideRedundantSeparators(false);

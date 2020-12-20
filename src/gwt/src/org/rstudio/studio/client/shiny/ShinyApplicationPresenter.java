@@ -1,7 +1,7 @@
 /*
  * ShinyApplicationPresenter.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -25,7 +25,7 @@ import org.rstudio.studio.client.shiny.model.ShinyApplicationParams;
 import org.rstudio.studio.client.shiny.events.ShinyApplicationStatusEvent;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.model.Session;
-import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 
 import com.google.gwt.core.client.JavaScriptObject;
 import com.google.gwt.event.dom.client.LoadHandler;
@@ -59,7 +59,7 @@ public class ShinyApplicationPresenter implements
                                EventBus eventBus,
                                Satellite satellite,
                                Session session,
-                               UIPrefs prefs)
+                               UserPrefs prefs)
    {
       view_ = view;
       satellite_ = satellite;
@@ -166,6 +166,8 @@ public class ShinyApplicationPresenter implements
       
       ShinyApplicationParams params = ShinyApplicationParams.create(
             params_.getPath(), 
+            ShinyApplicationSatellite.getIdFromName(
+                  satellite_.getSatelliteName()),
             params_.getUrl(), 
             appStopped_ ?
                ShinyApplicationParams.STATE_STOPPED :
@@ -205,7 +207,7 @@ public class ShinyApplicationPresenter implements
    private final GlobalDisplay globalDisplay_;
    private final ShinyDisconnectNotifier disconnect_;
    private final Session session_;
-   private final UIPrefs prefs_;
+   private final UserPrefs prefs_;
    private final LoadHandler loadHandler_;
    
    private ShinyApplicationParams params_;

@@ -1,7 +1,7 @@
 /*
  * Util.cpp
  *
- * Copyright (C) 2009-18 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -27,18 +27,17 @@
 #include <boost/regex.hpp>
 #include <boost/date_time/gregorian/gregorian.hpp>
 
+#include <core/http/URL.hpp>
 #include <core/http/Header.hpp>
 #include <core/http/Request.hpp>
 #include <core/http/Response.hpp>
 #include <core/Log.hpp>
-#include <core/Error.hpp>
-#include <core/FilePath.hpp>
+#include <shared_core/Error.hpp>
+#include <shared_core/FilePath.hpp>
 #include <core/RegexUtils.hpp>
 #include <core/system/System.hpp>
 
-#ifndef _WIN32
 #include <core/http/BoostAsioSsl.hpp>
-#endif
 
 namespace rstudio {
 namespace core {
@@ -68,34 +67,34 @@ void parseFields(const std::string& fields,
                  FieldDecodeType fieldDecode)
 {
    // enable straightforward references to tokenizer class & helpers
-   using namespace boost ;
+   using namespace boost;
 
    // delimiters
    char_separator<char> fieldSeparator(fieldDelim);
-   char_separator<char> valueSeparator(valueDelim) ;
+   char_separator<char> valueSeparator(valueDelim);
 
    // iterate over the fields
-   tokenizer<char_separator<char> > fieldTokens(fields, fieldSeparator) ;
+   tokenizer<char_separator<char> > fieldTokens(fields, fieldSeparator);
    for (tokenizer<char_separator<char> >::iterator 
-         fieldIter = fieldTokens.begin(); 
+         fieldIter = fieldTokens.begin();
          fieldIter != fieldTokens.end();
          ++fieldIter)
    {
       // split into name and value
-      std::string name ;
-      std::string value ;
+      std::string name;
+      std::string value;
       tokenizer<char_separator<char> > valTokens(*fieldIter, valueSeparator);
       tokenizer<char_separator<char> >::iterator valIter = valTokens.begin();
 
       if ( valIter != valTokens.end() )
-         name = *valIter++ ;
+         name = *valIter++;
       if ( valIter != valTokens.end() )
-         value = *valIter ;
+         value = *valIter;
 
       if ( fieldDecode != FieldDecodeNone )
       {
          name = util::urlDecode(name);
-         value = util::urlDecode(value) ;
+         value = util::urlDecode(value);
       }
 
       if ( !name.empty() )
@@ -107,7 +106,7 @@ void buildQueryString(const Fields& fields, std::string* pQueryString)
 {
    pQueryString->clear();
    
-   for (Fields::const_iterator it = fields.begin(); 
+   for (Fields::const_iterator it = fields.begin();
         it != fields.end();
         ++it)
    {
@@ -161,11 +160,11 @@ void parseMultipartForm(const std::string& contentType,
       // extract the part into a string stream
       size_t beginPart = beginBoundaryLoc + boundary.size();
       size_t partLength = endBoundaryLoc - beginPart;
-      std::istringstream partStream(body.substr(beginPart, partLength)); 
+      std::istringstream partStream(body.substr(beginPart, partLength));
       partStream.unsetf(std::ios::skipws);
     
       // read the headers
-      Headers headers ;
+      Headers headers;
       http::parseHeaders(partStream, &headers);
       
       // check for content-disposition
@@ -178,7 +177,7 @@ void parseMultipartForm(const std::string& contentType,
          if (regex_utils::match(cDisp, nameMatch, boost::regex(nameRegex)))
          {
             // read the rest of the stream
-            std::ostringstream valueStream ;
+            std::ostringstream valueStream;
             std::copy(std::istream_iterator<char>(partStream),
                       std::istream_iterator<char>(),
                       std::ostream_iterator<char>(valueStream));
@@ -222,7 +221,7 @@ void parseMultipartForm(const std::string& contentType,
 
 std::string urlEncode(const std::string& in, bool queryStringSpaces)
 {
-   std::string encodedURL ;
+   std::string encodedURL;
       
    size_t inputLength = in.length();
    for (size_t i=0; i<inputLength; i++)
@@ -235,7 +234,7 @@ std::string urlEncode(const std::string& in, bool queryStringSpaces)
            (ch=='~' || ch=='!' || ch=='*' || ch=='(' || ch==')' || ch=='\'' ||
             ch=='.' || ch=='-' || ch=='_') )
       {
-         encodedURL += ch ;
+         encodedURL += ch;
       }
       else if ((ch == ' ') && queryStringSpaces)
       {
@@ -243,10 +242,10 @@ std::string urlEncode(const std::string& in, bool queryStringSpaces)
       }
       else
       {
-         std::ostringstream ostr ;
-         ostr << "%" ;
+         std::ostringstream ostr;
+         ostr << "%";
          ostr << std::setw(2) << std::setfill('0') << std::hex << std::uppercase
-              << (int)(boost::uint8_t)ch ;
+              << (int)(boost::uint8_t)ch;
          std::string charAsHex = ostr.str();
          encodedURL += charAsHex;
       }
@@ -314,15 +313,15 @@ boost::posix_time::ptime parseDate(const std::string& date, const char* format)
    using namespace boost::posix_time;
    
    // facet for date (construct w/ a_ref == 1 so we manage memory)
-   time_input_facet dateFacet(1); 
+   time_input_facet dateFacet(1);
    dateFacet.format(format);
    
    // parse from string
    std::stringstream dateStream;
    dateStream.str(date);
    dateStream.imbue(std::locale(dateStream.getloc(), &dateFacet));
-   ptime posixDate(not_a_date_time) ;
-   dateStream >> posixDate ;
+   ptime posixDate(not_a_date_time);
+   dateStream >> posixDate;
    return posixDate;
 }   
 
@@ -378,7 +377,8 @@ std::string pathAfterPrefix(const Request& request,
                             const std::string& pathPrefix)
 {
    // get the raw uri & strip its location prefix
-   std::string uri = request.uri();
+   std::string uri = URL::cleanupPath(request.uri());
+   
    if (!pathPrefix.empty() && !uri.compare(0, pathPrefix.length(), pathPrefix))
       uri = uri.substr(pathPrefix.length());
 
@@ -416,13 +416,14 @@ core::FilePath requestedFile(const std::string& wwwLocalPath,
 
    // calculate "real" requested path
    FilePath realRequestedPath;
-   FilePath requestedPath = wwwRealPath.complete(relativePath);
-   error = core::system::realPath(requestedPath.absolutePath(),
+   FilePath requestedPath = wwwRealPath.completePath(relativePath);
+   error = core::system::realPath(
+      requestedPath.getAbsolutePath(),
                                   &realRequestedPath);
    if (error)
    {
       // log if this isn't file not found
-      if (error.code() != boost::system::errc::no_such_file_or_directory)
+      if (error != systemError(boost::system::errc::no_such_file_or_directory, ErrorLocation()))
       {
          error.addProperty("requested-path", relativePath);
          LOG_ERROR(error);
@@ -432,7 +433,7 @@ core::FilePath requestedFile(const std::string& wwwLocalPath,
 
    // validate that the requested path falls within the www path
    if ( (realRequestedPath != wwwRealPath) &&
-        realRequestedPath.relativePath(wwwRealPath).empty() )
+      realRequestedPath.getRelativePath(wwwRealPath).empty() )
    {
       LOG_WARNING_MESSAGE("Non www-local-path URI requested: " +
                           relativePath);
@@ -445,7 +446,7 @@ core::FilePath requestedFile(const std::string& wwwLocalPath,
 #else
 
    // just complete the path straight away on Win32
-   return FilePath(wwwLocalPath).complete(relativePath);
+   return FilePath(wwwLocalPath).completePath(relativePath);
 
 #endif
 }
@@ -483,14 +484,13 @@ void fileRequestHandler(const std::string& wwwLocalPath,
    // get path to the requested file requested file
    std::string relativePath = uri.substr(baseUri.length());
    FilePath filePath = http::util::requestedFile(wwwLocalPath, relativePath);
-   if (filePath.empty())
+   if (filePath.isEmpty())
    {
       pResponse->setNotFoundError(request);
       return;
    }
 
    // return requested file
-   pResponse->setCacheWithRevalidationHeaders();
    pResponse->setCacheableFile(filePath, request);
 }
 
@@ -548,7 +548,7 @@ bool isSslShutdownError(const boost::system::error_code& ec)
 #else
 bool isSslShutdownError(const boost::system::error_code& ec)
 {
-   return false;
+   return ec == boost::asio::ssl::error::stream_truncated;
 }
 #endif
 

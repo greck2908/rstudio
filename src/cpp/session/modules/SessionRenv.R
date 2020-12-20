@@ -1,7 +1,7 @@
 #
 # SessionRenv.R
 #
-# Copyright (C) 2009-19 by RStudio, Inc.
+# Copyright (C) 2020 by RStudio, PBC
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -17,8 +17,40 @@
 
 .rs.addJsonRpcHandler("renv_init", function(project)
 {
-   .rs.ensureDirectory(project)
-   renv::init(project = project)
+   # run script in child process (done so that `renv::init()` doesn't
+   # change the state of the running session)
+   .rs.executeFunctionInChildProcess(
+      callback   = .rs.renv.initCallback,
+      data       = list(repos = getOption("repos")),
+      workingDir = project
+   )
+   
+})
+
+.rs.addJsonRpcHandler("renv_actions", function(action)
+{
+   project <- .rs.getProjectDirectory()
+   actions <- renv:::actions(tolower(action), project = project)
+   if (length(actions) == 0)
+      return(list())
+   
+   remap <- c(
+      "Package"          = "packageName",
+      "Library Version"  = "libraryVersion",
+      "Library Source"   = "librarySource",
+      "Lockfile Version" = "lockfileVersion",
+      "Lockfile Source"  = "lockfileSource",
+      "Action"           = "action"
+   )
+   
+   matches <- match(names(actions), names(remap), nomatch = 0L)
+   names(actions)[matches] <- remap[matches]
+   
+   data <- lapply(seq_len(nrow(actions)), function(i) {
+      as.list(actions[i, ])
+   })
+   
+   .rs.scalarListFromList(data)
 })
 
 .rs.addFunction("renv.context", function()
@@ -87,7 +119,7 @@
 {
    lockpath <- file.path(project, "renv.lock")
    lockfile <- renv:::renv_lockfile_read(lockpath)
-   packages <- lockfile$R$Package
+   packages <- renv:::renv_records(lockfile)
    filtered <- lapply(packages, `[`, c("Package", "Version", "Source"))
    df <- .rs.rbindList(filtered)
    rownames(df) <- NULL
@@ -120,4 +152,21 @@
       all.y = TRUE
    )
    
+})
+
+.rs.addFunction("renv.initCallback", function(repos)
+{
+   # set active repos
+   options(repos = repos)
+   
+   # avoid timeouts when querying unresponsive R package repositories
+   options(renv.config.connect.timeout = 0L)
+   options(renv.config.connect.retry = 0L)
+   
+   # if we're running tests, be quiet during init
+   if (!is.na(Sys.getenv("TESTTHAT", unset = NA)))
+     return(renv:::quietly(renv::init()))
+     
+   # otherwise, do a regular init
+   renv::init()
 })

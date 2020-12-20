@@ -1,7 +1,7 @@
 #
 # Tools.R
 #
-# Copyright (C) 2009-11 by RStudio, Inc.
+# Copyright (C) 2020 by RStudio, PBC
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -15,77 +15,132 @@
 
 # target environment for rstudio supplemental tools
 # (guard against attempts to duplicate this environment)
-if ("tools:rstudio" %in% search()) {
-   .rs.Env <- as.environment("tools:rstudio")
+.rs.Env <- if ("tools:rstudio" %in% search()) {
+   as.environment("tools:rstudio")
 } else {
-   .rs.Env <- attach(NULL, name = "tools:rstudio")
+   attach(NULL, name = "tools:rstudio")
 }
 
-assign(".rs.toolsEnv", envir = .rs.Env, function() { .rs.Env })
+# allow access to tools env from helper function
+assign(".rs.toolsEnv", function()
+{
+   .rs.Env
+}, envir = .rs.Env)
 
-# environment for completion hooks
-assign(".rs.RCompletionHooksEnv", new.env(parent = emptyenv()), envir = .rs.Env)
-
-# add a function to the tools:rstudio environment
-assign( envir = .rs.Env, ".rs.addFunction", function(
-   name, FN, attrs = list())
+#' Add a function to the 'tools:rstudio' environment.
+#' 
+#' This environment is placed on the search path, and so is accessible and
+#' readable during regular evaluation in an R session.
+#'
+#' @param name The name of the R function. The prefix '.rs.' will be pre-pended
+#'   to the supplied function name.
+#'
+#' @param FN The \R function to be added.
+#' 
+#' @param attrs An optional list of attributes, to be set on the function.
+#' 
+#' @param envir An optional environment, to be set as the enclosing environment
+#'   for the function `f`. By default, newly-defined functions use the
+#'   'tools:rstudio' environment as the parent function. For functions which
+#'   might be exposed to users (e.g. via options), you may want to instead use
+#'   the base environment to avoid issues with serialization.
+assign(".rs.addFunction", function(name, FN, attrs = list(), envir = .rs.toolsEnv())
 { 
-   fullName = paste(".rs.", name, sep="")
+   # add optional attributes
    for (attrib in names(attrs))
-     attr(FN, attrib) <- attrs[[attrib]]
-   assign(fullName, FN, .rs.Env)
-   environment(.rs.Env[[fullName]]) <- .rs.Env
-})
+      attr(FN, attrib) <- attrs[[attrib]]
+   
+   # ensure function evaluates in requested environment
+   environment(FN) <- envir
+   
+   # assign in tools env
+   fullName <- paste(".rs.", name, sep = "")
+   assign(fullName, FN, envir = .rs.toolsEnv())
+   
+}, envir = .rs.Env)
+
+# force helper function to also execute in tools environment
+environment(.rs.Env[[".rs.addFunction"]]) <- .rs.Env
 
 # add a global (non-scoped) variable to the tools:rstudio environment
-assign(envir = .rs.Env, ".rs.addGlobalVariable", function(name, var)
-{ 
-   assign(name, var, .rs.Env)
-   environment(.rs.Env[[name]]) <- .rs.Env
+.rs.addFunction("addGlobalVariable", function(name, var)
+{
+   envir <- .rs.toolsEnv()
+   environment(var) <- envir
+   assign(name, var, envir = envir)
 })
 
 # add a global (non-scoped) function to the tools:rstudio environment
-assign( envir = .rs.Env, ".rs.addGlobalFunction", function(name, FN)
+.rs.addFunction("addGlobalFunction", function(name, FN)
 { 
-   assign(name, FN, .rs.Env)
-   environment(.rs.Env[[name]]) <- .rs.Env
+   envir <- .rs.toolsEnv()
+   environment(FN) <- envir
+   assign(name, FN, envir = envir)
 })
 
 # add an rpc handler to the tools:rstudio environment
-.rs.addFunction( "addApiFunction", function(name, FN)
+.rs.addFunction("addApiFunction", function(name, FN)
 {
-   fullName = paste("api.", name, sep="")
-   .rs.addFunction(fullName, FN)
+   fullName <- paste("api.", name, sep = "")
+   .rs.addFunction(fullName, FN, envir = globalenv())
 })
 
-assign( envir = .rs.Env, ".rs.setVar", function(name, var)
+.rs.addFunction("setVar", function(name, var)
 { 
-   fullName = paste(".rs.", name, sep="")
-   assign(fullName, var, .rs.Env)
-   environment(.rs.Env[[fullName]]) <- .rs.Env
+   envir <- .rs.toolsEnv()
+   fullName <- paste(".rs.", name, sep = "")
+   environment(var) <- envir
+   assign(fullName, var, envir = envir)
 })
 
-assign( envir = .rs.Env, ".rs.clearVar", function(name)
+.rs.addFunction("clearVar", function(name)
 { 
-   fullName = paste(".rs.", name, sep="")
-   remove(list=fullName, pos=.rs.Env)
-})
-
-assign(envir = .rs.Env, ".rs.getVar", function(name)
-{
+   envir <- .rs.toolsEnv()
    fullName <- paste(".rs.", name, sep = "")
-   .rs.Env[[fullName]]
+   remove(list = fullName, pos = envir)
 })
 
-assign(envir = .rs.Env, ".rs.hasVar", function(name)
+.rs.addFunction("getVar", function(name)
 {
+   envir <- .rs.toolsEnv()
    fullName <- paste(".rs.", name, sep = "")
-   exists(fullName, envir = .rs.Env)
+   envir[[fullName]]
 })
 
-.rs.addFunction( "evalInGlobalEnv", function(code)
+.rs.addFunction("hasVar", function(name)
 {
-   eval(parse(text=code), envir=globalenv())
+   envir <- .rs.toolsEnv()
+   fullName <- paste(".rs.", name, sep = "")
+   exists(fullName, envir = envir)
+})
+
+.rs.addFunction("setOption", function(name, value)
+{
+   data <- list(value)
+   names(data) <- name
+   options(data)
+})
+
+.rs.addFunction("setOptionDefault", function(name, value)
+{
+   # if the option is already set, nothing to do
+   if (!is.null(getOption(name)))
+      return(FALSE)
+   
+   # otherwise, set it
+   data <- list(value)
+   names(data) <- name
+   options(data)
+   
+   TRUE
+})
+
+.rs.addFunction("evalInGlobalEnv", function(code)
+{
+   eval(
+      parse(text = code),
+      envir = globalenv()
+   )
 })
 
 # attempts to restore the global environment from a file
@@ -115,28 +170,60 @@ assign(envir = .rs.Env, ".rs.hasVar", function(name)
 })
 
 # save current state of options() to file
-.rs.addFunction( "saveOptions", function(filename)
+.rs.addFunction("saveOptions", function(filename)
 {
-   opt = options();
-   suppressWarnings(save(opt, file=filename))
+   # get reference to current options
+   opt <- options()
+   
+   # don't attempt to serialize cpp11 preserve env as it may
+   # contain recursive R objects which cause crashes when serialized
+   #
+   # https://github.com/rstudio/rstudio-pro/issues/2052
+   opt$cpp11_preserve_env  <- NULL
+   opt$cpp11_preserve_xptr <- NULL
+   
+   # first write to sidecar file, and then rename that file
+   # (don't let failed serialization leave behind broken workspace)
+   sidecarFile <- paste(filename, "incomplete", sep = ".")
+   
+   # remove an old sidecar file if any -- these would be leftover from
+   # a previously-failed attempt to save the session
+   unlink(sidecarFile)
+   
+   status <- tryCatch(
+      suppressWarnings(save(opt, file = sidecarFile)),
+      error = identity
+   )
+
+   # if we manage to catch the error (might not be possible for stack overflow)
+   # then clean up the sidecar file and re-propagate the error (caller will take
+   # care of reporting further errors to user)
+   if (inherits(status, "error"))
+   {
+      unlink(sidecarFile)
+      stop(status)
+   }
+
+   # save completed successfully -- rename sidecar file to final location
+   file.rename(sidecarFile, filename)
 })
 
 # restore options() from file
-.rs.addFunction( "restoreOptions", function(filename)
+.rs.addFunction("restoreOptions", function(filename)
 {
    load(filename)
    options(opt)
 })
 
 # save current state of .libPaths() to file
-.rs.addFunction( "saveLibPaths", function(filename)
+.rs.addFunction("saveLibPaths", function(filename)
 {
-  libPaths = .libPaths();
-  save(libPaths, file=filename)
+  libPaths <- .libPaths()
+  save(libPaths, file = filename)
 })
 
 # restore .libPaths() from file
-.rs.addFunction( "restoreLibPaths", function(filename)
+.rs.addFunction("restoreLibPaths", function(filename)
 {
   load(filename)
   .libPaths(libPaths)
@@ -164,10 +251,22 @@ assign(envir = .rs.Env, ".rs.hasVar", function(name)
 # load a package by name
 .rs.addFunction( "loadPackage", function(packageName, lib)
 {
-   if (nzchar(lib))
-      library(packageName, lib.loc = lib, character.only = TRUE)
-   else
-      library(packageName, character.only = TRUE)
+   # when R loads package dependencies through a call to `library()`, dependent
+   # packages will be searched for on the current library paths rather than the
+   # library path(s) passed to the lib.loc argument. for that reason, it is
+   # prudent to set the library paths explicitly when loading a package.
+   #
+   # note that we want to preserve the existing library paths as well since
+   # dependencies may live within a separate library path from the package to be
+   # loaded; it should suffice to place the requested library at the front of
+   # the library paths
+   if (nzchar(lib)) {
+      libPaths <- .libPaths()
+      .libPaths(c(lib, libPaths))
+      on.exit(.libPaths(libPaths), add = TRUE)
+   }
+   
+   library(packageName, character.only = TRUE)
 })
 
 # unload a package by name
@@ -286,61 +385,67 @@ assign(envir = .rs.Env, ".rs.hasVar", function(name)
 # restore an object from a file
 .rs.addFunction( "restoreGraphics", function(filename)
 {
-   load(filename)
+   # load the 'plot' object
+   envir <- new.env(parent = emptyenv())
+   load(filename, envir = envir)
+   plot <- envir$plot
    
-   # restore native symbols for R >= 3.0
+   # restore native symbols
+   dlls <- getLoadedDLLs()
    rVersion <- getRversion()
-   if (rVersion >= "3.0")
-   {
-      for(i in 1:length(plot[[1]]))
-      {
-         # get the symbol then test if it's a native symbol
-         symbol <- plot[[1]][[i]][[2]][[1]]
-         if("NativeSymbolInfo" %in% class(symbol))
-         {
-            # determine the dll that the symbol lives in
-            if (!is.null(symbol$package))
-               name = symbol$package[["name"]]
-            else
-               name = symbol$dll[["name"]]
-            pkgDLL <- getLoadedDLLs()[[name]]
-
-            # reconstruct the native symbol and assign it into the plot
-            nativeSymbol <-getNativeSymbolInfo(name = symbol$name,
-                                               PACKAGE = pkgDLL,
-                                               withRegistrationInfo = TRUE);
-            plot[[1]][[i]][[2]][[1]] <- nativeSymbol;
-         }
-      }
-   }
-   # restore native symbols for R >= 2.14
-   else if (rVersion >= "2.14")
-   {
-     try({
-       for(i in 1:length(plot[[1]])) 
-       {
-         if("NativeSymbolInfo" %in% class(plot[[1]][[i]][[2]][[1]]))
-         {
-           nativeSymbol <-getNativeSymbolInfo(plot[[1]][[i]][[2]][[1]]$name);
-           plot[[1]][[i]][[2]][[1]] <- nativeSymbol;         
-         }
-       }
-     },
-     silent = TRUE);
-   }
-
-   # set the pid attribute to the current pid if necessary
-   if (rVersion >= "3.0.2")
-   {
-      plotPid <- attr(plot, "pid")
-      if (is.null(plotPid) || (plotPid != Sys.getpid()))
-        attr(plot, "pid") <- Sys.getpid()
-   }
+   wasPairlist <- is.pairlist(plot[[1]])
+   
+   # convert to list (iterating large pairlist in R is slow; especially
+   # since we need to update the data structure as we read through)
+   items <- as.list(plot[[1]])
+   
+   # iterate through and update native symbols (this is necessary as the
+   # saved object will contain native routines with incorrect or null
+   # addresses; we need to re-discover the correct address for the routines
+   # required in generating the plot)
+   restored <- lapply(items, function(item) {
+      
+      # extract saved symbol
+      symbol <- item[[2]][[1]]
+      if (!inherits(symbol, "NativeSymbolInfo"))
+         return(item)
+      
+      # extract associated package name
+      name <- if (is.null(symbol$package))
+         symbol$dll[["name"]]
+      else
+         symbol$package[["name"]]
+      
+      # re-construct the required symbol
+      nativeSymbol <- getNativeSymbolInfo(
+         name    = symbol$name,
+         PACKAGE = dlls[[name]]
+      )
+      
+      # replace the old symbol
+      item[[2]][[1]] <- nativeSymbol
+      item
+      
+   })
+   
+   # turn back into pairlist after
+   if (wasPairlist)
+      restored <- as.pairlist(restored)
+   
+   # update plot items
+   if (!is.null(restored))
+      plot[[1]] <- restored
+   
+   # tag plot with process pid
+   plotPid <- attr(plot, "pid")
+   if (is.null(plotPid) || (plotPid != Sys.getpid()))
+      attr(plot, "pid") <- Sys.getpid()
    
    # we suppressWarnings so that R doesnt print a warning if we restore
    # a plot saved from a previous version of R (which will occur if we 
    # do a resume after upgrading the version of R on the server)
    suppressWarnings(grDevices::replayPlot(plot))
+   
 })
 
 # generate a uuid
@@ -368,21 +473,11 @@ assign(envir = .rs.Env, ".rs.hasVar", function(name)
    }
 })
 
-# indirection for normalizePath function
-.rs.addFunction("normalizePath", 
-   if(getRversion() < "2.13.0")
-      utils::normalizePath
-   else
-      normalizePath
-)
+# alias for normalizePath function
+.rs.addFunction("normalizePath", normalizePath)
 
-# indirection for path.package function
-.rs.addFunction("pathPackage",
-   if(getRversion() < "2.13.0")
-      .path.package
-   else
-      path.package
-)
+# alias for path.package function
+.rs.addFunction("pathPackage", path.package)
 
 # handle viewing a pdf differently on each platform:
 #  - windows: shell.exec
@@ -409,37 +504,45 @@ assign(envir = .rs.Env, ".rs.hasVar", function(name)
 
 
 # hook an internal R function
-.rs.addFunction( "registerHook", function(name, package, hookFactory, namespace = FALSE)
+.rs.addFunction("registerHook", function(name,
+                                         package,
+                                         hookFactory,
+                                         namespace = FALSE)
 {
-   # get the original function  
-   packageName = paste("package:", package, sep="")
-   original <- base::get(name, packageName, mode="function")
+   # ensure the package is loaded and attached (since we need to modify
+   # the version of the function normally placed on the search path)
+   library(package, character.only = TRUE, quietly = TRUE)
    
-   # install the hook
-   if (!is.null(original))
-   {
-      # new function definition
-      new <- hookFactory(original)
-      
-      # re-map function 
-      packageEnv = as.environment(packageName)
-      unlockBinding(name, packageEnv)
-      assign(name, new, packageName)
-      lockBinding(name, packageEnv)
-
-      if (namespace && package %in% loadedNamespaces()) {
-         ns <- asNamespace(package)
-         if (exists(name, envir = ns, mode="function")) {
-            unlockBinding(name, ns)
-            assign(name, new, envir = ns)
-            lockBinding(name, ns)
-         }
+   # construct search path environment name for package
+   packageName <- paste("package", package, sep = ":")
+   
+   # get original version of function (bail if it doesn't exist)
+   original <- base::get(name, packageName, mode = "function")
+   if (is.null(original)) {
+      fmt <- "internal error: function %s not found"
+      msg <- sprintf(fmt, shQuote(name))
+      stop(msg, call. = FALSE)
+   }
+   
+   # new function definition
+   new <- hookFactory(original)
+   
+   # re-map function 
+   packageEnv <- as.environment(packageName)
+   unlockBinding(name, packageEnv)
+   assign(name, new, packageName)
+   lockBinding(name, packageEnv)
+   
+   # remap in function namespace if requested as well
+   if (namespace) {
+      ns <- asNamespace(package)
+      if (exists(name, envir = ns, mode = "function")) {
+         unlockBinding(name, ns)
+         assign(name, new, envir = ns)
+         lockBinding(name, ns)
       }
    }
-   else
-   {
-      stop(cat("function", name, "not found\n"))
-   }
+   
 })
 
 .rs.addFunction( "callAs", function(name, f, ...)
@@ -467,7 +570,7 @@ assign(envir = .rs.Env, ".rs.hasVar", function(name)
 })
 
 # replacing an internal R function
-.rs.addFunction( "registerReplaceHook", function(name, package, hook, keepOriginal, namespace = FALSE)
+.rs.addFunction( "registerReplaceHook", function(name, package, hook, namespace = FALSE)
 {
    hookFactory <- function(original) function(...) .rs.callAs(name,
                                                              hook, 
@@ -566,12 +669,6 @@ assign(envir = .rs.Env, ".rs.hasVar", function(name)
 })
 
 
-.rs.addFunction( "setMemoryLimit", function(limit)
-{
-   suppressWarnings(utils::memory.limit(limit))
-})
-
-
 .rs.addFunction( "libPathsAppend", function(path)
 {
    # remove it if it already exists
@@ -618,7 +715,7 @@ assign(envir = .rs.Env, ".rs.hasVar", function(name)
 # add an rpc handler to the tools:rstudio environment
 .rs.addFunction( "addJsonRpcHandler", function(name, FN)
 {
-   fullName = paste("rpc.", name, sep="")
+   fullName <- paste("rpc.", name, sep = "")
    .rs.addFunction(fullName, FN, TRUE)
 })
 
@@ -1063,3 +1160,39 @@ assign(envir = .rs.Env, ".rs.hasVar", function(name)
       options(HTTPUserAgent = newAgent)
    }
 })
+
+.rs.addFunction("hasCapability", function(what)
+{
+   cap <- capabilities(what)
+   length(cap) && cap
+})
+
+# NOTE: registered hooks will be run immediately if the
+# package has already been loaded.
+.rs.addFunction("registerPackageLoadHook", function(package, hook)
+{
+   if (package %in% loadedNamespaces())
+      return(hook())
+   
+   setHook(
+      hookName = packageEvent(package, "onLoad"),
+      value    = hook,
+      action   = "append"
+   )
+      
+})
+
+.rs.addFunction("initTools", function()
+{
+   ostype <- .Platform$OS.type
+   info <- Sys.info()
+   envir <- .rs.toolsEnv()
+   
+   assign(".rs.platform.isUnix",    ostype == "unix",              envir = envir)
+   assign(".rs.platform.isWindows", ostype == "windows",           envir = envir)
+   assign(".rs.platform.isLinux",   info[["sysname"]] == "Linux",  envir = envir)
+   assign(".rs.platform.isMacos",   info[["sysname"]] == "Darwin", envir = envir)
+   
+})
+
+.rs.initTools()

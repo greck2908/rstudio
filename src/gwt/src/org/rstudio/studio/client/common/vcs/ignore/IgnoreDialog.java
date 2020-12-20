@@ -1,7 +1,7 @@
 /*
  * IgnoreDialog.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -45,12 +45,14 @@ public class IgnoreDialog extends ModalDialogBase
       super(Roles.getDialogRole());
       dirChooser_ = new DirectoryChooserTextBox("Directory:", 
                                                 "", 
+                                                ElementIds.TextBoxButtonId.VCS_IGNORE,
                                                 null);
       dirChooser_.addStyleName(RES.styles().dirChooser());
       
       editor_ = new AceEditor();
       editor_.setUseWrapMode(false);
       editor_.setShowLineNumbers(false);
+      editor_.setTabAlwaysMovesFocus();
       editor_.setTextInputAriaLabel("Ignored files");
       
       ignoresCaption_ = new CaptionWithHelp("Ignore:",
@@ -187,7 +189,7 @@ public class IgnoreDialog extends ModalDialogBase
       Styles styles();
    }
    
-   static Resources RES = (Resources)GWT.create(Resources.class) ;
+   static Resources RES = (Resources)GWT.create(Resources.class);
    public static void ensureStylesInjected()
    {
       RES.styles().ensureInjected();
@@ -195,7 +197,7 @@ public class IgnoreDialog extends ModalDialogBase
 
    private final DirectoryChooserTextBox dirChooser_;
    private final CaptionWithHelp ignoresCaption_;
-   private final AceEditor editor_ ;
+   private final AceEditor editor_;
    private final ThemedButton saveButton_;
    private final ProgressIndicator progressIndicator_;
   

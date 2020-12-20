@@ -1,7 +1,7 @@
 /*
  * ServerValidateUser.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,7 @@
 #include <boost/tokenizer.hpp>
 #include <boost/format.hpp>
 
-#include <core/Error.hpp>
+#include <shared_core/Error.hpp>
 #include <core/Log.hpp>
 #include <core/StringUtils.hpp>
 
@@ -43,8 +43,8 @@ bool validateUser(const std::string& username,
       return true;
    
    // get the user
-   core::system::user::User user;
-   Error error = userFromUsername(username, &user);
+   core::system::User user;
+   Error error = core::system::User::getUserFromIdentifier(username, user);
    if (error)
    {
       // log the error only if it is unexpected
@@ -55,8 +55,33 @@ bool validateUser(const std::string& username,
       return false;
    }
 
+   // we would expect that obtaining the same user by its own uid should
+   // return the same username but if it doesn't, there is another user with
+   // same uid and we bail to prevent unexpected behaviors down the road
+   core::system::User tmpUser;
+   error = core::system::User::getUserFromIdentifier(user.getUserId(), tmpUser);
+   if (error)
+   {
+       // log the error only if it is unexpected
+       if (!core::system::isUserNotFoundError(error))
+           LOG_ERROR(error);
+
+       // not found either due to non-existence or an unexpected error
+       return false;
+   }
+   if (user.getUsername() != tmpUser.getUsername())
+   {
+       boost::format fmt(
+               "User '%1%' could not be authenticated "
+               "because another user with the same UID %2% exists. "
+               "The conflicting user is '%3%'.");
+       std::string msg = boost::str(fmt % user.getUsername() % user.getUserId() % tmpUser.getUsername());
+       LOG_ERROR_MESSAGE(msg);
+       return false;
+   }
+
    // validate minimum user id
-   if (user.userId < minimumUserId)
+   if (user.getUserId() < minimumUserId)
    {
       if (failureWarning)
       {
@@ -77,7 +102,7 @@ bool validateUser(const std::string& username,
    {    
       // see if they are a member of one of the required groups
       bool belongsToGroup = false;
-      using namespace boost ;
+      using namespace boost;
       char_separator<char> comma(",");
       tokenizer<char_separator<char> > groups(requiredGroup, comma);
       for (const std::string& group : groups)

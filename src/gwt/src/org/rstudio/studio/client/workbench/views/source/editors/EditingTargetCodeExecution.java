@@ -1,7 +1,7 @@
 /*
  * EditingTargetCodeExecution.java
  *
- * Copyright (C) 2009-18 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,6 +16,7 @@
 package org.rstudio.studio.client.workbench.views.source.editors;
 
 import org.rstudio.core.client.StringUtil;
+import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.regex.Pattern;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.events.EventBus;
@@ -23,8 +24,7 @@ import org.rstudio.studio.client.common.filetypes.DocumentMode;
 import org.rstudio.studio.client.common.mathjax.MathJaxUtil;
 import org.rstudio.studio.client.rmarkdown.events.SendToChunkConsoleEvent;
 import org.rstudio.studio.client.workbench.commands.Commands;
-import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
-import org.rstudio.studio.client.workbench.prefs.model.UIPrefsAccessor;
+import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 import org.rstudio.studio.client.workbench.views.console.events.ConsoleExecutePendingInputEvent;
 import org.rstudio.studio.client.workbench.views.console.events.SendToConsoleEvent;
 import org.rstudio.studio.client.workbench.views.jobs.events.JobRunSelectionEvent;
@@ -38,6 +38,7 @@ import org.rstudio.studio.client.workbench.views.source.model.SourceServerOperat
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Position;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Range;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Token;
+import org.rstudio.studio.client.workbench.views.terminal.events.CreateNewTerminalEvent;
 import org.rstudio.studio.client.workbench.views.terminal.events.SendToTerminalEvent;
 
 import com.google.inject.Inject;
@@ -69,6 +70,7 @@ public class EditingTargetCodeExecution
       docDisplay_ = display;
       codeExtractor_ = codeExtractor;
       docId_ = docId;
+      appendLinesAtEnd_ = true;
       inlineChunkExecutor_ = new EditingTargetInlineChunkExecution(
             display, docId);
       RStudioGinjector.INSTANCE.injectMembers(this);
@@ -76,7 +78,7 @@ public class EditingTargetCodeExecution
    
    @Inject
    void initialize(EventBus events,
-                   UIPrefs prefs,
+                   UserPrefs prefs,
                    Commands commands,
                    SourceServerOperations server)
    {
@@ -162,18 +164,7 @@ public class EditingTargetCodeExecution
       // advance if there is no current selection
       if (noSelection && moveCursorAfter)
       {
-         if (DocumentMode.isCursorInPythonMode(docDisplay_))
-         {
-            // don't skip empty / blank lines when executing Python line-by-line
-            Position nextPos = Position.create(
-                  docDisplay_.getCursorPosition().getRow() + 1,
-                  0);
-            docDisplay_.setCursorPosition(nextPos);
-         }
-         else
-         {
-            moveCursorAfterExecution(selectionRange, true);
-         }
+         moveCursorAfterExecution(selectionRange, true);
       }
    }
    
@@ -195,10 +186,11 @@ public class EditingTargetCodeExecution
          return;
       }
       String code = codeExtractor_.extractCode(docDisplay_, selectionRange);
+      String targetPath = target_ == null ? null : target_.getPath();
       if (useJobLauncher)
-         events_.fireEvent(new LauncherJobRunSelectionEvent(target_.getPath(), code));
+         events_.fireEvent(new LauncherJobRunSelectionEvent(targetPath, code));
       else
-         events_.fireEvent(new JobRunSelectionEvent(target_.getPath(), code));
+         events_.fireEvent(new JobRunSelectionEvent(targetPath, code));
    }
    
    public void executeRange(Range range)
@@ -229,7 +221,28 @@ public class EditingTargetCodeExecution
          moveCursorAfterExecution(selectionRange, skipBlankLines);
       }
    }
-   
+
+   public void openNewTerminalHere()
+   {
+      if (target_ == null)
+         return;
+      if (StringUtil.isNullOrEmpty(target_.getPath()))
+         return;
+      FileSystemItem file = FileSystemItem.createFile(target_.getPath());
+      events_.fireEvent(new CreateNewTerminalEvent(file.getParentPathString()));
+   }
+
+   public void sendFilenameToTerminal()
+   {
+      if (target_ == null)
+         return;
+      String filename = target_.getPath();
+      if (StringUtil.isNullOrEmpty(filename))
+         filename = target_.getName().getValue();
+      if (!StringUtil.isNullOrEmpty(filename))
+         events_.fireEvent(new SendToTerminalEvent(filename, true /*focus terminal*/));
+   }
+
    public void profileSelection()
    {
       // allow console a chance to execute code if we aren't focused
@@ -287,7 +300,7 @@ public class EditingTargetCodeExecution
       // if we're in a chunk with in-line output, execute it there instead
       if (!onlyUseConsole && docDisplay_.showChunkOutputInline())
       {
-         Scope scope = docDisplay_.getCurrentChunk(range.getStart());
+         Scope scope = docDisplay_.getChunkAtPosition(range.getStart());
          if (scope != null)
          {
             events_.fireEvent(new SendToChunkConsoleEvent(docId_, 
@@ -335,7 +348,7 @@ public class EditingTargetCodeExecution
          endRowLimit = scope.getEnd().getRow() - 1;
       }
   
-      if (executionBehavior == UIPrefsAccessor.EXECUTE_STATEMENT)
+      if (executionBehavior == UserPrefs.EXECUTION_BEHAVIOR_STATEMENT)
       {
          // no scope to guard region, check the document itself to find
          // the region to execute
@@ -358,7 +371,7 @@ public class EditingTargetCodeExecution
          }
          range.getStart().setRow(startRow);
       }
-      else if (executionBehavior == UIPrefsAccessor.EXECUTE_PARAGRAPH)
+      else if (executionBehavior == UserPrefs.EXECUTION_BEHAVIOR_PARAGRAPH)
       {
          range = docDisplay_.getParagraph(
                docDisplay_.getCursorPosition(), startRowLimit, endRowLimit);
@@ -374,6 +387,17 @@ public class EditingTargetCodeExecution
       return range;
    }
    
+   /**
+    * Sets whether to append blank lines at the end of the document when the
+    * cursor is moved past the end of the document due to code execution.
+    * 
+    * @param append Whether to append blank lines
+    */
+   public void setAppendLinesAtEnd(boolean append)
+   {
+      appendLinesAtEnd_ = append;
+   }
+   
    public void executeLastCode()
    {
       if (lastExecutedCode_ != null)
@@ -386,7 +410,7 @@ public class EditingTargetCodeExecution
             Scope scope = null;
             if (docDisplay_.showChunkOutputInline())
             {
-               scope = docDisplay_.getCurrentChunk(
+               scope = docDisplay_.getChunkAtPosition(
                   lastExecutedCode_.getRange().getStart());
             }
 
@@ -513,7 +537,13 @@ public class EditingTargetCodeExecution
       docDisplay_.setCursorPosition(Position.create(
             selectionRange.getEnd().getRow(), 0));
       if (!docDisplay_.moveSelectionToNextLine(skipBlankLines))
-         docDisplay_.moveSelectionToBlankLine();
+      {
+         if (appendLinesAtEnd_)
+         {
+            // Create a new line if we have nowhere to go
+            docDisplay_.moveSelectionToBlankLine();
+         }
+      }
       docDisplay_.scrollCursorIntoViewIfNecessary(3);
    }
    
@@ -522,11 +552,13 @@ public class EditingTargetCodeExecution
    private final CodeExtractor codeExtractor_;
    private final String docId_;
    private final EditingTargetInlineChunkExecution inlineChunkExecutor_;
+   
+   private boolean appendLinesAtEnd_;
    private AnchoredSelection lastExecutedCode_;
    
    // Injected ----
    private EventBus events_;
-   private UIPrefs prefs_;
+   private UserPrefs prefs_;
    private Commands commands_;
    @SuppressWarnings("unused")
    private SourceServerOperations server_;

@@ -1,7 +1,7 @@
 /*
  * CodeSearchResources.java
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -26,9 +26,20 @@ public interface CodeSearchResources extends ClientBundle
    public static interface Styles extends CssResource
    {
       String codeSearchWidget();
+      
       String fileImage();
-      String itemImage();
-      String itemName();
+      String fileItem();
+      
+      String smallCodeImage();
+      String smallCodeItem();
+      String smallItemContext();
+      
+      String codeImage();
+      String codeItem();
+      
+      String xrefImage();
+      String xrefItem();
+      
       String itemContext();
       String codeSearchDialogMainWidget();
    }
@@ -41,5 +52,5 @@ public interface CodeSearchResources extends ClientBundle
    ImageResource gotoFunction2x();
    
    public static CodeSearchResources INSTANCE = 
-      (CodeSearchResources)GWT.create(CodeSearchResources.class) ;
+      (CodeSearchResources)GWT.create(CodeSearchResources.class);
 }

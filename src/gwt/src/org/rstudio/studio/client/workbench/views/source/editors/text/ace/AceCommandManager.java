@@ -97,6 +97,10 @@ public class AceCommandManager extends JavaScriptObject
       return this.exec(command, editor);
    }-*/;
    
+   public final native boolean exec(String command, AceEditorNative editor, String arg) /*-{
+      return this.exec(command, editor, arg);
+   }-*/;
+   
    private static final String toAceStyleShortcutString(KeyCombination keys)
    {
       StringBuilder builder = new StringBuilder();
@@ -152,7 +156,7 @@ public class AceCommandManager extends JavaScriptObject
       var command = this.byName[id];
       
       // The command can be null if it's an excluded command, or
-      // the user has manually editted their keybinding file and
+      // the user has manually edited their keybinding file and
       // selected the ID of a non-existent command.
       if (command == null)
          return;

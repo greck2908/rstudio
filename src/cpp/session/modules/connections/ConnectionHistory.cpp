@@ -1,7 +1,7 @@
 /*
  * ConnectionHistory.cpp
  *
- * Copyright (C) 2009-16 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -31,7 +31,7 @@ namespace connections {
 namespace {
 
 
-bool isConnection(const ConnectionId& id, json::Value valueJson)
+bool isConnection(const ConnectionId& id, const json::Value& valueJson)
 {
    if (!json::isType<json::Object>(valueJson))
    {
@@ -39,7 +39,7 @@ bool isConnection(const ConnectionId& id, json::Value valueJson)
       return false;
    }
 
-   const json::Object& connJson = valueJson.get_obj();
+   const json::Object& connJson = valueJson.getObject();
    return hasConnectionId(id, connJson);
 }
 
@@ -81,7 +81,7 @@ void ConnectionHistory::update(const Connection& connection)
 
    // look for a matching connection and update it
    bool foundConnection = false;
-   for (size_t i = 0; i<connectionsJson.size(); i++)
+   for (size_t i = 0; i<connectionsJson.getSize(); i++)
    {
       json::Value valueJson = connectionsJson[i];
       if (isConnection(connection.id, valueJson))
@@ -151,38 +151,40 @@ const char* const kConnectionListFile = "connection-history-database.json";
 
 Error ConnectionHistory::readConnections(json::Array* pConnections)
 {
-   FilePath connectionListFile = connectionsDir_.childPath(kConnectionListFile);
-   if (connectionListFile.exists())
+   FilePath connectionListFile = connectionsDir_.completeChildPath(kConnectionListFile);
+   if (!connectionListFile.exists())
+      return Success();
+   
+   std::string contents;
+   Error error = core::readStringFromFile(connectionListFile, &contents);
+   if (error)
+      return error;
+
+   json::Value parsedJson;
+   if (parsedJson.parse(contents) || !json::isType<json::Array>(parsedJson))
    {
-      std::string contents;
-      Error error = core::readStringFromFile(connectionListFile, &contents);
-      if (error)
-         return error;
-
-      json::Value parsedJson;
-      if (!json::parse(contents, &parsedJson) ||
-          !json::isType<json::Array>(parsedJson))
-      {
-         return systemError(boost::system::errc::protocol_error,
-                            "Error parsing connections json file",
-                            ERROR_LOCATION);
-      }
-
-      *pConnections = parsedJson.get_value<json::Array>();
+      return systemError(boost::system::errc::protocol_error,
+                         "Error parsing connections json file",
+                         ERROR_LOCATION);
    }
+
+   json::Array connections = parsedJson.getArray();
+   for (auto&& connection : connections)
+      if (connection.isObject())
+         pConnections->push_back(connection);
 
    return Success();
 }
 
 Error ConnectionHistory::writeConnections(const json::Array& connectionsJson)
 {
-   FilePath connectionListFile = connectionsDir_.childPath(kConnectionListFile);
-   boost::shared_ptr<std::ostream> pStream;
-   Error error = connectionListFile.open_w(&pStream);
+   FilePath connectionListFile = connectionsDir_.completeChildPath(kConnectionListFile);
+   std::shared_ptr<std::ostream> pStream;
+   Error error = connectionListFile.openForWrite(pStream);
    if (error)
       return error;
 
-   json::writeFormatted(connectionsJson, *pStream);
+   connectionsJson.writeFormatted(*pStream);
 
    return Success();
 }

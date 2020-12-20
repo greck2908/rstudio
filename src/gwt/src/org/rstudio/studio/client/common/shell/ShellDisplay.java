@@ -1,7 +1,7 @@
 /*
  * ShellDisplay.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,6 +14,7 @@
  */
 package org.rstudio.studio.client.common.shell;
 
+import org.rstudio.core.client.ConsoleOutputWriter;
 import org.rstudio.core.client.jsonrpc.RpcObjectList;
 import org.rstudio.core.client.widget.CanFocus;
 import org.rstudio.studio.client.workbench.model.ConsoleAction;
@@ -32,13 +33,13 @@ public interface ShellDisplay extends ShellOutputWriter,
                                       HasKeyUpHandlers
 {
    void consoleWriteInput(String input, String console);
-   void consoleWritePrompt(String prompt);
-   void consolePrompt(String prompt, boolean showInput) ;
-   void ensureInputVisible() ;
-   InputEditorDisplay getInputEditorDisplay() ;
-   void clearOutput() ;
-   String processCommandEntry() ;
-   int getCharacterWidth() ;
+   void consolePrompt(String prompt, boolean showInput);
+   void ensureInputVisible();
+   InputEditorDisplay getInputEditorDisplay();
+   ConsoleOutputWriter getConsoleOutputWriter();
+   void clearOutput();
+   String processCommandEntry();
+   int getCharacterWidth();
    boolean isPromptEmpty();
    String getPromptText();
    
@@ -55,4 +56,7 @@ public interface ShellDisplay extends ShellOutputWriter,
    HandlerRegistration addCapturingKeyUpHandler(KeyUpHandler handler);
    
    Widget getShellWidget();
+   
+   void enableLiveReporting();
+   void clearLiveRegion();
 }

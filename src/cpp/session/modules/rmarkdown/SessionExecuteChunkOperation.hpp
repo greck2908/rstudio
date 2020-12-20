@@ -1,7 +1,7 @@
 /*
  * SessionExecuteChunkOperation.hpp
  *
- * Copyright (C) 2009-16 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -52,7 +52,7 @@ core::shell_utils::ShellCommand shellCommandForEngine(
    if (options.count("engine.path"))
    {
       std::string path = options.at("engine.path");
-      enginePath = module_context::resolveAliasedPath(path).absolutePath();
+      enginePath = module_context::resolveAliasedPath(path).getAbsolutePath();
    }
    
    ShellCommand command(enginePath);
@@ -72,7 +72,7 @@ std::string scriptPathForShellCommand(
    using namespace core;
 
    auto defaultPath = [&]() {
-       return string_utils::utf8ToSystem(scriptPath.absolutePathNative());
+       return string_utils::utf8ToSystem(scriptPath.getAbsolutePathNative());
    };
 
 #ifndef _WIN32
@@ -85,11 +85,11 @@ std::string scriptPathForShellCommand(
       {
          FilePath resolvedPath =
                module_context::resolveAliasedPath(chunkOptions.at("engine.path"));
-         bashPath = resolvedPath.absolutePathNative();
+         bashPath = resolvedPath.getAbsolutePathNative();
       }
 
       system::ProcessOptions options;
-      options.workingDir = scriptPath.parent();
+      options.workingDir = scriptPath.getParent();
 
       system::ProcessResult result;
       Error error = system::runCommand(
@@ -105,7 +105,7 @@ std::string scriptPathForShellCommand(
       std::string path =
             string_utils::trimWhitespace(result.stdOut) +
             "/" +
-            scriptPath.filename();
+            scriptPath.getFilename();
       return string_utils::utf8ToSystem(path);
    }
    else
@@ -127,6 +127,8 @@ class ExecuteChunkOperation : boost::noncopyable,
 public:
    static boost::shared_ptr<ExecuteChunkOperation> create(const std::string& docId,
                                                           const std::string& chunkId,
+                                                          const std::string& chunkCode,
+                                                          const std::string& chunkLabel,
                                                           const std::string& nbCtxId,
                                                           const ShellCommand& command,
                                                           const core::FilePath& scriptPath)
@@ -135,6 +137,8 @@ public:
             boost::shared_ptr<ExecuteChunkOperation>(new ExecuteChunkOperation(
                                                         docId,
                                                         chunkId,
+                                                        chunkCode,
+                                                        chunkLabel,
                                                         nbCtxId,
                                                         command,
                                                         scriptPath));
@@ -146,12 +150,16 @@ private:
    
    ExecuteChunkOperation(const std::string& docId,
                          const std::string& chunkId,
+                         const std::string& chunkCode,
+                         const std::string& chunkLabel,
                          const std::string& nbCtxId,
                          const ShellCommand& command,
                          const core::FilePath& scriptPath)
       : terminationRequested_(false),
         docId_(docId),
         chunkId_(chunkId),
+        chunkCode_(chunkCode),
+        chunkLabel_(chunkLabel),
         nbCtxId_(nbCtxId),
         command_(command),
         scriptPath_(scriptPath)
@@ -226,7 +234,7 @@ private:
    
    void onExit(int exitStatus)
    {
-      events().onChunkExecCompleted(docId_, chunkId_, notebookCtxId());
+      events().onChunkExecCompleted(docId_, chunkId_, chunkCode_, chunkLabel_, notebookCtxId());
       deregisterProcess();
       scriptPath_.removeIfExists();
    }
@@ -283,6 +291,8 @@ private:
    bool terminationRequested_;
    std::string docId_;
    std::string chunkId_;
+   std::string chunkCode_;
+   std::string chunkLabel_;
    std::string nbCtxId_;
    ShellCommand command_;
    core::FilePath scriptPath_;
@@ -321,6 +331,7 @@ public:
 
 core::Error runChunk(const std::string& docId,
                      const std::string& chunkId,
+                     const std::string& chunkLabel,
                      const std::string& nbCtxId,
                      const std::string& engine,
                      const std::string& code,
@@ -351,7 +362,7 @@ core::Error runChunk(const std::string& docId,
 
    // create process
    boost::shared_ptr<ExecuteChunkOperation> operation =
-         ExecuteChunkOperation::create(docId, chunkId, nbCtxId, command, 
+         ExecuteChunkOperation::create(docId, chunkId, code, chunkLabel, nbCtxId, command,
                scriptPath);
 
    // write input code to cache
@@ -400,13 +411,13 @@ core::Error runChunk(const std::string& docId,
       // in the same directory -- if it exists, this is a virtual env
       if (enginePath.exists())
       {
-         FilePath activatePath = enginePath.parent().childPath("activate");
+         FilePath activatePath = enginePath.getParent().completeChildPath("activate");
          if (activatePath.exists())
          {
-            FilePath binPath = enginePath.parent();
-            FilePath venvPath = binPath.parent();
-            core::system::setenv(&env, "VIRTUAL_ENV", venvPath.absolutePath());
-            core::system::addToPath(&env, binPath.absolutePath(), true);
+            FilePath binPath = enginePath.getParent();
+            FilePath venvPath = binPath.getParent();
+            core::system::setenv(&env, "VIRTUAL_ENV", venvPath.getAbsolutePath());
+            core::system::addToPath(&env, binPath.getAbsolutePath(), true);
          }
       }
    }

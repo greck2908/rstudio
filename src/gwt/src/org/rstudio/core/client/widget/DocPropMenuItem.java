@@ -1,7 +1,7 @@
 /*
  * DocPropMenuItem.java
  *
- * Copyright (C) 2009-16 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,11 +24,17 @@ import com.google.gwt.event.logical.shared.ValueChangeEvent;
 import com.google.gwt.event.logical.shared.ValueChangeHandler;
 
 public class DocPropMenuItem extends CheckableMenuItem
-{
+{ 
    public DocPropMenuItem(String label, DocUpdateSentinel docUpdate, 
+                          boolean defaultChecked, String propName, String targetValue)
+   {
+      this(label, false, docUpdate, defaultChecked, propName, targetValue);
+   }
+   
+   public DocPropMenuItem(String label, boolean html, DocUpdateSentinel docUpdate, 
          boolean defaultChecked, String propName, String targetValue)
    {
-      super(label);
+      super(label, html);
       docUpdate_ = docUpdate;
       default_ = defaultChecked;
       propName_ = propName;
@@ -89,6 +95,7 @@ public class DocPropMenuItem extends CheckableMenuItem
          public void onCompleted()
          {
             onStateChanged();
+            onUpdateComplete();
          }
          
          @Override
@@ -106,6 +113,10 @@ public class DocPropMenuItem extends CheckableMenuItem
          {
          }
       });
+   }
+   
+   protected void onUpdateComplete()
+   {
    }
    
    private DocUpdateSentinel docUpdate_;

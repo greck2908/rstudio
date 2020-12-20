@@ -1,7 +1,7 @@
 /*
  * DesktopWebPage.cpp
  *
- * Copyright (C) 2009-18 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -81,7 +81,7 @@ void handlePdfDownload(QWebEngineDownloadItem* downloadItem,
 void onPdfDownloadRequested(QWebEngineDownloadItem* downloadItem)
 {
    QString scratchDir =
-         QString::fromStdString(options().scratchTempDir().absolutePath());
+         QString::fromStdString(options().scratchTempDir().getAbsolutePath());
    
    // if we're requesting the download of a file with a '.pdf' extension,
    // re-use that file name (since most desktop applications will display the
@@ -134,6 +134,22 @@ WebPage::WebPage(QUrl baseUrl, QWidget *parent, bool allowExternalNavigate) :
       baseUrl_(baseUrl),
       allowExternalNav_(allowExternalNavigate)
 {
+   init();
+}
+
+WebPage::WebPage(QWebEngineProfile *profile,
+                 QUrl baseUrl,
+                 QWidget *parent,
+                 bool allowExternalNavigate) :
+   QWebEnginePage(profile, parent),
+   baseUrl_(baseUrl),
+   allowExternalNav_(allowExternalNavigate)
+{
+   init();
+}
+
+void WebPage::init()
+{
    settings()->setAttribute(QWebEngineSettings::PluginsEnabled, true);
    settings()->setAttribute(QWebEngineSettings::FullScreenSupportEnabled, true);
    settings()->setAttribute(QWebEngineSettings::JavascriptCanOpenWindows, true);
@@ -141,6 +157,11 @@ WebPage::WebPage(QUrl baseUrl, QWidget *parent, bool allowExternalNavigate) :
    settings()->setAttribute(QWebEngineSettings::LocalStorageEnabled, true);
    settings()->setAttribute(QWebEngineSettings::WebGLEnabled, true);
    
+#ifdef __APPLE__
+   settings()->setFontFamily(QWebEngineSettings::FixedFont,     QStringLiteral("Courier"));
+   settings()->setFontFamily(QWebEngineSettings::SansSerifFont, QStringLiteral("Helvetica"));
+#endif
+
    defaultSaveDir_ = QDir::home();
    connect(this, SIGNAL(windowCloseRequested()), SLOT(closeRequested()));
    connect(this, &QWebEnginePage::linkHovered, onLinkHovered);
@@ -376,10 +397,12 @@ bool WebPage::acceptNavigationRequest(const QUrl &url,
    if (url.toString() == QStringLiteral("chrome://gpu/"))
       return true;
 
+   if (url.scheme() == QStringLiteral("data"))
+      return true;
+
    if (url.scheme() != QStringLiteral("http") &&
        url.scheme() != QStringLiteral("https") &&
-       url.scheme() != QStringLiteral("mailto") &&
-       url.scheme() != QStringLiteral("data"))
+       url.scheme() != QStringLiteral("mailto"))
    {
       qDebug() << url.toString();
       return false;
@@ -417,6 +440,13 @@ bool WebPage::acceptNavigationRequest(const QUrl &url,
    {
       return true;
    }
+   // allow tutorial urls to be handled internally by Qt. note that the client is responsible for 
+   // ensuring that non-local tutorial urls are appropriately sandboxed.
+   else if (!tutorialUrl().isEmpty() &&
+            url.toString().startsWith(tutorialUrl()))
+   {
+      return true;
+   }
    // allow shiny dialog urls to be handled internally by Qt
    else if (isLocal && !shinyDialogUrl_.isEmpty() &&
             url.toString().startsWith(shinyDialogUrl_))
@@ -451,20 +481,52 @@ bool WebPage::acceptNavigationRequest(const QUrl &url,
    }
 }
 
-void WebPage::setViewerUrl(const QString& viewerUrl)
+namespace {
+
+void setPaneUrl(const QString& requestedUrl, QString* pUrl)
 {
    // record about:blank literally
-   if (viewerUrl == QString::fromUtf8("about:blank"))
+   if (requestedUrl == QStringLiteral("about:blank"))
    {
-      viewerUrl_ = viewerUrl;
+      *pUrl = requestedUrl;
       return;
    }
 
    // extract the authority (domain and port) from the URL; we'll agree to
-   // serve requests for the viewer pane that match this prefix. 
-   QUrl url(viewerUrl);
-   viewerUrl_ = url.scheme() + QString::fromUtf8("://") +
-                url.authority() + QString::fromUtf8("/");
+   // serve requests for the pane that match this prefix. 
+   QUrl url(requestedUrl);
+   *pUrl =
+         url.scheme() + QStringLiteral("://") +
+         url.authority() + QStringLiteral("/");
+   
+}
+
+} // end anonymous namespace
+
+void WebPage::setTutorialUrl(const QString& tutorialUrl)
+{
+   setPaneUrl(tutorialUrl, &tutorialUrl_);
+}
+
+void WebPage::setViewerUrl(const QString& viewerUrl)
+{
+   setPaneUrl(viewerUrl, &viewerUrl_);
+}
+
+QString WebPage::tutorialUrl()
+{
+   if (tutorialUrl_.isEmpty())
+   {
+      // if we don't know the tutorial URL ourselves but we're a child window, ask our parent
+      BrowserWindow *parent = dynamic_cast<BrowserWindow*>(view()->window());
+      if (parent != nullptr && parent->opener() != nullptr)
+      {
+         return parent->opener()->tutorialUrl();
+      }
+   }
+
+   // return our own tutorial URL
+   return tutorialUrl_;
 }
 
 QString WebPage::viewerUrl()

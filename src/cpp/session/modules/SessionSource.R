@@ -1,7 +1,7 @@
 #
 # SessionSource.R
 #
-# Copyright (C) 2009-12 by RStudio, Inc.
+# Copyright (C) 2020 by RStudio, PBC
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -184,8 +184,10 @@
    
    if (length(args) > 0)
    {
-      for (ee in args)
-         freeVars <- c(freeVars, codetools:::walkCode(ee, w))
+      # Needs to access the list via index in case of empty strings
+      # see https://github.com/rstudio/rstudio/issues/5285
+      for (i in seq_along(args))
+         freeVars <- c(freeVars, codetools:::walkCode(args[[i]], w))
    }
    return(unique(freeVars))
 })
@@ -302,7 +304,7 @@
         args <- args[names(args) == ""]
 
       # call rstudio fileEdit function
-      invisible(.Call("rs_fileEdit", args))
+      invisible(.Call("rs_fileEdit", args, PACKAGE = "(embedding)"))
    })
 })
 

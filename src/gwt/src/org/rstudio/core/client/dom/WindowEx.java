@@ -1,7 +1,7 @@
 /*
  * WindowEx.java
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -35,7 +35,7 @@ public class WindowEx extends JavaScriptObject
    public static native Window getNative() /*-{
       return $wnd;
    }-*/;
-   
+
    public static native WindowEx get() /*-{
       return $wnd;
    }-*/;
@@ -44,45 +44,53 @@ public class WindowEx extends JavaScriptObject
    {
    }
 
+   public final native String getName() /*-{
+      return this.name;
+   }-*/;
+
+   public final native double getDevicePixelRatio() /*-{
+      return this.devicePixelRatio;
+   }-*/;
+
    public final native void focus() /*-{
       this.focus();
    }-*/;
 
    public final native void print() /*-{
-      this.print() ;
+      this.print();
    }-*/;
 
    public final native void back() /*-{
-      this.history.back() ;
+      this.history.back();
    }-*/;
-   
+
    public final native void forward() /*-{
-      this.history.forward() ;
+      this.history.forward();
    }-*/;
-   
+
    public final native void removeSelection() /*-{
       selection = this.getSelection();
       if (selection != null) {
          selection.removeAllRanges();
       }
    }-*/;
-   
+
    public final native String getSelectedText() /*-{
       return this.getSelection().toString();
    }-*/;
-   
-   public final native boolean find(String term, 
+
+   public final native boolean find(String term,
                                     boolean matchCase,
                                     boolean searchUpward,
                                     boolean wrapAround,
                                     boolean wholeWord) /*-{
       return this.find(term, matchCase, searchUpward, wrapAround, wholeWord);
    }-*/;
-   
+
    public final native String getLocationHref() /*-{
-      return this.location.href ;
+      return this.location.href;
    }-*/;
-   
+
    public final native boolean isSecure() /*-{
       return 'https:' == this.location.protocol;
    }-*/;
@@ -90,15 +98,15 @@ public class WindowEx extends JavaScriptObject
    public final native void reload() /*-{
       this.location.reload(true);
    }-*/;
-  
-   public final native void setLocationHref(String helpURL) /*-{
-      this.location.href = helpURL ;
+
+   public final native void setLocationHref(String url) /*-{
+      this.location.href = url;
    }-*/;
 
-   public final native void replaceLocationHref(String helpURL) /*-{
-      this.location.replace(helpURL) ;
+   public final native void replaceLocationHref(String url) /*-{
+      this.location.replace(url);
    }-*/;
-   
+
    public final native void replaceHistoryState(String url) /*-{
       this.history.replaceState({}, "", url);
    }-*/;
@@ -125,7 +133,7 @@ public class WindowEx extends JavaScriptObject
    public final native void close() /*-{
       this.close();
    }-*/;
-   
+
    public final native boolean isClosed() /*-{
       // On the desktop, it is possible in some circumstances for satellite
       // window objects to become decoupled from their physical windows when
@@ -143,7 +151,7 @@ public class WindowEx extends JavaScriptObject
    public final native DocumentEx getDocument() /*-{
       return this.document;
    }-*/;
-   
+
    public final native int getLeft() /*-{
       return this.screenX;
    }-*/;
@@ -151,7 +159,7 @@ public class WindowEx extends JavaScriptObject
    public final native int getTop() /*-{
       return this.screenY;
    }-*/;
-   
+
    public final native int getOuterHeight() /*-{
       return this.outerHeight;
    }-*/;
@@ -159,7 +167,7 @@ public class WindowEx extends JavaScriptObject
    public final native int getOuterWidth() /*-{
       return this.outerWidth;
    }-*/;
-   
+
    public final native int getInnerHeight() /*-{
       return this.innerHeight;
    }-*/;
@@ -167,7 +175,7 @@ public class WindowEx extends JavaScriptObject
    public final native int getInnerWidth() /*-{
       return this.innerWidth;
    }-*/;
-   
+
    public final native void scrollTo(int x, int y) /*-{
       this.scrollTo(x, y);
    }-*/;
@@ -179,16 +187,16 @@ public class WindowEx extends JavaScriptObject
    public final native int getScrollTop() /*-{
       return this.scrollY;
    }-*/;
-   
+
    public final native int getScreenX() /*-{
       return this.screenX;
    }-*/;
-   
+
    public final native int getScreenY() /*-{
       return this.screenY;
    }-*/;
 
-   public final native void postMessage(JavaScriptObject data, 
+   public final native void postMessage(JavaScriptObject data,
                                         String origin) /*-{
       this.postMessage(data, origin);
    }-*/;
@@ -226,7 +234,7 @@ public class WindowEx extends JavaScriptObject
          }
       });
    }
-   
+
    static {
       registerNativeListeners();
    }

@@ -1,7 +1,7 @@
 /*
  * CompletionManagerBase.java
  *
- * Copyright (C) 2009-18 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -28,8 +28,7 @@ import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.codetools.CodeToolsServerOperations;
 import org.rstudio.studio.client.common.codetools.Completions;
 import org.rstudio.studio.client.common.codetools.RCompletionType;
-import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
-import org.rstudio.studio.client.workbench.prefs.model.UIPrefsAccessor;
+import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 import org.rstudio.studio.client.workbench.snippets.SnippetHelper;
 import org.rstudio.studio.client.workbench.views.console.shell.assist.CompletionRequester.QualifiedName;
 import org.rstudio.studio.client.workbench.views.source.editors.text.AceEditor;
@@ -58,6 +57,11 @@ import com.google.inject.Inject;
 public abstract class CompletionManagerBase
       implements CompletionRequestContext.Host
 {
+   public abstract void goToHelp();
+   public abstract void goToDefinition();
+   public abstract void showAdditionalHelp(QualifiedName completion);
+   public abstract boolean getCompletions(String line, CompletionRequestContext context);
+   
    public interface Callback
    {
       public void onToken(TokenIterator it, Token token);
@@ -88,11 +92,11 @@ public abstract class CompletionManagerBase
    
    @Inject
    private void initialize(EventBus events,
-                           UIPrefs uiPrefs,
+                           UserPrefs uiPrefs,
                            HelpStrategy helpStrategy)
    {
       events_ = events;
-      uiPrefs_ = uiPrefs;
+      userPrefs_ = uiPrefs;
       helpStrategy_ = helpStrategy;
    }
    
@@ -117,6 +121,17 @@ public abstract class CompletionManagerBase
    public void onCompletionResponseReceived(CompletionRequestContext.Data data,
                                             Completions completions)
    {
+      // if the cursor has moved to a different line, discard this completion request
+      boolean positionChanged =
+            docDisplay_.getCursorPosition().getRow() !=
+            data.getPosition().getRow();
+      
+      if (positionChanged)
+         return;
+      
+      // cache context data (to be used by popup during active completion session)
+      contextData_ = data;
+      
       String line = data.getLine();
       if (completions.isCacheable())
          completionCache_.store(line, completions);
@@ -135,7 +150,7 @@ public abstract class CompletionManagerBase
                completions.getLanguage()));
       }
       
-      if (uiPrefs_.enableSnippets().getValue())
+      if (userPrefs_.enableSnippets().getValue())
       {
          String[] parts = line.split("\\s+");
          if (parts.length > 0)
@@ -232,7 +247,7 @@ public abstract class CompletionManagerBase
    @Override
    public void onCompletionRequestError(String message)
    {
-      
+      contextData_ = null;
    }
    
    public void onCompletionCommit()
@@ -278,15 +293,22 @@ public abstract class CompletionManagerBase
       
       CompletionRequestContext.Data data = new CompletionRequestContext.Data(
             line,
+            docDisplay_.getCursorPosition(),
             isTabTriggered,
             canAutoAccept);
             
-      context_ = new CompletionRequestContext(this, data);
-      if (completionCache_.satisfyRequest(line, context_))
+      CompletionRequestContext context = new CompletionRequestContext(this, data);
+      if (completionCache_.satisfyRequest(line, context))
          return true;
       
-      getCompletions(line, context_);
-      return true;
+      boolean canComplete = getCompletions(line, context);
+      
+      // if tab was used to trigger the completion, but no completions
+      // are available in that context, then insert a literal tab
+      if (!canComplete && isTabTriggered)
+         docDisplay_.insertCode("\t");
+      
+      return canComplete;
    }
    
    public Invalidation.Token getInvalidationToken()
@@ -314,10 +336,6 @@ public abstract class CompletionManagerBase
          completionCache_.flush();
    }
    
-   public abstract void goToHelp();
-   public abstract void goToDefinition();
-   public abstract void getCompletions(String line, CompletionRequestContext context);
-   
    // Subclasses should override this to provide extra (e.g. context) completions.
    protected void addExtraCompletions(String token, List<QualifiedName> completions)
    {
@@ -337,7 +355,7 @@ public abstract class CompletionManagerBase
       // add '()' for function completions
       boolean insertParensAfterCompletion =
             RCompletionType.isFunctionType(type) &&
-            uiPrefs_.insertParensAfterFunctionCompletion().getValue();
+            userPrefs_.insertParensAfterFunctionCompletion().getValue();
       
       if (insertParensAfterCompletion)
          value += "()";
@@ -355,7 +373,7 @@ public abstract class CompletionManagerBase
       
       boolean insertParensAfterCompletion =
             RCompletionType.isFunctionType(type) &&
-            uiPrefs_.insertParensAfterFunctionCompletion().getValue();
+            userPrefs_.insertParensAfterFunctionCompletion().getValue();
       
       if (insertParensAfterCompletion)
          docDisplay_.moveCursorBackward();
@@ -387,12 +405,12 @@ public abstract class CompletionManagerBase
    
    public void onPaste(PasteEvent event)
    {
-      popup_.hide();
+      invalidatePendingRequests();
    }
    
    public void close()
    {
-      popup_.hide();
+      invalidatePendingRequests();
    }
    
    public void detach()
@@ -400,8 +418,7 @@ public abstract class CompletionManagerBase
       removeHandlers();
       suggestTimer_.cancel();
       snippets_.detach();
-      invalidation_.invalidate();
-      popup_.hide();
+      invalidatePendingRequests();
    }
    
    public boolean previewKeyDown(NativeEvent event)
@@ -418,6 +435,16 @@ public abstract class CompletionManagerBase
       
       if (popup_.isShowing())
       {
+         // attempts to move the cursor left or right should be treated
+         // as requests to cancel the current completion session
+         switch (keyCode)
+         {
+         case KeyCodes.KEY_LEFT:
+         case KeyCodes.KEY_RIGHT:
+            invalidatePendingRequests();
+            return false;
+         }
+         
          switch (modifier)
          {
          
@@ -436,26 +463,52 @@ public abstract class CompletionManagerBase
          {
             switch (keyCode)
             {
-            case KeyCodes.KEY_UP:        popup_.selectPrev();         return true;
-            case KeyCodes.KEY_DOWN:      popup_.selectNext();         return true;
-            case KeyCodes.KEY_PAGEUP:    popup_.selectPrevPage();     return true;
-            case KeyCodes.KEY_PAGEDOWN:  popup_.selectNextPage();     return true;
-            case KeyCodes.KEY_HOME:      popup_.selectFirst();        return true;
-            case KeyCodes.KEY_END:       popup_.selectLast();         return true;
-            case KeyCodes.KEY_ESCAPE:    invalidatePendingRequests(); return true;
+            case KeyCodes.KEY_UP:        popup_.selectPrev();               return true;
+            case KeyCodes.KEY_DOWN:      popup_.selectNext();               return true;
+            case KeyCodes.KEY_PAGEUP:    popup_.selectPrevPage();           return true;
+            case KeyCodes.KEY_PAGEDOWN:  popup_.selectNextPage();           return true;
+            case KeyCodes.KEY_HOME:      popup_.selectFirst();              return true;
+            case KeyCodes.KEY_END:       popup_.selectLast();               return true;
+            case KeyCodes.KEY_ESCAPE:    invalidatePendingRequests();       return true;
             case KeyCodes.KEY_ENTER:     return onPopupEnter();
             case KeyCodes.KEY_TAB:       return onPopupTab();
+            case KeyCodes.KEY_F1:        return onPopupAdditionalHelp();
+            }
+            
+            // cancel the current completion session if the cursor
+            // has been moved before the completion start position,
+            // or to a new line. this ensures that backspace can
+            if (contextData_ != null)
+            {
+               Position cursorPos = docDisplay_.getCursorPosition();
+               Position completionPos = contextData_.getPosition();
+
+               boolean dismiss =
+                     cursorPos.getRow() != completionPos.getRow() ||
+                     cursorPos.getColumn() < completionPos.getColumn();
+
+               if (dismiss)
+               {
+                  invalidatePendingRequests();
+                  return false;
+               }
+            }
+            
+            // handle backspace specially -- allow it to continue
+            // the current completion session after taking its
+            // associated action
+            if (keyCode == KeyCodes.KEY_BACKSPACE)
+            {
+               Scheduler.get().scheduleDeferred(() ->
+               {
+                  beginSuggest(false, false, false);
+               });
+               
+               return false;
             }
             
             break;
          }
-         }
-         
-         switch (keyCode)
-         {
-         case KeyCodes.KEY_LEFT:
-         case KeyCodes.KEY_RIGHT:
-            invalidatePendingRequests();
          }
          
          return false;
@@ -523,8 +576,11 @@ public abstract class CompletionManagerBase
       }
       else
       {
-         if (canAutoPopup(charCode, uiPrefs_.alwaysCompleteCharacters().getValue() - 1))
+         if (canAutoPopup(charCode, userPrefs_.codeCompletionCharacters().getValue() - 1))
+         {
+            invalidatePendingRequests();
             suggestTimer_.schedule(true, false);
+         }
       }
       
       return false;
@@ -575,12 +631,12 @@ public abstract class CompletionManagerBase
    
    protected boolean canAutoPopup(char ch, int lookbackLimit)
    {
-      String codeComplete = uiPrefs_.codeComplete().getValue();
+      String codeComplete = userPrefs_.codeCompletion().getValue();
       
-      if (isTriggerCharacter(ch) && !StringUtil.equals(codeComplete, UIPrefsAccessor.COMPLETION_MANUAL))
+      if (isTriggerCharacter(ch) && !StringUtil.equals(codeComplete, UserPrefs.CODE_COMPLETION_MANUAL))
          return true;
       
-      if (!StringUtil.equals(codeComplete, UIPrefsAccessor.COMPLETION_ALWAYS))
+      if (!StringUtil.equals(codeComplete, UserPrefs.CODE_COMPLETION_ALWAYS))
          return false;
 
       if (docDisplay_.isVimModeOn() && !docDisplay_.isVimInInsertMode())
@@ -606,7 +662,7 @@ public abstract class CompletionManagerBase
       for (int i = 0; i < lookbackLimit; i++)
       {
          int index = cursorColumn - i - 1;
-         if (isBoundaryCharacter(currentLine.charAt(index)))
+         if (isBoundaryCharacter(StringUtil.charAt(currentLine, index)))
             return false;
       }
       
@@ -616,9 +672,9 @@ public abstract class CompletionManagerBase
    private void onSelection(String completionToken,
                             QualifiedName completion)
    {
+      invalidatePendingRequests();
       suggestTimer_.cancel();
       
-      popup_.hide();
       popup_.clearHelp(false);
       popup_.setHelpVisible(false);
       
@@ -630,11 +686,26 @@ public abstract class CompletionManagerBase
       else
       {
          String value = onCompletionSelected(completion);
+         
+         // compute an appropriate offset for completion --
+         // this is necessary in case the user has typed in the interval
+         // between when completions were requested, and the completion
+         // RPC response was received.
+         int offset = 0;
+         if (contextData_ != null)
+         {
+            Position cursorPos = docDisplay_.getCursorPosition();
+            Position completionPos = contextData_.getPosition();
+            offset =
+                  completionToken.length() +
+                  cursorPos.getColumn() -
+                  completionPos.getColumn();
+         }
 
          Range[] ranges = docDisplay_.getNativeSelection().getAllRanges();
          for (Range range : ranges)
          {
-            Position replaceStart = range.getEnd().movedLeft(completionToken.length());
+            Position replaceStart = range.getEnd().movedLeft(offset);
             Position replaceEnd = range.getEnd();
             docDisplay_.replaceRange(Range.fromPoints(replaceStart, replaceEnd), value);
          }
@@ -677,6 +748,19 @@ public abstract class CompletionManagerBase
       return true;
    }
    
+   private boolean onPopupAdditionalHelp()
+   {
+      if (popup_.isOffscreen())
+         return false;
+      
+      QualifiedName completion = popup_.getSelectedValue();
+      if (completion == null)
+         return false;
+      
+      showAdditionalHelp(completion);
+      return false;
+   }
+   
    private void onDocumentChanged(DocumentChangedEvent event)
    {
       if (!popup_.isShowing())
@@ -698,7 +782,7 @@ public abstract class CompletionManagerBase
          }
          
          String line = docDisplay_.getCurrentLine();
-         char ch = line.charAt(cursorColumn - 1);
+         char ch = StringUtil.charAt(line, cursorColumn - 1);
          if (isBoundaryCharacter(ch))
          {
             invalidatePendingRequests();
@@ -712,17 +796,20 @@ public abstract class CompletionManagerBase
    
    private boolean onTab()
    {
+      // Don't auto complete if tab auto completion was disabled
+      if (!userPrefs_.tabCompletion().getValue() || userPrefs_.tabKeyMoveFocus().getValue())
+         return false;
+
       // if the line is blank, don't request completions unless
       // the user has explicitly opted in
       String line = docDisplay_.getCurrentLineUpToCursor();
-      if (!uiPrefs_.allowTabMultilineCompletion().getValue())
+      if (!userPrefs_.tabMultilineCompletion().getValue())
       {
          if (line.matches("^\\s*"))
             return false;
       }
       
-      beginSuggest(true, true, true);
-      return true;
+      return beginSuggest(true, true, true);
    }
    
    private void showPopupHelp(QualifiedName completion)
@@ -848,7 +935,7 @@ public abstract class CompletionManagerBase
          flushCache_ = flushCache;
          canAutoInsert_ = canAutoInsert;
          
-         timer_.schedule(uiPrefs_.alwaysCompleteDelayMs().getValue());
+         timer_.schedule(userPrefs_.codeCompletionDelay().getValue());
       }
       
       public void cancel()
@@ -909,9 +996,9 @@ public abstract class CompletionManagerBase
    private String snippetToken_;
    private boolean ignoreNextBlur_;
    
-   private CompletionRequestContext context_;
+   private CompletionRequestContext.Data contextData_;
    private HelpStrategy helpStrategy_;
    
    protected EventBus events_;
-   protected UIPrefs uiPrefs_;
+   protected UserPrefs userPrefs_;
 }

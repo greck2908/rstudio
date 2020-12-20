@@ -1,7 +1,7 @@
 #
 # CMakeLists.txt
 #
-# Copyright (C) 2009-19 by RStudio, Inc.
+# Copyright (C) 2020 by RStudio, PBC
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -100,6 +100,7 @@ string(REGEX REPLACE ".*#define[ \t]+ZLIB_VERSION[ \t]+\"([0-9A-Za-z.]+)\".*"
 
 # define library
 add_library(rstudio-core-zlib STATIC ${ZLIB_SRCS} ${ZLIB_PUBLIC_HDRS} ${ZLIB_PRIVATE_HDRS})
+define_source_file_names(rstudio-core-zlib)
 
 # set extra compile definitions
 set_property(TARGET rstudio-core-zlib

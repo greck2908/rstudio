@@ -1,7 +1,7 @@
 /*
  * ProjectCompilePdfPreferencesPane.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,8 +14,10 @@
  */
 package org.rstudio.studio.client.projects.ui.prefs;
 
+import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.prefs.PreferencesDialogBaseResources;
+import org.rstudio.core.client.prefs.RestartRequirement;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.widget.HelpButton;
 import org.rstudio.core.client.widget.ProgressIndicator;
@@ -30,7 +32,6 @@ import org.rstudio.studio.client.projects.model.RProjectOptions;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.resources.client.ImageResource;
-import com.google.gwt.user.client.ui.Label;
 import com.google.inject.Inject;
 
 public class ProjectCompilePdfPreferencesPane extends ProjectPreferencesPane
@@ -39,20 +40,20 @@ public class ProjectCompilePdfPreferencesPane extends ProjectPreferencesPane
    public ProjectCompilePdfPreferencesPane()
    {
       addHeader("PDF Generation");
-        
+
       defaultSweaveEngine_ = new RnwWeaveSelectWidget();
-      add(defaultSweaveEngine_);  
-      
+      add(defaultSweaveEngine_);
+
       defaultLatexProgram_ = new LatexProgramSelectWidget();
       add(defaultLatexProgram_);
-      
+
       addHeader("PDF Preview");
-      
+
       rootDoc_ = new RootDocumentChooser();
       nudgeRight(rootDoc_);
       add(rootDoc_);
    }
-   
+
    @Override
    public ImageResource getIcon()
    {
@@ -73,7 +74,7 @@ public class ProjectCompilePdfPreferencesPane extends ProjectPreferencesPane
       defaultLatexProgram_.setValue(config.getDefaultLatexProgram());
       rootDoc_.setText(config.getRootDocument());
    }
-   
+
    @Override
    public boolean validate()
    {
@@ -81,45 +82,37 @@ public class ProjectCompilePdfPreferencesPane extends ProjectPreferencesPane
    }
 
    @Override
-   public boolean onApply(RProjectOptions options)
+   public RestartRequirement onApply(RProjectOptions options)
    {
       RProjectConfig config = options.getConfig();
       config.setDefaultSweaveEngine(defaultSweaveEngine_.getValue());
       config.setDefaultLatexProgram(defaultLatexProgram_.getValue());
       config.setRootDocument(rootDoc_.getText().trim());
-      return false;
+      return new RestartRequirement();
    }
-   
-   private void addHeader(String caption)
-   {
-      PreferencesDialogBaseResources baseRes = 
-                              PreferencesDialogBaseResources.INSTANCE;
-      Label pdfCompilationLabel = new Label(caption);
-      pdfCompilationLabel.addStyleName(baseRes.styles().headerLabel());
-      nudgeRight(pdfCompilationLabel);
-      add(pdfCompilationLabel);
-   }
-   
+
    private class RootDocumentChooser extends TextBoxWithButton
    {
       public RootDocumentChooser()
       {
-         super("Compile PDF root document:", 
-               "(Current Document)", 
-               "Browse...", 
+         super("Compile PDF root document:",
+               "(Current Document)",
+               "Browse...",
                new HelpButton("pdf_root_document", "Get help on Compile PDF root document"),
+               ElementIds.TextBoxButtonId.PDF_ROOT,
+               true,
                null);
-         
+
          // allow user to set the value to empty string
          setReadOnly(false);
-         
+
          addClickHandler(new ClickHandler()
          {
             public void onClick(ClickEvent event)
             {
                final FileSystemItem projDir = RStudioGinjector.INSTANCE.
                          getSession().getSessionInfo().getActiveProjectDir();
-               
+
                RStudioGinjector.INSTANCE.getFileDialogs().openFile(
                      "Choose File",
                      RStudioGinjector.INSTANCE.getRemoteFileSystemContext(),
@@ -133,25 +126,25 @@ public class ProjectCompilePdfPreferencesPane extends ProjectPreferencesPane
                               return;
 
                            indicator.onCompleted();
-                           
+
                            String proj = projDir.getPath();
                            if (input.getPath().startsWith(proj + "/"))
                            {
-                              String projRelative = 
+                              String projRelative =
                                 input.getPath().substring(proj.length() + 1);
                               setText(projRelative);
                            }
                            else
                            {
-                              
+
                            }
                         }
                      });
             }
          });
-         
-      }  
-      
+
+      }
+
       // allow user to set the value to empty string
       @Override
       public String getText()
@@ -162,7 +155,7 @@ public class ProjectCompilePdfPreferencesPane extends ProjectPreferencesPane
             return super.getText();
       }
    }
-    
+
    private RnwWeaveSelectWidget defaultSweaveEngine_;
    private LatexProgramSelectWidget defaultLatexProgram_;
    private TextBoxWithButton rootDoc_;

@@ -1,7 +1,7 @@
 /*
  * DataImportServerOperations.java
  *
- * Copyright (C) 2009-16 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -34,7 +34,7 @@ public interface DataImportServerOperations
                                int maxFactors,
                                ServerRequestCallback<DataImportPreviewResponse> requestCallback);
    
-   void interrupt(ServerRequestCallback<Void> requestCallback);
+   void interrupt(ServerRequestCallback<Boolean> requestCallback);
    
    void previewDataImportAsyncAbort(ServerRequestCallback<Void> requestCallback);
    

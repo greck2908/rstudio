@@ -1,7 +1,7 @@
 #
 # SessionThemes.R
 #
-# Copyright (C) 2018 by RStudio, Inc.
+# Copyright (C) 2020 by RStudio, PBC
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -763,31 +763,10 @@
 # Returns the install location.
 .rs.addFunction("getThemeInstallDir", function(global) 
 {
-   # Copy the file to the correct location.
-   installLocation <- ""
    if (global)
-   {
-      installLocation <- Sys.getenv("RS_THEME_GLOBAL_HOME", unset = NA)
-      if (is.na(installLocation))
-      {
-         if (grepl("windows", Sys.info()[["sysname"]], ignore.case = TRUE))
-         {
-            installLocation <- file.path(Sys.getenv("ProgramData"), "RStudio", "themes")
-         }
-         else 
-         {
-            installLocation <- file.path("/etc", "rstudio", "themes")
-         }
-      }
-   }
+      .Call("rs_getGlobalThemeDir", PACKAGE = "(embedding)")
    else
-   {
-      installLocation <- Sys.getenv("RS_THEME_LOCAL_HOME", unset = NA)
-      installLocation <- if (is.na(installLocation)) file.path("~", ".R", "rstudio", "themes") 
-      else installLocation
-   }
-   
-   installLocation
+      .Call("rs_getLocalThemeDir", PACKAGE = "(embedding)")
 })
 
 .rs.addFunction("getThemeDirFromUrl", function(url) 
@@ -799,7 +778,7 @@
    }
    else if (.rs.isLocalTheme(decodedUrl))
    {
-      file.path(.rs.getThemeInstallDir(FALSE), basename(decodedUrl))
+      .Call("rs_getLocalThemePath", basename(decodedUrl), PACKAGE="(embedding)")
    }
    else
    {
@@ -974,7 +953,12 @@
       "name"= .rs.scalar(theme$name),
       "isDark" = .rs.scalar(theme$isDark),
       "url" = .rs.scalar(theme$url))
-   .rs.writeUiPref("rstheme", themeValue);
+
+   # Save theme details to user state
+   .rs.writeUserState("theme", themeValue)
+
+   # Save theme itself as a user pref
+   .rs.writeUserPref("editor_theme", name)
 })
 
 # Removes a theme from RStudio. If the removed theme is the current theme, the current theme will be

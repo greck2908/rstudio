@@ -1,7 +1,7 @@
 /*
  * RGraphicsDevice.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,8 +20,8 @@
 #include <boost/bind.hpp>
 #include <boost/thread.hpp>
 
-#include <core/Error.hpp>
-#include <core/FilePath.hpp>
+#include <shared_core/Error.hpp>
+#include <shared_core/FilePath.hpp>
 #include <core/FileSerializer.hpp>
 
 #include <r/RExec.hpp>
@@ -52,7 +52,7 @@
 #endif
 
 
-using namespace rstudio::core ;
+using namespace rstudio::core;
 
 namespace rstudio {
 namespace r {
@@ -66,18 +66,18 @@ namespace {
 const char * const kRStudioDevice = "RStudioGD";
 
 // GE device description
-pGEDevDesc s_pGEDevDesc = nullptr;   
+pGEDevDesc s_pGEDevDesc = nullptr;
 
 // externally provided locator function
 boost::function<bool(double*,double*)> s_locatorFunction;
    
 // global size attributes (used to initialize new devices)
 int s_width = 0;
-int s_height = 0;   
+int s_height = 0;
 double s_devicePixelRatio = 1.0;
    
 // provide GraphicsDeviceEvents for plot manager
-GraphicsDeviceEvents s_graphicsDeviceEvents;   
+GraphicsDeviceEvents s_graphicsDeviceEvents;
    
 using namespace handler;
 
@@ -427,7 +427,7 @@ void resyncDisplayList()
       {
          std::string errMsg;
          if (r::isCodeExecutionError(error, &errMsg))
-            Rprintf(errMsg.c_str());
+            Rprintf("%s\n", errMsg.c_str());
          else
             LOG_ERROR(error);
       }
@@ -455,9 +455,11 @@ SEXP rs_createGD()
          Error error = r::exec::executeString(".rs.newDesktopGraphicsDevice()");
          if (error)
          {
-            std::string msg = error.summary();
+            std::string msg = error.getSummary();
             r::isCodeExecutionError(error, &msg);
-            Rf_warning(("Error creating graphics device: " + msg).c_str());
+            
+            std::string rMsg = "Error creating graphics device: " + msg;
+            Rf_warning("%s\n", rMsg.c_str());
          }
       }
       else
@@ -472,8 +474,8 @@ SEXP rs_createGD()
    
    BEGIN_SUSPEND_INTERRUPTS 
    {
-      // initialize v12 structure
-      DevDescVersion12 devDesc;
+      // initialize v13 structure
+      DevDescVersion13 devDesc;
 
       // device functions
       devDesc.activate = GD_Activate;
@@ -548,7 +550,7 @@ SEXP rs_createGD()
       handler::onAfterAddDevice(pDC);
 
       // make us active
-      Rf_selectDevice(Rf_ndevNumber(s_pGEDevDesc->dev)); 
+      Rf_selectDevice(Rf_ndevNumber(s_pGEDevDesc->dev));
    } 
    END_SUSPEND_INTERRUPTS;
 
@@ -574,7 +576,7 @@ Error makeActive()
    }
    
    // select us
-   Rf_selectDevice(Rf_ndevNumber(s_pGEDevDesc->dev)); 
+   Rf_selectDevice(Rf_ndevNumber(s_pGEDevDesc->dev));
    
    return Success();
 }
@@ -640,11 +642,11 @@ Error saveSnapshot(const core::FilePath& snapshotFile,
    // ensure we are active
    Error error = makeActive();
    if (error)
-      return error ;
+      return error;
    
    // save snaphot file
    error = r::exec::RFunction(".rs.saveGraphics",
-                              string_utils::utf8ToSystem(snapshotFile.absolutePath())).call();
+                              string_utils::utf8ToSystem(snapshotFile.getAbsolutePath())).call();
    if (error)
       return error;
 
@@ -658,11 +660,11 @@ Error restoreSnapshot(const core::FilePath& snapshotFile)
    // ensure we are active
    Error error = makeActive();
    if (error)
-      return error ;
+      return error;
    
    // restore
    return r::exec::RFunction(".rs.restoreGraphics",
-                             string_utils::utf8ToSystem(snapshotFile.absolutePath())).call();
+                             string_utils::utf8ToSystem(snapshotFile.getAbsolutePath())).call();
 }
     
 void copyToActiveDevice()
@@ -693,8 +695,8 @@ void playDisplayList()
    GEplayDisplayList(s_pGEDevDesc);
 }
 
-const int kDefaultWidth = 500;   
-const int kDefaultHeight = 500; 
+const int kDefaultWidth = 500;
+const int kDefaultHeight = 500;
 const double kDefaultDevicePixelRatio = 1.0;
    
 Error initialize(

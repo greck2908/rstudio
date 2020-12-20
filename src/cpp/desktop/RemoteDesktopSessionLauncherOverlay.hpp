@@ -1,7 +1,7 @@
 /*
  * RemoteDesktopSessionLauncherOverlay.hpp
  *
- * Copyright (C) 2019 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,10 +22,12 @@
 
 #include <QNetworkCookie>
 
-#include <core/Error.hpp>
-#include <core/FilePath.hpp>
+#include <shared_core/Error.hpp>
+#include <shared_core/FilePath.hpp>
 #include <core/http/Request.hpp>
 #include <core/http/Response.hpp>
+#include <core/Thread.hpp>
+#include <shared_core/json/Json.hpp>
 
 #include "DesktopApplicationLaunch.hpp"
 #include "DesktopMainWindow.hpp"
@@ -34,6 +36,66 @@
 
 namespace rstudio {
 namespace desktop {
+
+struct WorkspacesRequestState
+{
+   WorkspacesRequestState() :
+      authenticating(false),
+      workspacesEnabled(true)
+   {
+   }
+
+   WorkspacesRequestState(const core::Error& error) :
+      error(error),
+      authenticating(false),
+      workspacesEnabled(true)
+   {
+   }
+
+   WorkspacesRequestState(bool authenticating) :
+      authenticating(authenticating),
+      workspacesEnabled(true)
+   {
+   }
+
+   WorkspacesRequestState(bool workspacesEnabled,
+                          std::string workspacesUrl) :
+      authenticating(false),
+      workspacesEnabled(workspacesEnabled),
+      workspacesUrl(workspacesUrl)
+   {
+   }
+
+   core::Error error;
+   bool authenticating;
+   bool workspacesEnabled;
+   std::string workspacesUrl;
+};
+
+struct SessionInfo
+{
+   SessionInfo() :
+      launcherSession(false),
+      running(false)
+   {
+   }
+
+   SessionInfo(const std::string& sessionUrl,
+               const std::string& sessionId,
+               bool launcherSession,
+               bool running) :
+      url(sessionUrl),
+      sessionId(sessionId),
+      launcherSession(launcherSession),
+      running(running)
+   {
+   }
+
+   std::string url;
+   std::string sessionId;
+   bool launcherSession;
+   bool running;
+};
 
 class RemoteDesktopSessionLauncher : public QObject
 {
@@ -46,7 +108,8 @@ public:
         pAppLaunch_(pAppLaunch),
         pMainWindow_(nullptr),
         createNewSession_(createNewSession),
-        signingIn_(false)
+        signingIn_(false),
+        failedToLaunch_(false)
    {
    }
 
@@ -58,19 +121,32 @@ public:
         pMainWindow_(nullptr),
         createNewSession_(false),
         sessionUrl_(sessionUrl),
-        signingIn_(false)
+        signingIn_(false),
+        failedToLaunch_(false)
    {
    }
 
-   void launchFirstSession();
+   void launchFirstSession(const core::FilePath& installPath,
+                           bool devMode,
+                           const QStringList& arguments);
+
+   std::map<std::string, QNetworkCookie> getCookies();
 
    const SessionServer& sessionServer() const { return server_; }
 
+   bool failedToLaunch() const { return failedToLaunch_; }
+
+   void closeOnSignOut();
+
 public Q_SLOTS:
    void onCookieAdded(const QNetworkCookie& cookie);
+   void onLaunchFirstSession();
+   void onLaunchError(QString message);
 
 private:
    core::Error loadSession();
+
+   core::Error startLauncherSession(const SessionInfo& sessionInfo);
 
    void createRequest(const std::string& uri,
                       core::http::Request* pRequest);
@@ -80,9 +156,9 @@ private:
 
    void showUserSignInPage(const core::http::Response& response);
 
-   core::Error getWorkspacesUrl(std::string* pUrl);
+   WorkspacesRequestState getWorkspacesUrl();
 
-   core::Error getSessionUrl(std::string* pSessionUrl);
+   core::Error getSessionInfo(SessionInfo* pSessionInfo);
 
    void handleLaunchError(const core::Error& error);
 
@@ -95,7 +171,11 @@ private:
    bool createNewSession_;
    std::string sessionUrl_;
    bool signingIn_;
+   bool failedToLaunch_;
 
+   std::string workspacesUrl_;
+
+   boost::mutex mutex_;
    std::map<std::string, QNetworkCookie> authCookies_;
 };
 

@@ -1,7 +1,7 @@
 /*
  * PosixSystem.hpp
  *
- * Copyright (C) 2009-18 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,9 +18,10 @@
 
 #include <boost/date_time.hpp>
 
+#include <core/system/PosixSched.hpp>
 #include <core/system/System.hpp>
 
-#include <core/system/PosixSched.hpp>
+#include <shared_core/system/PosixSystem.hpp>
 
 // typedefs (in case we need indirection on these for porting)
 #include <sys/resource.h>
@@ -37,10 +38,7 @@ namespace core {
 namespace rstudio {
 namespace core {
 namespace system {
-
-namespace user {
-   struct User;
-}
+    class User;
 
 // daemonize the process
 core::Error daemonize(const std::string& pidFile = std::string());
@@ -94,22 +92,6 @@ core::Error systemInformation(SysInfo* pSysInfo);
 
 core::Error pidof(const std::string& process, std::vector<PidType>* pPids);
 
-struct ProcessInfo
-{
-   ProcessInfo() : pid(0), ppid(0), pgrp(0) {}
-   PidType pid;
-   PidType ppid;
-   PidType pgrp;
-   std::string username;
-   std::string exe;
-   std::string state;
-   std::vector<std::string> arguments;
-
-#ifndef __APPLE__
-   core::Error creationTime(boost::posix_time::ptime* pCreationTime) const;
-#endif
-};
-
 typedef boost::function<bool (const ProcessInfo&)> ProcessFilter;
 
 // get process by process name, or all processes if process name is empty
@@ -127,13 +109,8 @@ bool isProcessRunning(pid_t pid);
 
 std::ostream& operator<<(std::ostream& os, const ProcessInfo& info);
 
-struct IpAddress
-{
-   std::string name;
-   std::string addr;
-};
 
-core::Error ipAddresses(std::vector<IpAddress>* pAddresses, bool includeIPv6 = false);
+core::Error ipAddresses(std::vector<posix::IpAddress>* pAddresses, bool includeIPv6 = false);
 
 // core dump restriction
 core::Error restrictCoreDumps();
@@ -192,14 +169,14 @@ core::Error waitForProcessExit(PidType processId);
 
 // filter to call after the setuid has occurred (i.e. after
 // the user's home directory has become visible)
-typedef boost::function<void(const user::User&, ProcessConfig*)>
+typedef boost::function<void(const User&, ProcessConfig*)>
                                                    ProcessConfigFilter;
 
 core::Error launchChildProcess(std::string path,
                                std::string runAsUser,
                                ProcessConfig config,
                                ProcessConfigFilter configFilter,
-                               PidType* pProcessId ) ;
+                               PidType* pProcessId );
 
 // runs a process, replacing the current process's image with that of the target
 // note, this does not create a child process, but replaces the currently running one
@@ -230,15 +207,16 @@ Error terminateChildProcesses(pid_t pid,
 
 bool isUserNotFoundError(const core::Error& error);
 
-core::Error userBelongsToGroup(const user::User& user,
+core::Error userBelongsToGroup(const User& user,
                                const std::string& groupName,
                                bool* pBelongs);
 
 // query priv state
 bool realUserIsRoot();
 
-// privilege management (not thread safe, call from main thread at app startup
-// or just after fork() prior to exec() for new processes)
+// privilege management - not thread safe
+// call from main thread at app startup or just after fork() prior to exec() for new processes
+// do not call after a fork in a multithreaded process, as this can cause deadlock!
 core::Error temporarilyDropPriv(const std::string& newUsername);
 core::Error permanentlyDropPriv(const std::string& newUsername);
 core::Error restorePriv();

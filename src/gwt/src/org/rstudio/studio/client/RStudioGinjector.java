@@ -1,7 +1,7 @@
 /*
  * RStudioGinjector.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -27,14 +27,17 @@ import org.rstudio.core.client.command.EditorCommandManager;
 import org.rstudio.core.client.command.ShortcutManager;
 import org.rstudio.core.client.command.ShortcutViewer;
 import org.rstudio.core.client.command.UserCommandManager;
+import org.rstudio.core.client.files.filedialog.OpenProjectDialog;
 import org.rstudio.core.client.files.filedialog.PathBreadcrumbWidget;
 import org.rstudio.core.client.theme.WindowFrame;
 import org.rstudio.core.client.widget.CaptionWithHelp;
 import org.rstudio.core.client.widget.LocalRepositoriesWidget;
 import org.rstudio.core.client.widget.ModifyKeyboardShortcutsWidget;
 import org.rstudio.core.client.widget.RStudioThemedFrame;
+import org.rstudio.core.client.widget.ToolbarPopupMenu;
 import org.rstudio.studio.client.application.Application;
 import org.rstudio.studio.client.application.ApplicationInterrupt;
+import org.rstudio.studio.client.application.AriaLiveService;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.application.ui.AboutDialog;
 import org.rstudio.studio.client.application.ui.ProjectPopupMenu;
@@ -63,6 +66,21 @@ import org.rstudio.studio.client.common.spelling.TypoSpellChecker;
 import org.rstudio.studio.client.common.spelling.ui.SpellingCustomDictionariesWidget;
 import org.rstudio.studio.client.htmlpreview.HTMLPreviewApplication;
 import org.rstudio.studio.client.notebook.CompileNotebookOptionsDialog;
+import org.rstudio.studio.client.panmirror.PanmirrorWidget;
+import org.rstudio.studio.client.panmirror.dialogs.PanmirrorDialogs;
+import org.rstudio.studio.client.panmirror.dialogs.PanmirrorEditImageDialog;
+import org.rstudio.studio.client.panmirror.dialogs.PanmirrorEditRawDialog;
+import org.rstudio.studio.client.panmirror.dialogs.PanmirrorInsertCiteDialog;
+import org.rstudio.studio.client.panmirror.outline.PanmirrorOutlineWidget;
+import org.rstudio.studio.client.panmirror.pandoc.PanmirrorPandocServer;
+import org.rstudio.studio.client.panmirror.server.PanmirrorCrossrefServer;
+import org.rstudio.studio.client.panmirror.server.PanmirrorDOIServer;
+import org.rstudio.studio.client.panmirror.server.PanmirrorDataCiteServer;
+import org.rstudio.studio.client.panmirror.server.PanmirrorPubMedServer;
+import org.rstudio.studio.client.panmirror.server.PanmirrorXRefServer;
+import org.rstudio.studio.client.panmirror.server.PanmirrorZoteroServer;
+import org.rstudio.studio.client.panmirror.ui.PanmirrorUIDisplay;
+import org.rstudio.studio.client.panmirror.ui.PanmirrorUIPrefs;
 import org.rstudio.studio.client.plumber.PlumberAPI;
 import org.rstudio.studio.client.plumber.PlumberAPISatellite;
 import org.rstudio.studio.client.plumber.ui.PlumberViewerTypePopupMenu;
@@ -91,10 +109,13 @@ import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.model.RemoteFileSystemContext;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.SessionOpener;
-import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UserState;
+import org.rstudio.studio.client.workbench.prefs.views.PythonPreferencesPaneBase;
 import org.rstudio.studio.client.workbench.snippets.SnippetHelper;
 import org.rstudio.studio.client.workbench.snippets.ui.EditSnippetsDialog;
 import org.rstudio.studio.client.workbench.ui.ConsoleTabPanel;
+import org.rstudio.studio.client.workbench.ui.polyfill.FocusVisiblePolyfill;
 import org.rstudio.studio.client.workbench.views.connections.ui.ConnectionCodePanel;
 import org.rstudio.studio.client.workbench.views.connections.ui.ConnectionExplorer;
 import org.rstudio.studio.client.workbench.views.connections.ui.NewConnectionInstallOdbcHost;
@@ -121,6 +142,8 @@ import org.rstudio.studio.client.workbench.views.source.DocsMenu;
 import org.rstudio.studio.client.workbench.views.source.DocumentOutlineWidget;
 import org.rstudio.studio.client.workbench.views.source.NewPlumberAPI;
 import org.rstudio.studio.client.workbench.views.source.NewShinyWebApplication;
+import org.rstudio.studio.client.workbench.views.source.SourceColumn;
+import org.rstudio.studio.client.workbench.views.source.SourceColumnManager;
 import org.rstudio.studio.client.workbench.views.source.SourceSatellite;
 import org.rstudio.studio.client.workbench.views.source.SourceWindow;
 import org.rstudio.studio.client.workbench.views.source.SourceWindowManager;
@@ -160,6 +183,13 @@ import org.rstudio.studio.client.workbench.views.source.editors.text.rmd.TextEdi
 import org.rstudio.studio.client.workbench.views.source.editors.text.rmd.display.ChunkOptionsPopupPanel;
 import org.rstudio.studio.client.workbench.views.source.editors.text.rmd.display.SetupChunkOptionsPopupPanel;
 import org.rstudio.studio.client.workbench.views.source.editors.text.themes.AceThemes;
+import org.rstudio.studio.client.workbench.views.source.editors.text.visualmode.VisualMode;
+import org.rstudio.studio.client.workbench.views.source.editors.text.visualmode.VisualModePanmirrorContext;
+import org.rstudio.studio.client.workbench.views.source.editors.text.visualmode.VisualModeConfirm;
+import org.rstudio.studio.client.workbench.views.source.editors.text.visualmode.VisualModePanmirrorFormat;
+import org.rstudio.studio.client.workbench.views.source.editors.text.visualmode.VisualModeSpelling;
+import org.rstudio.studio.client.workbench.views.source.editors.text.visualmode.VisualModeMarkdownWriter;
+import org.rstudio.studio.client.workbench.views.source.editors.text.visualmode.VisualModeNavigation;
 import org.rstudio.studio.client.workbench.views.vcs.svn.SVNCommandHandler;
 import org.rstudio.studio.client.workbench.views.environment.ClearAllDialog;
 import org.rstudio.studio.client.workbench.views.environment.dataimport.DataImport;
@@ -194,6 +224,7 @@ public interface RStudioGinjector extends Ginjector
    void injectMembers(ProjectPreferencesPane projectPrefsPane);
    void injectMembers(BuildToolsPackagePanel buildToolsPackagePanel);
    void injectMembers(CodeFilesList codeFilesList);
+   void injectMembers(ToolbarPopupMenu toolbarPopupMenu);
    void injectMembers(ProjectPopupMenu projectPopupMenu);
    void injectMembers(ClearAllDialog clearAllDialog);
    void injectMembers(TextEditingTargetPresentationHelper presHelper);
@@ -223,6 +254,7 @@ public interface RStudioGinjector extends Ginjector
    void injectMembers(DocumentOutlineWidget widget);
    void injectMembers(SetupChunkOptionsPopupPanel panel);
    void injectMembers(SourceSatellite satellite);
+   void injectMembers(ShinyApplicationSatellite satellite);
    void injectMembers(ModifyKeyboardShortcutsWidget widget);
    void injectMembers(ShortcutManager manager);
    void injectMembers(UserCommandManager manager);
@@ -280,14 +312,39 @@ public interface RStudioGinjector extends Ginjector
    void injectMembers(CheckForUpdatesDialog dialog);
    void injectMembers(JobsPresenterEventHandlersImpl jobPresenterBaseImpl);
    void injectMembers(JobsDisplayImpl jobDisplayBaseImpl);
-   
+   void injectMembers(PanmirrorPandocServer panmirrorPandocServer);
+   void injectMembers(PanmirrorCrossrefServer panmirrorCrossrefServer);
+   void injectMembers(PanmirrorDataCiteServer panmirrorDataCiteServer);
+   void injectMembers(PanmirrorPubMedServer panmirrorPubMedServer);
+   void injectMembers(PanmirrorDOIServer panmirrorDOIServer);
+   void injectMembers(PanmirrorXRefServer panmirrorXRefServer);
+   void injectMembers(PanmirrorZoteroServer panmirrorZoteroServer);
+   void injectMembers(PanmirrorDialogs panmirrorEditorUI);
+   void injectMembers(PanmirrorWidget panmirrorWidget);
+   void injectMembers(PanmirrorOutlineWidget panmirrorOutlineWidget);
+   void injectMembers(PanmirrorEditRawDialog panmirrorEditRawDialog);
+   void injectMembers(PanmirrorInsertCiteDialog panmirrorInsertCiteDialog);
+   void injectMembers(PanmirrorEditImageDialog panmirrorEditImageDialog);
+   void injectMembers(PanmirrorUIDisplay panmirrorUIDisplay);
+   void injectMembers(PanmirrorUIPrefs panmirrorUIPrefs);
+   void injectMembers(VisualMode visualMode);
+   void injectMembers(VisualModeNavigation visualModeNavigation);
+   void injectMembers(VisualModePanmirrorContext visualModePanmirrorContext);
+   void injectMembers(VisualModePanmirrorFormat visualModePanmirrorFormat);
+   void injectMembers(VisualModeMarkdownWriter visualModeMarkdownWriter);
+   void injectMembers(VisualModeSpelling visualModeSpelling);
+   void injectMembers(VisualModeConfirm visualModeConfirm);
+   void injectMembers(OpenProjectDialog dialog);
+   void injectMembers(SourceColumn column);
+   void injectMembers(SourceColumnManager columnManager);
+   void injectMembers(PythonPreferencesPaneBase<?> pane);
+
    public static final RStudioGinjector INSTANCE = GWT.create(RStudioGinjector.class);
 
-   Application getApplication() ;
+   Application getApplication();
    ApplicationInterrupt getApplicationInterrupt();
    VCSApplication getVCSApplication();
    HTMLPreviewApplication getHTMLPreviewApplication();
-   ShinyApplicationSatellite getShinyApplicationSatellite();
    ShinyApplication getShinyApplication();
    ShinyViewerTypePopupMenu getShinyViewerTypePopupMenu();
    RmdOutputSatellite getRmdOutputSatellite();
@@ -301,10 +358,12 @@ public interface RStudioGinjector extends Ginjector
    RnwWeaveRegistry getRnwWeaveRegistry();
    LatexProgramRegistry getLatexProgramRegistry();
    Commands getCommands();
-   UIPrefs getUIPrefs();
+   UserPrefs getUserPrefs();
+   UserState getUserState();
    Session getSession();
    HelpStrategy getHelpStrategy();
    ShortcutViewer getShortcutViewer();
+   SourceColumnManager getSourceColumnManager();
    Satellite getSatellite();
    SatelliteManager getSatelliteManager();
    SourceWindowManager getSourceWindowManager();
@@ -324,6 +383,8 @@ public interface RStudioGinjector extends Ginjector
    SessionOpener getSessionOpener();
    VirtualConsoleFactory getVirtualConsoleFactory();
    JobItemFactory getJobItemFactory();
+   FocusVisiblePolyfill getFocusVisiblePolyfill();
+   AriaLiveService getAriaLiveService();
 
    // Pro-only below here
 }

@@ -1,7 +1,7 @@
 /*
  * HistoryPanel.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -100,6 +100,7 @@ public class HistoryPanel extends Composite implements Display
       pager_ = strategy.getPager();
       branchToolbarButton_ = branchToolbarButton;
       commitFilterToolbarButton_ = commitFilterToolbarButton;
+      topToolbar_ = new Toolbar("History");
 
       initWidget(GWT.<Binder>create(Binder.class).createAndBindUi(this));
 
@@ -237,7 +238,7 @@ public class HistoryPanel extends Composite implements Display
 
    @UiField(provided = true)
    SplitLayoutPanel splitPanel_;
-   @UiField
+   @UiField(provided = true)
    Toolbar topToolbar_;
    @UiField(provided = true)
    CommitListTable commitTable_;

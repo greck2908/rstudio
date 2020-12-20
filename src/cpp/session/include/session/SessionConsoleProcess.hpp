@@ -1,7 +1,7 @@
 /*
  * SessionConsoleProcess.hpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,6 +22,7 @@
 #include <boost/regex.hpp>
 #include <boost/circular_buffer.hpp>
 #include <boost/enable_shared_from_this.hpp>
+#include <boost/thread/mutex.hpp>
 
 #include <core/BoostSignals.hpp>
 #include <core/system/Process.hpp>
@@ -93,7 +94,7 @@ public:
 
       bool empty() { return !interrupt && text.empty(); }
 
-      bool interrupt ;
+      bool interrupt;
       std::string text;
       bool echoInput;
 

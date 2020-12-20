@@ -1,7 +1,7 @@
 /*
  * PublishingPreferencesPane.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -32,6 +32,7 @@ import com.google.inject.Inject;
 import org.rstudio.core.client.CommandWithArg;
 import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.prefs.PreferencesDialogBaseResources;
+import org.rstudio.core.client.prefs.RestartRequirement;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.widget.FileChooserTextBox;
 import org.rstudio.core.client.widget.Operation;
@@ -48,8 +49,8 @@ import org.rstudio.studio.client.rsconnect.ui.RSConnectAccountList;
 import org.rstudio.studio.client.server.ServerError;
 import org.rstudio.studio.client.server.ServerRequestCallback;
 import org.rstudio.studio.client.server.Void;
-import org.rstudio.studio.client.workbench.prefs.model.RPrefs;
-import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UserState;
 
 public class PublishingPreferencesPane extends PreferencesPane
 {
@@ -57,31 +58,30 @@ public class PublishingPreferencesPane extends PreferencesPane
    public PublishingPreferencesPane(GlobalDisplay globalDisplay,
                                     RSConnectServerOperations server,
                                     RSAccountConnector connector,
-                                    UIPrefs prefs,
+                                    UserPrefs prefs,
+                                    UserState state,
                                     DependencyManager deps)
    {
       reloadRequired_ = false;
       display_ = globalDisplay;
-      uiPrefs_ = prefs;
+      userPrefs_ = prefs;
+      userState_ = state;
       server_ = server;
       connector_ = connector;
       deps_ = deps;
-      
+
       VerticalPanel accountPanel = new VerticalPanel();
-      Label accountLabel = headerLabel("Publishing Accounts");
       HorizontalPanel hpanel = new HorizontalPanel();
-      
-      accountPanel.add(accountLabel);
-      
-      accountList_ = new RSConnectAccountList(server, globalDisplay, true, 
-            true);
+
+      String accountListLabel = "Publishing Accounts";
+      accountList_ = new RSConnectAccountList(server, globalDisplay, true, true, accountListLabel);
       accountList_.setHeight("150px");
       accountList_.setWidth("300px");
       accountList_.getElement().getStyle().setMarginBottom(15, Unit.PX);
       accountList_.getElement().getStyle().setMarginLeft(3, Unit.PX);
       hpanel.add(accountList_);
-      
-      accountList_.setOnRefreshCompleted(new Operation() 
+
+      accountList_.setOnRefreshCompleted(new Operation()
       {
          @Override
          public void execute()
@@ -97,7 +97,7 @@ public class PublishingPreferencesPane extends PreferencesPane
             setButtonEnabledState();
          }
       });
-      
+
       VerticalPanel vpanel = new VerticalPanel();
       hpanel.add(vpanel);
 
@@ -130,7 +130,7 @@ public class PublishingPreferencesPane extends PreferencesPane
          }
       });
       vpanel.add(reconnectButton_);
-      
+
       disconnectButton_ = new ThemedButton("Disconnect");
       disconnectButton_.setWidth("100%");
       disconnectButton_.setWrapperWidth("100%");
@@ -144,12 +144,14 @@ public class PublishingPreferencesPane extends PreferencesPane
          }
       });
       vpanel.add(disconnectButton_);
-      
+
       setButtonEnabledState();
 
+      Label accountLabel = headerLabel(accountListLabel);
+      accountPanel.add(accountLabel);
       accountPanel.add(hpanel);
       add(accountPanel);
-      
+
       // special UI to show when we detect that there are account records but
       // the RSConnect package isn't installed
       final VerticalPanel missingPkgPanel = new VerticalPanel();
@@ -163,8 +165,8 @@ public class PublishingPreferencesPane extends PreferencesPane
          @Override
          public void onClick(ClickEvent arg0)
          {
-            deps_.withRSConnect("Viewing publish accounts", false, null, 
-                                new CommandWithArg<Boolean>() 
+            deps_.withRSConnect("Viewing publish accounts", false, null,
+                                new CommandWithArg<Boolean>()
             {
                @Override
                public void execute(Boolean succeeded)
@@ -173,7 +175,7 @@ public class PublishingPreferencesPane extends PreferencesPane
                   {
                      // refresh the account list to show the accounts
                      accountList_.refreshAccountList();
-                     
+
                      // remove the "missing package" UI
                      missingPkgPanel.setVisible(false);
                   }
@@ -186,17 +188,17 @@ public class PublishingPreferencesPane extends PreferencesPane
       missingPkgPanel.add(installPkgs);
       missingPkgPanel.getElement().getStyle().setMarginBottom(20, Unit.PX);
       add(missingPkgPanel);
-      
+
       final CheckBox chkEnableRSConnect = checkboxPref("Enable publishing to RStudio Connect",
-            uiPrefs_.enableRStudioConnect());
+            userState_.enableRsconnectPublishUi());
       final HorizontalPanel rsconnectPanel = checkBoxWithHelp(chkEnableRSConnect,
-                                                              "rstudio_connect",
-                                                              "Information about RStudio Connect");
+                                                        "rstudio_connect",
+                                                        "Information about RStudio Connect");
       lessSpaced(rsconnectPanel);
-      
+
       add(headerLabel("Settings"));
-      CheckBox chkEnablePublishing = checkboxPref("Enable publishing documents, apps, and APIs", 
-            uiPrefs_.showPublishUi());
+      CheckBox chkEnablePublishing = checkboxPref("Enable publishing documents, apps, and APIs",
+            userState_.showPublishUi());
       chkEnablePublishing.addValueChangeHandler(new ValueChangeHandler<Boolean>(){
          @Override
          public void onValueChange(ValueChangeEvent<Boolean> event)
@@ -207,32 +209,33 @@ public class PublishingPreferencesPane extends PreferencesPane
          }
       });
       add(chkEnablePublishing);
-      
+
       if (RSConnect.showRSConnectUI())
          add(rsconnectPanel);
-      
+
       add(checkboxPref("Show diagnostic information when publishing",
-            uiPrefs_.showPublishDiagnostics()));
-      
+            userPrefs_.showPublishDiagnostics()));
+
       add(spacedBefore(headerLabel("SSL Certificates")));
 
       add(checkboxPref("Check SSL certificates when publishing",
-            uiPrefs_.publishCheckCertificates()));
-      
+            userPrefs_.publishCheckCertificates()));
+
       CheckBox useCaBundle = checkboxPref("Use custom CA bundle",
-            uiPrefs_.usePublishCABundle());
+            userPrefs_.usePublishCaBundle());
       useCaBundle.addValueChangeHandler(
             val -> caBundlePath_.setVisible(val.getValue()));
       add(useCaBundle);
 
-      caBundlePath_ = new FileChooserTextBox("", "(none)", null, null);
-      caBundlePath_.setText(uiPrefs_.publishCABundle().getValue());
-      caBundlePath_.setVisible(uiPrefs_.usePublishCABundle().getValue());
+      caBundlePath_ = new FileChooserTextBox(
+         "", "(none)", ElementIds.TextBoxButtonId.CA_BUNDLE, false, null, null);
+      caBundlePath_.setText(userPrefs_.publishCaBundle().getValue());
+      caBundlePath_.setVisible(userPrefs_.usePublishCaBundle().getValue());
       add(caBundlePath_);
 
-      add(spacedBefore(new HelpLink("Troubleshooting Deployments", 
+      add(spacedBefore(new HelpLink("Troubleshooting Deployments",
             "troubleshooting_deployments")));
-      
+
       server_.hasOrphanedAccounts(new ServerRequestCallback<Double>()
       {
          @Override
@@ -253,21 +256,23 @@ public class PublishingPreferencesPane extends PreferencesPane
    }
 
    @Override
-   protected void initialize(RPrefs rPrefs)
+   protected void initialize(UserPrefs rPrefs)
    {
    }
 
    @Override
-   public boolean onApply(RPrefs rPrefs)
+   public RestartRequirement onApply(UserPrefs rPrefs)
    {
-      boolean reload = super.onApply(rPrefs);
-      
-      uiPrefs_.publishCABundle().setGlobalValue(caBundlePath_.getText());
+      RestartRequirement restartRequirement = super.onApply(rPrefs);
 
-      return reload || reloadRequired_;
+      if (reloadRequired_)
+         restartRequirement.setUiReloadRequired(true);
+
+      userPrefs_.publishCaBundle().setGlobalValue(caBundlePath_.getText());
+
+      return restartRequirement;
    }
 
-   
    @Override
    public ImageResource getIcon()
    {
@@ -291,19 +296,19 @@ public class PublishingPreferencesPane extends PreferencesPane
       final RSConnectAccount account = accountList_.getSelectedAccount();
       if (account == null)
       {
-         display_.showErrorMessage("Error Disconnecting Account", 
+         display_.showErrorMessage("Error Disconnecting Account",
                "Please select an account to disconnect.");
          return;
       }
       display_.showYesNoMessage(
-            GlobalDisplay.MSG_QUESTION, 
-            "Confirm Remove Account", 
-            "Are you sure you want to disconnect the '" + 
-              account.getName() + 
-            "' account on '" + 
-              account.getServer() + "'" + 
-            "? This won't delete the account on the server.", 
-            false, 
+            GlobalDisplay.MSG_QUESTION,
+            "Confirm Remove Account",
+            "Are you sure you want to disconnect the '" +
+              account.getName() +
+            "' account on '" +
+              account.getServer() + "'" +
+            "? This won't delete the account on the server.",
+            false,
             new Operation()
             {
                @Override
@@ -313,10 +318,10 @@ public class PublishingPreferencesPane extends PreferencesPane
                }
             }, null, null, "Disconnect Account", "Cancel", false);
    }
-   
+
    private void onConfirmDisconnect(final RSConnectAccount account)
    {
-      server_.removeRSConnectAccount(account.getName(), 
+      server_.removeRSConnectAccount(account.getName(),
             account.getServer(), new ServerRequestCallback<Void>()
       {
          @Override
@@ -328,12 +333,12 @@ public class PublishingPreferencesPane extends PreferencesPane
          @Override
          public void onError(ServerError error)
          {
-            display_.showErrorMessage("Error Disconnecting Account", 
+            display_.showErrorMessage("Error Disconnecting Account",
                                       error.getMessage());
          }
       });
    }
-   
+
    private void onConnect()
    {
       // if there's already at least one account connected, the requisite
@@ -345,7 +350,7 @@ public class PublishingPreferencesPane extends PreferencesPane
       else
       {
          deps_.withRSConnect("Connecting a publishing account", false, null,
-                             new CommandWithArg<Boolean>() 
+                             new CommandWithArg<Boolean>()
          {
             @Override
             public void execute(Boolean succeeded)
@@ -360,10 +365,10 @@ public class PublishingPreferencesPane extends PreferencesPane
          });
       }
    }
-   
+
    private void onReconnect()
    {
-      connector_.showReconnectWizard(accountList_.getSelectedAccount(), 
+      connector_.showReconnectWizard(accountList_.getSelectedAccount(),
             new OperationWithInput<Boolean>()
       {
          @Override
@@ -376,11 +381,11 @@ public class PublishingPreferencesPane extends PreferencesPane
          }
       });
    }
-   
+
    private void showAccountWizard()
    {
-      connector_.showAccountWizard(false, true, 
-            new OperationWithInput<Boolean>() 
+      connector_.showAccountWizard(false, true,
+            new OperationWithInput<Boolean>()
       {
          @Override
          public void execute(Boolean successful)
@@ -397,14 +402,15 @@ public class PublishingPreferencesPane extends PreferencesPane
    {
       disconnectButton_.setEnabled(
             accountList_.getSelectedAccount() != null);
-      
+
       reconnectButton_.setEnabled(
             accountList_.getSelectedAccount() != null &&
             !accountList_.getSelectedAccount().isCloudAccount());
    }
-   
+
    private final GlobalDisplay display_;
-   private final UIPrefs uiPrefs_;
+   private final UserPrefs userPrefs_;
+   private final UserState userState_;
    private final RSConnectServerOperations server_;
    private final RSAccountConnector connector_;
    private final DependencyManager deps_;

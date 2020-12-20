@@ -1,7 +1,7 @@
 /*
  * FocusContext.java
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -47,7 +47,7 @@ public class FocusContext
             Document doc = originallyActiveElement_.getOwnerDocument();
             if (doc != null)
             {
-               originallyActiveElement_.focus();
+               restoreFocus(originallyActiveElement_);
             }
          }
       }
@@ -62,6 +62,17 @@ public class FocusContext
       }
       originallyActiveElement_ = null;
    }
+   
+   // restore focus to element
+   private final native void restoreFocus(com.google.gwt.dom.client.Element element) /*-{
+      // check for a custom restoreFocus handler
+      if (element.restoreFocus)
+         element.restoreFocus();
+      else
+         element.focus();
+   }-*/;
+   
+   
    
    private com.google.gwt.dom.client.Element originallyActiveElement_ = null;
   

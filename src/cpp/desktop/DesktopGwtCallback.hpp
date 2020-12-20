@@ -1,7 +1,7 @@
 /*
  * DesktopGwtCallback.hpp
  *
- * Copyright (C) 2009-18 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,6 +23,8 @@
 #include <QJsonObject>
 #include <QPrinter>
 
+#include <boost/optional.hpp>
+
 #ifdef Q_OS_WIN32
 #include "DesktopWordViewer.hpp"
 #include "DesktopPowerpointViewer.hpp"
@@ -34,6 +36,7 @@ namespace desktop {
 class MainWindow;
 class GwtWindow;
 class Synctex;
+class JobLauncher;
 
 enum PendingQuit 
 {
@@ -99,6 +102,8 @@ public Q_SLOTS:
 
    void setClipboardText(QString text);
    QString getClipboardText();
+   QJsonArray getClipboardUris();
+   QString getClipboardImage();
    
    void setGlobalMouseSelection(QString selection);
    QString getGlobalMouseSelection();
@@ -180,7 +185,7 @@ public Q_SLOTS:
    void openTerminal(QString terminalPath,
                      QString workingDirectory,
                      QString extraPathEntries,
-                     int shellType);
+                     QString shellType);
 
    QString getFixedWidthFontList();
    QString getFixedWidthFont();
@@ -233,6 +238,8 @@ public Q_SLOTS:
 
    void reloadZoomWindow();
 
+   void setTutorialUrl(QString url);
+   
    void setViewerUrl(QString url);
    void reloadViewerZoomWindow(QString url);
 
@@ -240,7 +247,7 @@ public Q_SLOTS:
 
    QString getScrollingCompensationType();
 
-   bool isOSXMavericks();
+   bool isMacOS();
    bool isCentOS();
 
    void setBusy(bool busy);
@@ -253,10 +260,27 @@ public Q_SLOTS:
 
    void onSessionQuit();
 
-   QString getSessionServer();
+   QJsonObject getSessionServer();
+   QJsonArray getSessionServers();
+   void reconnectToSessionServer(const QJsonValue& sessionServerJson);
+
+   bool setLauncherServer(const QJsonObject& sessionServerJson);
+   void connectToLauncherServer();
+
+   QJsonObject getLauncherServer();
+   void startLauncherJobStatusStream(QString jobId);
+   void stopLauncherJobStatusStream(QString jobId);
+   void startLauncherJobOutputStream(QString jobId);
+   void stopLauncherJobOutputStream(QString jobId);
+   void controlLauncherJob(QString jobId, QString operation);
+   void submitLauncherJob(const QJsonObject& job);
+   void getJobContainerUser();
+   void validateJobsConfig();
+   int getProxyPortNumber();
+
+   void signOut();
 
 private:
-   void invokeReflowComment();
    Synctex& synctex();
    void activateAndFocusOwner();
 
@@ -265,6 +289,7 @@ private:
    void doAction(QKeySequence::StandardKey key);
    MainWindow* pMainWindow_;
    GwtWindow* pOwner_;
+   JobLauncher* pLauncher_;
    bool isRemoteDesktop_;
    Synctex* pSynctex_;
    int pendingQuit_;

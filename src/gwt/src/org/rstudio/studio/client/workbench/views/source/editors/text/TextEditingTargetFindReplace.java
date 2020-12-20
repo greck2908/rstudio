@@ -1,7 +1,7 @@
 /*
  * TextEditingTargetFindReplace.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,7 +23,6 @@ import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.event.dom.client.FocusEvent;
 import com.google.gwt.event.dom.client.FocusHandler;
-import com.google.gwt.user.client.ui.Widget;
 
 public class TextEditingTargetFindReplace
 {
@@ -54,7 +53,7 @@ public class TextEditingTargetFindReplace
       });
    }
    
-   public Widget createFindReplaceButton()
+   public ToolbarButton createFindReplaceButton()
    {
       if (findReplaceBar_ == null)
       {
@@ -148,9 +147,8 @@ public class TextEditingTargetFindReplace
          findReplace_.findPrevious();
    }
    
-   public void findFromSelection()
+   public void findFromSelection(String selection)
    {
-      String selection = container_.getEditor().getSelectionValue();
       boolean multiLineSelection = selection.indexOf('\n') != -1;
       if ((selection.length()) > 0 && !multiLineSelection)
       {
@@ -166,6 +164,11 @@ public class TextEditingTargetFindReplace
             findReplace_.activate(selection, true, false);
          }
       }
+   }
+   
+   public void findFromSelection()
+   {
+      findFromSelection(container_.getEditor().getSelectionValue());
    }
    
    public void replaceAndFind()

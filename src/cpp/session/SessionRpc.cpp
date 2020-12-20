@@ -1,7 +1,7 @@
 /*
  * SessionRpc.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,7 @@
 #include "SessionHttpMethods.hpp"
 #include "SessionClientEventQueue.hpp"
 
-#include <core/json/Json.hpp>
+#include <shared_core/json/Json.hpp>
 #include <core/json/JsonRpc.hpp>
 #include <core/Exec.hpp>
 #include <core/Log.hpp>
@@ -35,6 +35,9 @@ using namespace rstudio::core;
 namespace rstudio {
 namespace session {
 namespace {
+
+// a delay used when processing RPC methods (used to simulate network latency)
+int s_rpcDelayMs = -1;
 
 // json rpc methods
 core::json::JsonRpcAsyncMethods* s_pJsonRpcMethods = nullptr;
@@ -123,7 +126,7 @@ SEXP rs_invokeRpc(SEXP name, SEXP args)
    {
       // specified method doesn't exist
       r::exec::error("Requested RPC method " + request.method + " does not exist.");
-      return R_NilValue;    
+      return R_NilValue;
    }
 
    std::pair<bool, json::JsonRpcAsyncFunction> reg = it->second;
@@ -145,14 +148,14 @@ SEXP rs_invokeRpc(SEXP name, SEXP args)
    // raise an R error if the RPC fails
    if (rpcError)
    {
-      r::exec::error(log::errorAsLogEntry(rpcError));
+      r::exec::error(log::writeError(rpcError));
    }
 
    // emit formatted response if enabled
    if (!core::system::getenv("RSTUDIO_SESSION_RPC_DEBUG").empty())
    {
       std::cout << "<<<" << std::endl;
-      core::json::writeFormatted(response.getRawResponse(), std::cout);
+      response.getRawResponse().writeFormatted(std::cout);
       std::cout << std::endl;
    }
 
@@ -213,19 +216,19 @@ void formatRpcRequest(SEXP name,
    Error error = r::json::jsonValueFromObject(args, &rpcArgs);
    if (!core::system::getenv("RSTUDIO_SESSION_RPC_DEBUG").empty())
       std::cout << ">>>" << std::endl;
-   if (rpcArgs.type() == json::ObjectType)
+   if (rpcArgs.getType() == json::Type::OBJECT)
    {
       // named pair parameters
-      pRequest->kwparams = rpcArgs.get_value<json::Object>();
+      pRequest->kwparams = rpcArgs.getValue<json::Object>();
       if (!core::system::getenv("RSTUDIO_SESSION_RPC_DEBUG").empty())
-         core::json::writeFormatted(pRequest->kwparams, std::cout);
+         pRequest->kwparams.writeFormatted(std::cout);
    }
-   else if (rpcArgs.type() == json::ArrayType)
+   else if (rpcArgs.getType() == json::Type::ARRAY)
    {
       // array parameters
-      pRequest->params = rpcArgs.get_value<json::Array>();
+      pRequest->params = rpcArgs.getValue<json::Array>();
       if (!core::system::getenv("RSTUDIO_SESSION_RPC_DEBUG").empty())
-         core::json::writeFormatted(pRequest->params, std::cout);
+         pRequest->params.writeFormatted(std::cout);
    }
    if (!core::system::getenv("RSTUDIO_SESSION_RPC_DEBUG").empty())
       std::cout << std::endl;
@@ -234,19 +237,19 @@ void formatRpcRequest(SEXP name,
 void raiseJsonRpcResponseError(json::JsonRpcResponse& response)
 {
    // raise an R error if the RPC returns an error
-   if (response.error().type() == json::ObjectType)
+   if (response.error().getType() == json::Type::OBJECT)
    {
       // formulate verbose error string
-      json::Object err = response.error().get_obj();
-      std::string message = err["message"].get_str();
+      json::Object err = response.error().getObject();
+      std::string message = err["message"].getString();
       if (err.find("error") != err.end())
-         message += ", Error " + err["error"].get_str();
+         message += ", Error " + err["error"].getString();
       if (err.find("category") != err.end())
-         message += ", Category " + err["category"].get_str();
+         message += ", Category " + err["category"].getString();
       if (err.find("code") != err.end())
-         message += ", Code " + err["code"].get_str();
+         message += ", Code " + err["code"].getString();
       if (err.find("location") != err.end())
-         message += " at " + err["location"].get_str();
+         message += " at " + err["location"].getString();
 
       r::exec::error(message);
    }
@@ -256,9 +259,15 @@ void handleRpcRequest(const core::json::JsonRpcRequest& request,
                       boost::shared_ptr<HttpConnection> ptrConnection,
                       http_methods::ConnectionType connectionType)
 {
+   // delay handling this RPC if requested
+   if (s_rpcDelayMs > 0)
+   {
+      boost::this_thread::sleep_for(boost::chrono::milliseconds(s_rpcDelayMs));
+   }
+   
    // record the time just prior to execution of the event
    // (so we can determine if any events were added during execution)
-   using namespace boost::posix_time; 
+   using namespace boost::posix_time;
    ptime executeStartTime = microsec_clock::universal_time();
    
    // execute the method
@@ -305,6 +314,11 @@ void handleRpcRequest(const core::json::JsonRpcRequest& request,
 
       endHandleRpcRequestDirect(ptrConnection, executeStartTime, executeError, nullptr);
    }
+}
+
+void setRpcDelay(int delayMs)
+{
+   s_rpcDelayMs = delayMs;
 }
 
 Error initialize()

@@ -1,7 +1,7 @@
 /*
  * ServerAuthHandler.hpp
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,6 +24,8 @@
 #include <core/http/UriHandler.hpp>
 #include <core/http/AsyncUriHandler.hpp>
 
+#include <shared_core/json/Json.hpp>
+
 #include <server/auth/ServerSecureUriHandler.hpp>
 
 namespace rstudio {
@@ -38,7 +40,7 @@ extern const char * const kRefreshCredentialsAndContinue;
 
 // functions which can be called on the handler directly
 std::string getUserIdentifier(const core::http::Request& request,
-                              core::http::Response* pResponse);
+                              bool requireUserListCookie);
 
 std::string userIdentifierToLocalUsername(const std::string& userIdentifier);
 
@@ -60,10 +62,8 @@ void refreshCredentialsThenContinue(
 // functions which must be provided by an auth handler
 struct Handler
 {
-   boost::function<std::string(const core::http::Request&,
-                               core::http::Response*)> getUserIdentifier;
-   boost::function<std::string(const std::string&)>
-                                                userIdentifierToLocalUsername;
+   boost::function<std::string(const core::http::Request&)> getUserIdentifier;
+   boost::function<std::string(const std::string&)> userIdentifierToLocalUsername;
    core::http::UriFilterFunction mainPageFilter;
    core::http::UriHandlerFunction signInThenContinue;
    core::http::AsyncUriHandlerFunction refreshCredentialsThenContinue;
@@ -128,6 +128,20 @@ core::Error initialize();
 namespace overlay {
 
 core::Error initialize();
+bool canStaySignedIn();
+core::Error isUserLicensed(const std::string& username,
+                           bool* pLicensed);
+bool isUserListCookieValid(const std::string& cookieValue);
+bool shouldShowUserLicenseWarning();
+bool isUserAdmin(const std::string& username);
+std::string getUserListCookieValue();
+unsigned int getActiveUserCount();
+core::json::Array getLicensedUsers();
+core::json::Array getAllUsers();
+core::Error lockUser(boost::asio::io_service& ioService, const std::string& username);
+core::Error unlockUser(boost::asio::io_service& ioService, const std::string& username);
+core::Error setAdmin(boost::asio::io_service& ioService, const std::string& username, bool isAdmin);
+core::Error addUser(boost::asio::io_service& ioService, const std::string& username, bool isAdmin);
 
 } // namespace overlay
 

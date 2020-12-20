@@ -1,7 +1,7 @@
 /*
  * SlideRenderer.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,10 +20,10 @@
 #include <boost/regex.hpp>
 #include <boost/algorithm/string.hpp>
 
-#include <core/Error.hpp>
-#include <core/FilePath.hpp>
+#include <shared_core/Error.hpp>
+#include <shared_core/FilePath.hpp>
 #include <core/StringUtils.hpp>
-#include <core/json/Json.hpp>
+#include <shared_core/json/Json.hpp>
 
 #include <core/markdown/Markdown.hpp>
 
@@ -53,9 +53,7 @@ std::string commandsAsJsonArray(const Slide& slide)
       commandsJsonArray.push_back(command.asJson());
    }
 
-   std::ostringstream ostr;
-   json::write(commandsJsonArray, ostr);
-   return ostr.str();
+   return commandsJsonArray.write();
 }
 
 Error renderMarkdown(const std::string& content, std::string* pHTML)

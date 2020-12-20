@@ -1,7 +1,7 @@
 /*
  * MruList.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,12 +15,11 @@
 
 #include <core/collection/MruList.hpp>
 
-#include <core/Error.hpp>
 #include <core/FileSerializer.hpp>
+#include <core/Log.hpp>
 
-#ifndef _WIN32
-#include <core/system/FileMode.hpp>
-#endif
+
+#include <shared_core/Error.hpp>
 
 namespace rstudio {
 namespace core {
@@ -49,7 +48,7 @@ Error MruList::initialize()
 #ifndef _WIN32
    // ensure we have write access to the file
    bool writeable = false;
-   error = system::isFileWriteable(file_, &writeable);
+   error = file_.isWriteable(writeable);
    if (error)
       return error;
 

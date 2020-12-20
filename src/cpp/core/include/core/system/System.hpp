@@ -1,7 +1,7 @@
 /*
  * System.hpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,6 +23,9 @@ typedef DWORD PidType;
 #else  // UNIX
 #include <sys/types.h>
 #include <sys/resource.h>
+
+#include <shared_core/system/PosixSystem.hpp>
+
 typedef pid_t PidType;
 typedef uid_t UidType;
 #endif
@@ -35,10 +38,11 @@ typedef uid_t UidType;
 #include <boost/utility.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/function.hpp>
+#include <boost/date_time.hpp>
 
 #include <core/Log.hpp>
-#include <core/Error.hpp>
-#include <core/FilePath.hpp>
+#include <shared_core/Error.hpp>
+#include <shared_core/FilePath.hpp>
 
 #include <core/system/Types.hpp>
 
@@ -48,14 +52,6 @@ namespace core {
 class FileInfo;
 
 namespace system {
-
-enum LogLevel 
-{
-   kLogLevelDebug = 0,
-   kLogLevelInfo = 1,
-   kLogLevelWarning = 2,
-   kLogLevelError = 3
-};
 
 // portable realPath
 Error realPath(const FilePath& filePath, FilePath* pRealPath);
@@ -96,50 +92,6 @@ void closeStdFileDescriptors();
 void attachStdFileDescriptorsToDevNull();
 void setStandardStreamsToDevNull();
 
-// Handles EINTR retrying. Only for use with functions that return -1 on
-// error and set errno.
-template <typename T>
-T posixCall(const boost::function<T()>& func)
-{
-   const T ERR = -1;
-
-   T result;
-   while (true)
-   {
-      result = func();
-
-      if (result == ERR && errno == EINTR)
-         continue;
-      else
-         break;
-   }
-
-   return result;
-}
-
-// Handles EINTR retrying and error construction (also optionally returns
-// the result as an out parameter). Only for use with functions that return
-// -1 on error and set errno.
-template <typename T>
-Error posixCall(const boost::function<T()>& func,
-                       const ErrorLocation& location,
-                       T *pResult = nullptr)
-{
-   const T ERR = -1;
-
-   // make the call
-   T result = posixCall<T>(func);
-
-   // set out param (if requested)
-   if (pResult)
-      *pResult = result;
-
-   // return status
-   if (result == ERR)
-      return systemError(errno, location);
-   else
-      return Success();
-}
 
 // Handles EINTR retrying and error logging. Only for use with functions
 // that return -1 on error and set errno.
@@ -147,7 +99,7 @@ template <typename T>
 void safePosixCall(const boost::function<T()>& func,
                           const ErrorLocation& location)
 {
-   Error error = posixCall<T>(func, location, nullptr);
+   Error error = posix::posixCall<T>(func, location, nullptr);
    if (error)
       LOG_ERROR(error);
 }
@@ -200,15 +152,15 @@ void initHook();
 
 // initialization
 Error initializeSystemLog(const std::string& programIdentity,
-                          int logLevel,
+                          log::LogLevel logLevel,
                           bool enableConfigReload = true);
 
 Error initializeStderrLog(const std::string& programIdentity,
-                          int logLevel,
+                          log::LogLevel logLevel,
                           bool enableConfigReload = true);
 
 Error initializeLog(const std::string& programIdentity,
-                    int logLevel,
+                    log::LogLevel logLevel,
                     const FilePath& logDir,
                     bool enableConfigReload = true);
 
@@ -226,7 +178,7 @@ int exitFailure(const std::string& errMsg,
 // signals 
    
 // ignore selected signals
-Error ignoreTerminalSignals(); 
+Error ignoreTerminalSignals();
 Error ignoreChildExits();
    
 // reap children (better way to handle child exits than ignoreChildExits
@@ -269,13 +221,14 @@ private:
 core::Error clearSignalMask();
 
 core::Error handleSignal(SignalType signal, void (*handler)(int));
-core::Error ignoreSignal(SignalType signal);   
+core::Error ignoreSignal(SignalType signal);
 core::Error useDefaultSignalHandler(SignalType signal);
 
 void sendSignalToSelf(SignalType signal);
 
 // user info
 std::string username();
+
 FilePath userHomePath(std::string envOverride = std::string());
 FilePath userSettingsPath(const FilePath& userHomeDirectory,
                           const std::string& appName,
@@ -285,25 +238,27 @@ bool effectiveUserIsRoot();
 bool currentUserIsPrivilleged(unsigned int minimumUserId);
 
 // log
-void log(LogLevel level,
+void log(log::LogLevel level,
          const char* message,
          const std::string&logSection = std::string());
 
-void log(LogLevel level,
+void log(log::LogLevel level,
          const std::string& message,
          const std::string& logSection = std::string());
 
-void log(LogLevel level,
+void log(log::LogLevel level,
          const boost::function<std::string()>& action,
          const std::string& logSection = std::string());
 
-const char* logLevelToStr(LogLevel level);
+const char* logLevelToStr(log::LogLevel level);
 
-LogLevel lowestLogLevel();
+log::LoggerType loggerType(const std::string& logSection = "");
+
+log::LogLevel lowestLogLevel();
 
 // filesystem
-bool isHiddenFile(const FilePath& filePath) ;
-bool isHiddenFile(const FileInfo& fileInfo) ;
+bool isHiddenFile(const FilePath& filePath);
+bool isHiddenFile(const FileInfo& fileInfo);
 bool isReadOnly(const FilePath& filePath);
    
 // terminals
@@ -349,7 +304,40 @@ std::vector<SubprocInfo> getSubprocesses(PidType pid);
 // if unable to determine cwd
 FilePath currentWorkingDir(PidType pid);
 
+struct ProcessInfo
+{
+   ProcessInfo() : pid(0), ppid(0), pgrp(0) {}
+   PidType pid;
+   PidType ppid;
+   PidType pgrp;
+   std::string username;
+   std::string exe;
+   std::string state;
+   std::vector<std::string> arguments;
+
+#if !defined _WIN32 && !defined __APPLE__
+   core::Error creationTime(boost::posix_time::ptime* pCreationTime) const;
+#endif
+};
+
+// simple encapsulation of parent-child relationship of processes
+struct ProcessTreeNode
+{
+   boost::shared_ptr<ProcessInfo> data;
+   std::vector<boost::shared_ptr<ProcessTreeNode> > children;
+};
+
+// process tree, indexed by pid
+typedef std::map<PidType, boost::shared_ptr<ProcessTreeNode> > ProcessTreeT;
+
 Error terminateChildProcesses();
+
+void createProcessTree(const std::vector<ProcessInfo>& processes,
+                       ProcessTreeT *pOutTree);
+
+void getChildren(const boost::shared_ptr<ProcessTreeNode>& node,
+                 std::vector<ProcessInfo>* pOutChildren,
+                 int depth = 0);
    
 } // namespace system
 } // namespace core 

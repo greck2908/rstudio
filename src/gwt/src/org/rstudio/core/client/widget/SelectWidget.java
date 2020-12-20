@@ -1,7 +1,7 @@
 /*
  * SelectWidget.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,6 +14,8 @@
  */
 package org.rstudio.core.client.widget;
 
+import com.google.gwt.aria.client.Id;
+import com.google.gwt.aria.client.Roles;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.theme.res.ThemeResources;
 
@@ -28,17 +30,25 @@ import com.google.gwt.user.client.ui.Panel;
 import com.google.gwt.user.client.ui.Widget;
 
 public class SelectWidget extends Composite
+                          implements CanSetControlId
 {
+   public static String ExternalLabel = null;
+
+   public SelectWidget()
+   {
+      this(ExternalLabel);
+   }
+
    public SelectWidget(String label)
    {
       this(label, null, false);
    }
-   
+
    public SelectWidget(String label, String[] options)
    {
       this(label, options, false);
    }
-   
+
    public SelectWidget(String label, String[] options, boolean listOnLeft)
    {
       this(label, options, null, false, true, listOnLeft);
@@ -51,7 +61,7 @@ public class SelectWidget extends Composite
    {
       this(label, options, values, isMultipleSelect, false, false);
    }
-   
+
    public SelectWidget(String label,
                        String[] options,
                        String[] values,
@@ -59,10 +69,20 @@ public class SelectWidget extends Composite
                        boolean horizontalLayout,
                        boolean listOnLeft)
    {
-      this(label, options, values, isMultipleSelect, 
+      this(label, options, values, isMultipleSelect,
            horizontalLayout, listOnLeft, false);
    }
-   
+
+   /**
+    * @param label label text, or empty string (supplied later via setLabel), or ExternalLabel if
+    *              a label will be associated outside this control
+    * @param options
+    * @param values
+    * @param isMultipleSelect
+    * @param horizontalLayout
+    * @param listOnLeft
+    * @param fillContainer
+    */
    public SelectWidget(String label,
                        String[] options,
                        String[] values,
@@ -85,12 +105,19 @@ public class SelectWidget extends Composite
          for (int i = 0; i < options.length; i++)
             listBox_.addItem(options[i], values[i]);
       }
-      
+
       Panel panel = null;
       if (horizontalLayout)
       {
          horizontalPanel_ = new HorizontalPanel();
-         label_ = new FormLabel(label, listBox_);
+         if (label != ExternalLabel)
+         {
+            label_ = new FormLabel(label, listBox_);
+         }
+         else
+         {
+            label_ = new FormLabel(""); // to maintain layout
+         }
          if (listOnLeft)
          {
             horizontalPanel_.add(listBox_);
@@ -101,66 +128,86 @@ public class SelectWidget extends Composite
             horizontalPanel_.add(label_);
             horizontalPanel_.add(listBox_);
          }
-        
-         horizontalPanel_.setCellVerticalAlignment(
-                                          label_, 
-                                          HasVerticalAlignment.ALIGN_MIDDLE);
+
+         horizontalPanel_.setCellVerticalAlignment(label_, HasVerticalAlignment.ALIGN_MIDDLE);
          panel = horizontalPanel_;
       }
       else
       {
-         label_ = new FormLabel(label, listBox_, true);
+         if (label != ExternalLabel)
+         {
+            label_ = new FormLabel(label, listBox_, true);
+         }
+         else
+         {
+            label_ = new FormLabel("", true); // to maintain layout
+         }
          flowPanel_ = new FlowPanel();
          flowPanel_.add(label_);
          panel = flowPanel_;
          panel.add(listBox_);
       }
-      
+
       initWidget(panel);
-      
+
       if (fillContainer)
       {
          if (StringUtil.isNullOrEmpty(label))
             listBox_.setWidth("100%");
          horizontalPanel_.setWidth("100%");
       }
-      
+
       addStyleName(ThemeResources.INSTANCE.themeStyles().selectWidget());
    }
-   
+
    public HandlerRegistration addChangeHandler(ChangeHandler handler)
    {
       return listBox_.addChangeHandler(handler);
+   }
+
+   public FormLabel getLabel()
+   {
+      return label_;
    }
 
    public ListBox getListBox()
    {
       return listBox_;
    }
-   
+
    public void setLabel(String label)
    {
       label_.setText(label);
    }
-   
+
    public void setChoices(String[] options)
    {
       setChoices(options, options);
    }
-   
+
    public void setChoices(String[] options, String[] values)
-   {   
+   {
       listBox_.clear();
       for (int i = 0; i < options.length; i++)
          addChoice(options[i], values[i]);
-      
-      if (listBox_.getItemCount() > 0)
-         listBox_.setSelectedIndex(0);
+
+      selectFirstItem();
    }
-   
+
+   public void addChoice(String option)
+   {
+      addChoice(option, option);
+   }
+
    public void addChoice(String option, String value)
    {
       listBox_.addItem(option, value);
+   }
+
+   public void selectFirstItem()
+   {
+      if (listBox_.getItemCount() > 0)
+         listBox_.setSelectedIndex(0);
    }
 
    public void setEnabled(boolean enabled)
@@ -195,19 +242,19 @@ public class SelectWidget extends Composite
    {
       return Integer.parseInt(getValue());
    }
-   
+
    public void setIntValue(int value)
    {
-      setValue(new Integer(value).toString());
+      setValue(Integer.valueOf(value).toString());
    }
-   
+
    public void addWidget(Widget widget)
    {
       if (horizontalPanel_ != null)
       {
          horizontalPanel_.add(widget);
          horizontalPanel_.setCellVerticalAlignment(
-               widget, 
+               widget,
                HasVerticalAlignment.ALIGN_MIDDLE);
       }
       else
@@ -220,7 +267,19 @@ public class SelectWidget extends Composite
    {
       listBox_.insertItem(label, value, index);
    }
-   
+
+   @Override
+   public void setElementId(String id)
+   {
+      listBox_.getElement().setId(id);
+      label_.setFor(id);
+   }
+
+   public void setDescribedBy(String id)
+   {
+      Roles.getListboxRole().setAriaDescribedbyProperty(listBox_.getElement(), Id.of(id));
+   }
+
    private HorizontalPanel horizontalPanel_ = null;
    private FlowPanel flowPanel_ = null;
    private FormLabel label_ = null;

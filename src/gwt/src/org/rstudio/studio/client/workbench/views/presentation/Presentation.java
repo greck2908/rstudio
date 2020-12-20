@@ -2,7 +2,7 @@
  * Presentation.java
 
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -617,7 +617,7 @@ public class Presentation extends BasePresenter
       return -1;
    } 
    
-   private final Display view_ ; 
+   private final Display view_;
    private final PresentationServerOperations server_;
    private final GlobalDisplay globalDisplay_;
    private final EventBus eventBus_;

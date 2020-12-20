@@ -1,7 +1,7 @@
 /*
  * PresentationPane.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -77,7 +77,7 @@ public class PresentationPane extends WorkbenchPane implements Presentation.Disp
    @Override
    protected Toolbar createMainToolbar()
    {
-      Toolbar toolbar = new Toolbar();
+      Toolbar toolbar = new Toolbar("Presentation Tab");
       
       slideNavigationMenu_ = new SlideNavigationToolbarMenu(toolbar); 
       slideNavigationMenu_.setEditButtonVisible(true);
@@ -163,7 +163,7 @@ public class PresentationPane extends WorkbenchPane implements Presentation.Disp
    @Override 
    protected Widget createMainWidget()
    {  
-      frame_ = new PresentationFrame(false) ;
+      frame_ = new PresentationFrame(false);
       frame_.setUrl("about:blank");
       frame_.setSize("100%", "100%");
       return new AutoGlassPanel(frame_);
@@ -295,8 +295,7 @@ public class PresentationPane extends WorkbenchPane implements Presentation.Disp
       refreshButton_.setVisible(true);
       progressButton_.setVisible(false);
    }
-   
-   
+
    private final native void initPresentationCallbacks() /*-{
       var thiz = this;
       $wnd.presentationKeydown = $entry(function(e) {
@@ -340,7 +339,7 @@ public class PresentationPane extends WorkbenchPane implements Presentation.Disp
    private ToolbarButton progressButton_;
    private RSConnectPublishButton publishButton_;
    private boolean busyPending_ = false;
-   private PresentationFrame frame_ ;
+   private PresentationFrame frame_;
    private final Commands commands_;
    private final Session session_;
    private final PresentationServerOperations server_;

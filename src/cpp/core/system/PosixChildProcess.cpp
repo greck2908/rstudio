@@ -1,7 +1,7 @@
 /*
  * PosixChildProcess.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -35,7 +35,7 @@
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
 
-#include <core/Error.hpp>
+#include <shared_core/Error.hpp>
 #include <core/Log.hpp>
 #include <core/system/PosixChildProcess.hpp>
 #include <core/system/PosixSystem.hpp>
@@ -107,7 +107,7 @@ Error readPipe(int pipeFd, std::string* pOutput, bool *pEOF = nullptr)
    // setup and read into buffer
    const std::size_t kBufferSize = 512;
    char buffer[kBufferSize];
-   std::size_t bytesRead = posixCall<std::size_t>(
+   std::size_t bytesRead = posix::posixCall<std::size_t>(
                      boost::bind(::read, pipeFd, buffer, kBufferSize));
    while (true)
    {
@@ -143,7 +143,7 @@ Error readPipe(int pipeFd, std::string* pOutput, bool *pEOF = nullptr)
       pOutput->append(buffer, bytesRead);
 
       // read more bytes
-      bytesRead = posixCall<std::size_t>(
+      bytesRead = posix::posixCall<std::size_t>(
                         boost::bind(::read, pipeFd, buffer, kBufferSize));
    }
 
@@ -250,9 +250,9 @@ void ChildProcess::init(const std::string& command,
    args.push_back("-c");
 
    std::string realCommand = command;
-   if (!options.stdOutFile.empty())
+   if (!options.stdOutFile.isEmpty())
       realCommand += " > " + shell_utils::escape(options.stdOutFile);
-   if (!options.stdErrFile.empty())
+   if (!options.stdErrFile.isEmpty())
       realCommand += " 2> " + shell_utils::escape(options.stdErrFile);
    args.push_back(realCommand);
 
@@ -262,14 +262,14 @@ void ChildProcess::init(const std::string& command,
 // Initialize for an interactive terminal
 void ChildProcess::init(const ProcessOptions& options)
 {
-   if (!options.stdOutFile.empty() || !options.stdErrFile.empty())
+   if (!options.stdOutFile.isEmpty() || !options.stdErrFile.isEmpty())
    {
       LOG_ERROR_MESSAGE(
                "stdOutFile/stdErrFile options cannot be used with interactive terminal");
    }
 
    options_ = options;
-   exe_ = options_.shellPath.absolutePath();
+   exe_ = options_.shellPath.getAbsolutePath();
    args_ = options_.args;
 }
 
@@ -280,12 +280,14 @@ ChildProcess::~ChildProcess()
 Error ChildProcess::writeToStdin(const std::string& input, bool eof)
 {
    std::size_t written;
-   Error error = posixCall<std::size_t>(boost::bind(::write,
-                                                   pImpl_->fdStdin,
-                                                   input.c_str(),
-                                                   input.length()),
-                                        ERROR_LOCATION,
-                                        &written);
+   Error error = posix::posixCall<std::size_t>(
+      boost::bind(
+         ::write,
+         pImpl_->fdStdin,
+         input.c_str(),
+         input.length()),
+      ERROR_LOCATION,
+      &written);
    if (error)
       return error;
 
@@ -329,11 +331,13 @@ Error ChildProcess::ptyInterrupt()
       return systemError(boost::system::errc::not_supported, ERROR_LOCATION);
 
    // write control-c to the slave
-   return posixCall<int>(boost::bind(::write,
-                                       pImpl_->fdMaster,
-                                       &pImpl_->ctrlC,
-                                       sizeof(pImpl_->ctrlC)),
-                         ERROR_LOCATION);
+   return posix::posixCall<int>(
+      boost::bind(
+         ::write,
+         pImpl_->fdMaster,
+         &pImpl_->ctrlC,
+         sizeof(pImpl_->ctrlC)),
+      ERROR_LOCATION);
 }
 
 PidType ChildProcess::getPid()
@@ -475,12 +479,12 @@ Error ChildProcess::run()
    {
       // fetch the user to switch to before forking, as the method is not
       // async signal safe and could cause lockups
-      core::system::user::User user;
-      Error error = core::system::user::userFromUsername(options_.runAsUser, &user);
+      core::system::User user;
+      error = User::getUserFromIdentifier(options_.runAsUser, user);
       if (error)
          return error;
 
-      runAsUser = user.userId;
+      runAsUser = user.getUserId();
    }
 
    if (options_.threadSafe && options_.pseudoterminal)
@@ -500,7 +504,7 @@ Error ChildProcess::run()
       winSize.ws_row = options_.pseudoterminal.get().rows;
       winSize.ws_xpixel = 0;
       winSize.ws_ypixel = 0;
-      Error error = posixCall<PidType>(
+      Error error = posix::posixCall<PidType>(
          boost::bind(::forkpty, &fdMaster, nullName, nullTermp, &winSize),
          ERROR_LOCATION,
          &pid);
@@ -512,12 +516,12 @@ Error ChildProcess::run()
    else
    {
       // standard input
-      Error error = posixCall<int>(boost::bind(::pipe, fdInput), ERROR_LOCATION);
+      Error error = posix::posixCall<int>(boost::bind(::pipe, fdInput), ERROR_LOCATION);
       if (error)
          return error;
 
       // standard output
-      error = posixCall<int>(boost::bind(::pipe, fdOutput), ERROR_LOCATION);
+      error = posix::posixCall<int>(boost::bind(::pipe, fdOutput), ERROR_LOCATION);
       if (error)
       {
          closePipe(fdInput, ERROR_LOCATION);
@@ -525,7 +529,7 @@ Error ChildProcess::run()
       }
 
       // standard error
-      error = posixCall<int>(boost::bind(::pipe, fdError), ERROR_LOCATION);
+      error = posix::posixCall<int>(boost::bind(::pipe, fdError), ERROR_LOCATION);
       if (error)
       {
          closePipe(fdInput, ERROR_LOCATION);
@@ -536,7 +540,7 @@ Error ChildProcess::run()
       // close fd communication channel - only used in threadsafe mode
       if (options_.threadSafe)
       {
-         error = posixCall<int>(boost::bind(::pipe, fdCloseFd), ERROR_LOCATION);
+         error = posix::posixCall<int>(boost::bind(::pipe, fdCloseFd), ERROR_LOCATION);
          if (error)
          {
             closePipe(fdInput, ERROR_LOCATION);
@@ -547,7 +551,7 @@ Error ChildProcess::run()
       }
 
       // fork
-      error = posixCall<PidType>(::fork, ERROR_LOCATION, &pid);
+      error = posix::posixCall<PidType>(::fork, ERROR_LOCATION, &pid);
       if (error)
       {
          closePipe(fdInput, ERROR_LOCATION);
@@ -640,7 +644,7 @@ Error ChildProcess::run()
          {
             // get current attributes
             struct termios termp;
-            Error error = posixCall<int>(
+            Error error = posix::posixCall<int>(
                boost::bind(::tcgetattr, STDIN_FILENO, &termp),
                ERROR_LOCATION);
             if (!error)
@@ -710,12 +714,12 @@ Error ChildProcess::run()
             // intentionally fail forward (see note above)
          }
 
-         if (!options_.workingDir.empty())
+         if (!options_.workingDir.isEmpty())
          {
-            if (::chdir(options_.workingDir.absolutePath().c_str()))
+            if (::chdir(options_.workingDir.getAbsolutePath().c_str()))
             {
                std::string message = "Error changing directory: '";
-               message += options_.workingDir.absolutePath().c_str();
+               message += options_.workingDir.getAbsolutePath().c_str();
                message += "'";
                LOG_ERROR(systemError(errno, message.c_str(), ERROR_LOCATION));
             }
@@ -790,7 +794,7 @@ Error ChildProcess::run()
       else
       {
          // execute
-         ::execv(exe_.c_str(), pProcessArgs->args()) ;
+         ::execv(exe_.c_str(), pProcessArgs->args());
       }
 
       if (!options_.threadSafe)
@@ -836,6 +840,7 @@ Error ChildProcess::run()
       }
 
       delete pProcessArgs;
+      delete pEnvironment;
 
       if (options_.threadSafe)
       {
@@ -873,7 +878,7 @@ Error SyncChildProcess::waitForExit(int* pExitStatus)
 {
    // blocking wait for exit
    int status;
-   PidType result = posixCall<PidType>(
+   PidType result = posix::posixCall<PidType>(
       boost::bind(::waitpid, pImpl_->pid, &status, 0));
 
    // always close all of the pipes
@@ -918,7 +923,7 @@ AsyncChildProcess::AsyncChildProcess(const std::string& exe,
    : ChildProcess(), pAsyncImpl_(new AsyncImpl())
 {
    init(exe, args, options);
-   if (!options.stdOutFile.empty() || !options.stdErrFile.empty())
+   if (!options.stdOutFile.isEmpty() || !options.stdErrFile.isEmpty())
    {
       LOG_WARNING_MESSAGE(
                "stdOutFile/stdErrFile options cannot be used with runProgram");
@@ -1007,7 +1012,7 @@ void AsyncChildProcess::poll()
       if (options().pseudoterminal)
          pAsyncImpl_->finishedStderr_ = true;
       else
-         setPipeNonBlocking(pImpl_->fdStderr);         
+         setPipeNonBlocking(pImpl_->fdStderr);
 
       // setup for subprocess polling
       pAsyncImpl_->pSubprocPoll_.reset(new ChildProcessSubprocPoll(
@@ -1089,7 +1094,7 @@ void AsyncChildProcess::poll()
    // case we'll allow the exit sequence to proceed and simply pass -1 as
    // the exit status.
    int status;
-   PidType result = posixCall<PidType>(
+   PidType result = posix::posixCall<PidType>(
             boost::bind(::waitpid, pImpl_->pid, &status, WNOHANG));
 
    // either a normal exit or an error while waiting
@@ -1417,7 +1422,7 @@ struct AsioAsyncChildProcess::Impl : public boost::enable_shared_from_this<AsioA
          // it is also useful because when processes go down, sometimes they take some time
          // to register as being dead after closing their read/write pipes
          int status = 0;
-         PidType result = posixCall<PidType>(boost::bind(::waitpid, parent_->pImpl_->pid, &status, WNOHANG));
+         PidType result = posix::posixCall<PidType>(boost::bind(::waitpid, parent_->pImpl_->pid, &status, WNOHANG));
 
          if (result != 0)
          {
@@ -1654,7 +1659,7 @@ pid_t AsioAsyncChildProcess::pid() const
 namespace {
 
 Error forkAndRunImpl(const boost::function<int(void)>& func,
-                     const boost::optional<user::User>& user)
+                     const boost::optional<User>& user)
 {
    pid_t pid = ::fork();
    if (pid < 0)
@@ -1677,11 +1682,11 @@ Error forkAndRunImpl(const boost::function<int(void)>& func,
                ::_exit(res);
          }
 
-         if (user.get().userId != 0)
+         if (user.get().getUserId() != 0)
          {
             // non root user requested
             // drop privilege to match UID of requested user
-            int res = signal_safe::permanentlyDropPriv(user.get().userId);
+            int res = signal_safe::permanentlyDropPriv(user.get().getUserId());
             if (res != 0)
                ::_exit(res);
          }
@@ -1694,7 +1699,7 @@ Error forkAndRunImpl(const boost::function<int(void)>& func,
    {
       // parent process - wait for the child to exit
       int status;
-      PidType result = posixCall<PidType>(
+      PidType result = posix::posixCall<PidType>(
          boost::bind(::waitpid, pid, &status, 0));
 
       // check result
@@ -1720,13 +1725,13 @@ Error forkAndRunImpl(const boost::function<int(void)>& func,
 Error forkAndRun(const boost::function<int(void)>& func,
                  const std::string& runAs)
 {
-   boost::optional<user::User> optionalUser;
+   boost::optional<User> optionalUser;
 
    if (!runAs.empty())
    {
       // get uid of user to switch to
-      user::User user;
-      Error error = user::userFromUsername(runAs, &user);
+      User user;
+      Error error = User::getUserFromIdentifier(runAs, user);
       if (error)
          return error;
 
@@ -1738,11 +1743,11 @@ Error forkAndRun(const boost::function<int(void)>& func,
 
 Error forkAndRunPrivileged(const boost::function<int(void)>& func)
 {
-   user::User user = {};
-   user.userId = 0;
-   boost::optional<user::User> optionalUser = user;
-
-   return forkAndRunImpl(func, optionalUser);
+   User rootUser;
+   Error error = User::getUserFromIdentifier(UidType(0), rootUser);
+   if (error)
+      return error;
+   return forkAndRunImpl(func, rootUser);
 }
 
 } // namespace system

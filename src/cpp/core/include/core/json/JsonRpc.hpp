@@ -1,7 +1,7 @@
 /*
  * JsonRpc.hpp
  *
- * Copyright (C) 2009-18 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,13 +16,18 @@
 #ifndef CORE_JSON_RPC_HPP
 #define CORE_JSON_RPC_HPP
 
+#include <boost/system/error_code.hpp>
+
 #include <core/type_traits/TypeTraits.hpp>
 #include <core/json/JsonRpc.hpp>
 
-#include <core/json/Json.hpp>
+#include <shared_core/json/Json.hpp>
 
 namespace rstudio {
 namespace core {
+namespace system {
+   struct ProcessResult;
+}
 namespace json {
 namespace errc {
 
@@ -52,6 +57,9 @@ enum errc_t {
 
    // launcher session parameters not found and should be resent to implicitly resume the session
    LaunchParametersMissing = 17,
+
+   // profile errors - those imposed by limits in user profiles
+   LimitSessionsReached = 20,
 
    // Execution errors -- These errors occurred during execution of the method.
    // Application state is therefore known based on the expected behavior
@@ -88,13 +96,13 @@ struct is_error_code_enum<rstudio::core::json::errc::errc_t>
 #include <boost/optional.hpp>
 #include <boost/unordered_map.hpp>
 
-#include <core/Error.hpp>
-#include <core/json/Json.hpp>
+#include <shared_core/Error.hpp>
+#include <shared_core/json/Json.hpp>
 
 namespace rstudio {
 namespace core {
 namespace http {
-   class Response ;
+   class Response;
 }
 }
 }
@@ -106,11 +114,11 @@ namespace json {
 // constants
 extern const char * const kRpcResult;
 extern const char * const kRpcError;
-extern const char * const kJsonContentType ;
+extern const char * const kJsonContentType;
 extern const char * const kRpcAsyncHandle;
 
 // jsonRpcCategory
-const boost::system::error_category& jsonRpcCategory() ;
+const boost::system::error_category& jsonRpcCategory();
 
 
 //
@@ -176,7 +184,7 @@ struct JsonRpcRequest
 // 
 // json request parsing
 //
-Error parseJsonRpcRequest(const std::string& input, JsonRpcRequest* pRequest) ;
+Error parseJsonRpcRequest(const std::string& input, JsonRpcRequest* pRequest);
 
 bool parseJsonRpcRequestForMethod(const std::string& input, 
                                   const std::string& method,
@@ -193,25 +201,25 @@ inline core::Error readParam(const Array& params,
                              unsigned int index, 
                              Value* pValue)
 {
-   if (index >= params.size())
+   if (index >= params.getSize())
       return core::Error(json::errc::ParamMissing, ERROR_LOCATION);
    
-   *pValue = params[index] ;
+   *pValue = params[index];
    return Success();
 }
 
 template <typename T>
 core::Error readParam(const Array& params, unsigned int index, T* pValue)
 {
-   if (index >= params.size())
+   if (index >= params.getSize())
       return core::Error(json::errc::ParamMissing, ERROR_LOCATION);
 
    if (!isType<T>(params[index]))
-      return core::Error(json::errc::ParamTypeMismatch, ERROR_LOCATION) ;
+      return core::Error(json::errc::ParamTypeMismatch, ERROR_LOCATION);
 
-   *pValue = params[index].get_value<T>();
+   *pValue = params[index].getValue<T>();
 
-   return Success() ;
+   return Success();
 }
 
 template <typename T, typename... Args>
@@ -253,7 +261,7 @@ core::Error readParams(const Array& params, unsigned int index, T* pValue)
 template <typename T1>
 core::Error readParams(const json::Array& params, T1* pValue1)
 {
-   return readParam(params, 0, pValue1) ;
+   return readParam(params, 0, pValue1);
 }
 
 namespace errors {
@@ -267,7 +275,7 @@ inline Error paramMissing(const std::string& name,
 }
 
 inline Error typeMismatch(const Value& value,
-                          int expectedType,
+                          Type expectedType,
                           const ErrorLocation& location)
 {
    Error error(json::errc::ParamTypeMismatch, location);
@@ -275,108 +283,12 @@ inline Error typeMismatch(const Value& value,
    std::string description = std::string("expected ") +
          "'" + typeAsString(expectedType) + "'" +
          "; got " +
-         "'" + typeAsString(value.type()) + "'";
+         "'" + typeAsString(value) + "'";
    error.addProperty("description", description);
    return error;
 }
 
 } // namespace errors
-
-template <typename T>
-core::Error readObject(const Object& object,
-                       const std::string& name, 
-                       T* pValue)
-{
-   Object::iterator it = object.find(name);
-   if (it == object.end())
-      return errors::paramMissing(name, ERROR_LOCATION);
-
-   if (!isType<T>((*it).value()))
-      return errors::typeMismatch(
-               (*it).value(),
-               asJsonType(*pValue),
-               ERROR_LOCATION);
-
-   *pValue = (*it).value().get_value<T>();
-
-   return Success() ;
-}
-
-inline core::Error readObject(const Object& object,
-                              const std::string& name,
-                              Array* pArray)
-{
-   return readObject<Array>(object, name, pArray);
-}
-
-template <typename T>
-core::Error readObject(
-      const Object& object,
-      const std::string& name,
-      std::vector<T>* pVector)
-{
-   core::Error error;
-   
-   Array array;
-   error = readObject(object, name, &array);
-   if (error)
-      return error;
-   
-   for (std::size_t i = 0, n = array.size(); i < n; ++i)
-   {
-      const Value& el = array[i];
-      if (!isType<T>(el))
-         return errors::typeMismatch(
-                  el,
-                  asJsonType(T()),
-                  ERROR_LOCATION);
-      
-      pVector->push_back(el.get_value<T>());
-   }
-   
-   return Success();
-}
-
-template <typename T>
-core::Error readObject(const Object& object,
-                       const std::string& name,
-                       const T& defaultValue,
-                       T* pValue)
-{
-   Object::iterator it = object.find(name) ;
-   if (it == object.end())
-   {
-      *pValue = defaultValue;
-      return Success();
-   }
-
-   if (!isType<T>((*it).value()))
-      return errors::typeMismatch(
-               (*it).value(),
-               asJsonType(*pValue),
-               ERROR_LOCATION);
-
-   *pValue = (*it).value().get_value<T>() ;
-
-   return Success() ;
-}
-
-template <typename T, typename... Args>
-core::Error readObject(const Object& object,
-                       const std::string& name,
-                       T* pValue,
-                       Args... args)
-{
-   Error error = readObject(object, name, pValue);
-   if (error)
-      return error;
-
-   error = readObject(object, args...);
-   if (error)
-      return error;
-
-   return Success();
-}
 
 template <typename T, typename... Args>
 core::Error readObjectParam(const Array& params,
@@ -407,28 +319,20 @@ core::Error readObjectParam(const Array& params,
    if (error)
       return error;
    
-   return readObject(object, name, pValue);
+   return readObject(object, name, *pValue);
 }
 
 template <typename T>
 core::Error getOptionalParam(const Object& json, const std::string& param,
                              const T& defaultValue, T* outParam)
 {
-   Object::iterator it = json.find(param);
-   if (it != json.end() && (*it).value().type() != NullType)
-   {
-      if (!isType<T>((*it).value()))
-      {
-         core::Error error = core::Error(json::errc::ParamTypeMismatch, ERROR_LOCATION);
-         error.addProperty("description", "Invalid type for optional param " + param);
-         return error;
-      }
+   boost::optional<T> paramVal;
+   Error error = readObject(json, param, paramVal);
+   if (error)
+      return error;
 
-      *outParam = (*it).value().get_value<T>();
-      return Success();
-   }
+   *outParam = paramVal.get_value_or(defaultValue);
 
-   *outParam = defaultValue;
    return Success();
 }
 
@@ -437,22 +341,7 @@ core::Error getOptionalParam(const Object& json,
                              const std::string& param,
                              boost::optional<T>* pOutParam)
 {
-   Object::iterator it = json.find(param);
-   if (it != json.end() && (*it).value().type() != NullType)
-   {
-      if (!isType<T>((*it).value()))
-      {
-         core::Error error = core::Error(json::errc::ParamTypeMismatch, ERROR_LOCATION);
-         error.addProperty("description", "Invalid type for optional param " + param);
-         return error;
-      }
-
-      *pOutParam = (*it).value().get_value<T>();
-      return Success();
-   }
-
-   *pOutParam = boost::none;
-   return Success();
+   return readObject(json, param, *pOutParam);
 }
 
 // json rpc response
@@ -463,7 +352,7 @@ public:
    JsonRpcResponse() : suppressDetectChanges_(false)
    {
       setResult(Value());
-   };
+   }
 
    // COPYING: via compiler (copyable members)
    
@@ -486,6 +375,14 @@ public:
    }
    
    void setError(const core::Error& error,
+                 bool includeErrorProperties = false);
+   
+   void setError(const core::Error& error,
+                 const char* message,
+                 bool includeErrorProperties = false);
+   
+   void setError(const core::Error& error,
+                 const std::string& message,
                  bool includeErrorProperties = false);
 
    void setError(const core::Error& error,
@@ -515,7 +412,7 @@ public:
    Error getField(const std::string& name,
                  T* pValue)
    {
-      return readObject(response_, name, pValue);
+      return readObject(response_, name, *pValue);
    }
    
    // low level hook to set the full response
@@ -547,7 +444,7 @@ public:
    
 private:
    Object response_;
-   boost::function<void()> afterResponse_ ;
+   boost::function<void()> afterResponse_;
    bool suppressDetectChanges_;
 };
    
@@ -555,7 +452,7 @@ private:
 // convenience functions for sending json-rpc responses
    
 void setJsonRpcResponse(const JsonRpcResponse& jsonRpcResponse,
-                        http::Response* pResponse); 
+                        http::Response* pResponse);
 
 
 inline void setVoidJsonRpcResult(http::Response* pResponse)
@@ -568,7 +465,7 @@ inline void setVoidJsonRpcResult(http::Response* pResponse)
 template <typename T>
 void setJsonRpcResult(const T& result, http::Response* pResponse)
 {
-   JsonRpcResponse jsonRpcResponse ;
+   JsonRpcResponse jsonRpcResponse;
    jsonRpcResponse.setResult(result);
    setJsonRpcResponse(jsonRpcResponse, pResponse);
 }   
@@ -576,7 +473,7 @@ void setJsonRpcResult(const T& result, http::Response* pResponse)
 template <typename T>
 void setJsonRpcError(const T& error, core::http::Response* pResponse, bool includeErrorProperties = false)
 {   
-   JsonRpcResponse jsonRpcResponse ;
+   JsonRpcResponse jsonRpcResponse;
    jsonRpcResponse.setError(error, includeErrorProperties);
    setJsonRpcResponse(jsonRpcResponse, pResponse);
 }
@@ -591,12 +488,50 @@ void setJsonRpcRedirectError(const T& error,
    setJsonRpcResponse(jsonRpcResponse, pResponse);
 }
 
+// helpers for populating an existing response object with errors
+void setErrorResponse(const core::Error& error, core::json::JsonRpcResponse* pResponse);
+void setProcessErrorResponse(const core::system::ProcessResult& result,
+                             const core::ErrorLocation& location,
+                             core::json::JsonRpcResponse* pResponse);
+
+// helper for reading a json value (and setting an error response if it
+// doesn't parse or is of the wrong type)
+template <typename T>
+bool parseJsonForResponse(const std::string& output, T* pVal, json::JsonRpcResponse* pResponse)
+{
+   using namespace json;
+   T jsonValue;
+   Error error = jsonValue.parse(output);
+   if (error)
+   {
+      Error parseError(boost::system::errc::state_not_recoverable,
+                       errorMessage(error),
+                       ERROR_LOCATION);
+      json::setErrorResponse(parseError, pResponse);
+      return false;
+   }
+   else if (!isType<T>(jsonValue))
+   {
+      Error outputError(boost::system::errc::state_not_recoverable,
+                       "Unexpected JSON output from pandoc",
+                       ERROR_LOCATION);
+      json::setErrorResponse(outputError, pResponse);
+      return false;
+   }
+   else
+   {
+      *pVal = jsonValue;
+      return true;
+   }
+}
+
+
 
 // convenience typedefs for managing a map of json rpc functions
 typedef boost::function<core::Error(const JsonRpcRequest&, JsonRpcResponse*)>
-      JsonRpcFunction ;
+      JsonRpcFunction;
 typedef std::pair<std::string,JsonRpcFunction>
-      JsonRpcMethod ;
+      JsonRpcMethod;
 typedef boost::unordered_map<std::string,JsonRpcFunction>
       JsonRpcMethods;
 
@@ -611,9 +546,9 @@ typedef boost::unordered_map<std::string,JsonRpcFunction>
 // JsonRpcFunctionContinuation is what a JsonRpcAsyncFunction needs to call
 // when its work is complete
 typedef boost::function<void(const core::Error&, JsonRpcResponse*)>
-      JsonRpcFunctionContinuation ;
+      JsonRpcFunctionContinuation;
 typedef boost::function<void(const JsonRpcRequest&, const JsonRpcFunctionContinuation&)>
-      JsonRpcAsyncFunction ;
+      JsonRpcAsyncFunction;
 // The bool in the next two typedefs specifies whether the function wants the
 // HTTP connection to stay open until the method finishes executing (direct return),
 // or for the HTTP connection to immediate return with an "asyncHandle" value that
@@ -622,9 +557,9 @@ typedef boost::function<void(const JsonRpcRequest&, const JsonRpcFunctionContinu
 // return must be used for longer-running operations to prevent the browser from
 // being starved of available HTTP connections to the server.
 typedef std::pair<std::string,std::pair<bool, JsonRpcAsyncFunction> >
-      JsonRpcAsyncMethod ;
+      JsonRpcAsyncMethod;
 typedef boost::unordered_map<std::string,std::pair<bool, JsonRpcAsyncFunction> >
-      JsonRpcAsyncMethods ;
+      JsonRpcAsyncMethods;
 
 JsonRpcAsyncFunction adaptToAsync(JsonRpcFunction synchronousFunction);
 JsonRpcAsyncMethod adaptMethodToAsync(JsonRpcMethod synchronousMethod);

@@ -1,7 +1,7 @@
 /*
  * PackagesCellTableResources.java
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,7 +22,7 @@ import org.rstudio.core.client.theme.RStudioCellTableStyle;
 public interface PackagesCellTableResources extends CellTable.Resources 
 {
    static PackagesCellTableResources INSTANCE = 
-      (PackagesCellTableResources)GWT.create(PackagesCellTableResources.class) ;
+      (PackagesCellTableResources)GWT.create(PackagesCellTableResources.class);
 
    interface PackagesCellTableStyle extends CellTable.Style
    {

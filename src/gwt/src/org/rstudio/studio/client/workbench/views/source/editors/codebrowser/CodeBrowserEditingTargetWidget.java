@@ -1,7 +1,7 @@
 /*
  * CodeBrowserEditingTargetWidget.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,10 +14,12 @@
  */
 package org.rstudio.studio.client.workbench.views.source.editors.codebrowser;
 
+import com.google.gwt.aria.client.Roles;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.dom.client.NativeEvent;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
+import com.google.gwt.event.dom.client.KeyCodes;
 import com.google.gwt.event.logical.shared.SelectionEvent;
 import com.google.gwt.event.logical.shared.SelectionHandler;
 import com.google.gwt.resources.client.ClientBundle;
@@ -31,6 +33,7 @@ import com.google.gwt.user.client.ui.Widget;
 
 import java.util.List;
 
+import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.command.KeyboardShortcut;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.theme.res.ThemeResources;
@@ -40,6 +43,7 @@ import org.rstudio.core.client.widget.Toolbar;
 import org.rstudio.core.client.widget.ToolbarButton;
 import org.rstudio.core.client.widget.ToolbarMenuButton;
 import org.rstudio.core.client.widget.ToolbarPopupMenu;
+import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.common.GlobalProgressDelayer;
@@ -56,6 +60,8 @@ import org.rstudio.studio.client.workbench.views.console.shell.assist.Completion
 import org.rstudio.studio.client.workbench.views.console.shell.editor.InputEditorLineWithCursorPosition;
 import org.rstudio.studio.client.workbench.views.console.shell.editor.InputEditorUtil;
 import org.rstudio.studio.client.workbench.views.source.PanelWithToolbars;
+import org.rstudio.studio.client.workbench.views.source.SourceColumn;
+import org.rstudio.studio.client.workbench.views.source.SourceColumnManager;
 import org.rstudio.studio.client.workbench.views.source.editors.EditingTargetToolbar;
 import org.rstudio.studio.client.workbench.views.source.editors.text.AceEditor;
 import org.rstudio.studio.client.workbench.views.source.editors.text.DocDisplay;
@@ -71,6 +77,7 @@ public class CodeBrowserEditingTargetWidget extends ResizeComposite
                               implements CodeBrowserEditingTarget.Display
 {
    public CodeBrowserEditingTargetWidget(Commands commands,
+                                         SourceColumn column,
                                          final GlobalDisplay globalDisplay,
                                          final EventBus eventBus,
                                          final CodeToolsServerOperations server,
@@ -80,6 +87,7 @@ public class CodeBrowserEditingTargetWidget extends ResizeComposite
       globalDisplay_ = globalDisplay;
       eventBus_ = eventBus;
       server_ = server;
+      column_ = column;
       
       docDisplay_ = docDisplay;
       
@@ -114,7 +122,8 @@ public class CodeBrowserEditingTargetWidget extends ResizeComposite
                                      docDisplay_.asWidget(),
                                      null);
       panel_.setSize("100%", "100%");
-      
+      Roles.getTabpanelRole().set(panel_.getElement());
+      setAccessibleName(null);
       docDisplay_.setReadOnly(true);
       
       docDisplay_.addCommandClickHandler(new CommandClickEvent.Handler()
@@ -146,11 +155,11 @@ public class CodeBrowserEditingTargetWidget extends ResizeComposite
             int modifier = KeyboardShortcut.getModifierValue(event);
             if (modifier == KeyboardShortcut.NONE)
             {
-               if (event.getKeyCode() == 112) // F1
+               if (event.getKeyCode() == KeyCodes.KEY_F1)
                {
                   goToHelp();
                }
-               else if (event.getKeyCode() == 113) // F2
+               else if (event.getKeyCode() == KeyCodes.KEY_F2)
                {
                   goToDefinition();
                }
@@ -285,7 +294,15 @@ public class CodeBrowserEditingTargetWidget extends ResizeComposite
          }
       }.schedule(100);
    }
-   
+
+   @Override
+   public void setAccessibleName(String name)
+   {
+      if (StringUtil.isNullOrEmpty(name))
+         name = "Untitled Source Viewer";
+      Roles.getTabpanelRole().setAriaLabelProperty(panel_.getElement(), name + " Source Viewer");
+   }
+
    private void showWarningImpl(final Command command)
    {
       if (warningBar_ == null)
@@ -316,9 +333,27 @@ public class CodeBrowserEditingTargetWidget extends ResizeComposite
    }
    
    @Override
+   public void showTexInstallationMissingWarning(String message)
+   {
+      // no-op for code browser targets
+   }
+   
+   @Override
+   public void showPanmirrorFormatChanged(Command onReload)
+   {
+      // no-op for code browser targets
+   }
+   
+   @Override
    public void showWarningBar(final String warning)
    {
       showWarningImpl(() -> warningBar_.setText(warning));
+   }
+   
+   @Override
+   public void showWarningBar(String warning, String actionLabel, Command command)
+   {
+      showWarningImpl(() -> warningBar_.setTextWithAction(warning, actionLabel, command));
    }
    
    @Override
@@ -396,9 +431,13 @@ public class CodeBrowserEditingTargetWidget extends ResizeComposite
    
    private Toolbar createToolbar()
    {
-      Toolbar toolbar = new EditingTargetToolbar(commands_, true);
+      Toolbar toolbar = new EditingTargetToolbar(commands_, true, column_);
 
-      toolbar.addLeftWidget(commands_.printSourceDoc().createToolbarButton()); 
+      // Buttons are unique to a source column so require SourceAppCommands
+      SourceColumnManager mgr = RStudioGinjector.INSTANCE.getSourceColumnManager();
+
+      toolbar.addLeftWidget(
+         mgr.getSourceCommand(commands_.printSourceDoc(), column_).createToolbarButton());
       toolbar.addLeftSeparator();
       toolbar.addLeftWidget(findReplace_.createFindReplaceButton());
      
@@ -410,16 +449,18 @@ public class CodeBrowserEditingTargetWidget extends ResizeComposite
       ToolbarMenuButton codeTools = new ToolbarMenuButton(ToolbarButton.NoText, "Code Tools", icon, menu);
       toolbar.addLeftWidget(codeTools);
       
-      toolbar.addRightWidget(commands_.executeCode().createToolbarButton());
+      toolbar.addRightWidget(
+         mgr.getSourceCommand(commands_.executeCode(), column_).createToolbarButton());
       toolbar.addRightSeparator();
-      toolbar.addRightWidget(commands_.executeLastCode().createToolbarButton());
+      toolbar.addRightWidget(
+         mgr.getSourceCommand(commands_.executeLastCode(), column_).createToolbarButton());
       
       return toolbar;
    }
    
    private Toolbar createSecondaryToolbar()
    {
-      SecondaryToolbar toolbar = new SecondaryToolbar();
+      SecondaryToolbar toolbar = new SecondaryToolbar("Code Browser Second");
       
       contextWidget_ = new CodeBrowserContextWidget(RES.styles());
       contextWidget_.addSelectionHandler(new SelectionHandler<String> () {
@@ -475,4 +516,6 @@ public class CodeBrowserEditingTargetWidget extends ResizeComposite
    private final TextEditingTargetFindReplace findReplace_;
    private String currentFunctionNamespace_ = null;
    private InfoBar warningBar_;
+   private SourceColumn column_;
+  
 }

@@ -1,8 +1,8 @@
 /*
  * SessionModuleContext.hpp
  *
- * Copyright (C) 2009-18 by RStudio, Inc.
-
+ * Copyright (C) 2020 by RStudio, PBC
+ *
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -40,6 +40,7 @@
 
 namespace rstudio {
 namespace core {
+   class DistributedEvent;
    class Error;
    class Success;
    class FilePath;
@@ -52,9 +53,6 @@ namespace core {
    namespace shell_utils {
       class ShellCommand;
    }
-}
-namespace server_core {
-   class DistributedEvent;
 }
 }
 
@@ -87,6 +85,7 @@ std::string createAliasedPath(const core::FilePath& path);
 std::string createFileUrl(const core::FilePath& path);
 core::FilePath resolveAliasedPath(const std::string& aliasedPath);
 core::FilePath userScratchPath();
+core::FilePath userUploadedFilesScratchPath();
 core::FilePath scopedScratchPath();
 core::FilePath sharedScratchPath();
 core::FilePath sharedProjectScratchPath();
@@ -119,6 +118,7 @@ std::string rLibsUser();
 // find out the location of a binary
 core::FilePath findProgram(const std::string& name);
 
+bool addTinytexToPathIfNecessary();
 bool isPdfLatexInstalled();
 
 // is the file a text file
@@ -190,6 +190,10 @@ core::Error registerUriHandler(
                         const std::string& name,
                         const core::http::UriHandlerFunction& handlerFunction);
 
+// register an inbound upload handler (include a leading slash)
+core::Error registerUploadHandler(const std::string& name,
+                                  const core::http::UriAsyncUploadHandlerFunction& handlerFunction);
+
 // register a local uri handler (scoped by a special prefix which indicates
 // a local scope)
 core::Error registerAsyncLocalUriHandler(
@@ -211,7 +215,7 @@ typedef boost::function<void(const std::string&, const PostbackHandlerContinuati
 core::Error registerPostbackHandler(
                               const std::string& name,
                               const PostbackHandlerFunction& handlerFunction,
-                              std::string* pShellCommand); 
+                              std::string* pShellCommand);
                         
 // register an async rpc method
 core::Error registerAsyncRpcMethod(
@@ -344,7 +348,7 @@ struct Events : boost::noncopyable
    RSTUDIO_BOOST_SIGNAL<void (const std::string&)>  onPackageLoaded;
    RSTUDIO_BOOST_SIGNAL<void ()>                    onPackageLibraryMutated;
    RSTUDIO_BOOST_SIGNAL<void ()>                    onPreferencesSaved;
-   RSTUDIO_BOOST_SIGNAL<void (const server_core::DistributedEvent&)>
+   RSTUDIO_BOOST_SIGNAL<void (const core::DistributedEvent&)>
                                              onDistributedEvent;
    RSTUDIO_BOOST_SIGNAL<void (core::FilePath)>      onPermissionsChanged;
 
@@ -414,7 +418,7 @@ core::Error convertToUtf8(const std::string& encodedContent,
                           std::string* pDecodedContent);
 
 // source R files
-core::Error sourceModuleRFile(const std::string& rSourceFile);   
+core::Error sourceModuleRFile(const std::string& rSourceFile);
 core::Error sourceModuleRFileWithResult(const std::string& rSourceFile,
                                         const core::FilePath& workingDir,
                                         core::system::ProcessResult* pResult);
@@ -429,7 +433,7 @@ bool isDirectoryMonitored(const core::FilePath& directory);
 bool isRScriptInPackageBuildTarget(const core::FilePath& filePath);
 
 // convenience method for filtering out file listing and changes
-bool fileListingFilter(const core::FileInfo& fileInfo);
+bool fileListingFilter(const core::FileInfo& fileInfo, bool hideObjectFiles);
 
 // enque file changed events
 void enqueFileChangedEvent(const core::system::FileChangeEvent& event);
@@ -447,7 +451,7 @@ core::Error enqueueConsoleInput(const std::string& input);
 
 // write output to the console (convenience wrapper for enquing a 
 // kConsoleWriteOutput event)
-void consoleWriteOutput(const std::string& output);   
+void consoleWriteOutput(const std::string& output);
    
 // write an error to the console (convenience wrapper for enquing a 
 // kConsoleWriteOutput event)
@@ -482,19 +486,14 @@ bool addRtoolsToPathIfNecessary(std::string* pPath,
 bool addRtoolsToPathIfNecessary(core::system::Options* pEnvironment,
                                 std::string* pWarningMessage);
 
+bool isMacOS();
+bool hasMacOSDeveloperTools();
+bool hasMacOSCommandLineTools();
+void checkXcodeLicense();
+
 #ifdef __APPLE__
-bool isOSXMavericks();
-bool hasOSXMavericksDeveloperTools();
 core::Error copyImageToCocoaPasteboard(const core::FilePath& filePath);
 #else
-inline bool isOSXMavericks()
-{
-   return false;
-}
-inline bool hasOSXMavericksDeveloperTools()
-{
-   return false;
-}
 inline core::Error copyImageToCocoaPasteboard(const core::FilePath& filePath)
 {
    return core::systemError(boost::system::errc::not_supported, ERROR_LOCATION);
@@ -614,7 +613,7 @@ struct UserPrompt
                  yesIsDefault);
    }
 
-   int type ;
+   int type;
    std::string caption;
    std::string message;
    std::string yesLabel;
@@ -667,6 +666,7 @@ core::json::Object packratOptionsAsJson();
 
 // implemented in SessionRenv.cpp
 bool isRequiredRenvInstalled();
+bool isRenvActive();
 core::json::Value renvContextAsJson();
 core::json::Value renvOptionsAsJson();
 
@@ -702,7 +702,7 @@ public:
 
    RCommand& operator<<(const core::FilePath& arg)
    {
-      cmdString_ += " " + arg.absolutePath();
+      cmdString_ += " " + arg.getAbsolutePath();
       shellCmd_ << arg;
       return *this;
    }
@@ -761,6 +761,11 @@ std::string sessionTempDirUrl(const std::string& sessionTempPath);
 
 core::Error uniqueSaveStem(const core::FilePath& directoryPath,
                            const std::string& base,
+                           std::string* pStem);
+
+core::Error uniqueSaveStem(const core::FilePath& directoryPath,
+                           const std::string& base,
+                           const std::string& delimiter,
                            std::string* pStem);
 
 core::json::Object plotExportFormat(const std::string& name,
@@ -846,12 +851,47 @@ bool usingMingwGcc49();
 
 bool isWebsiteProject();
 bool isBookdownWebsite();
+bool isBookdownProject();
+bool isBlogdownProject();
+bool isDistillProject();
 std::string websiteOutputDir();
+std::vector<core::FilePath> bookdownBibliographies();
+std::vector<std::string> bookdownBibliographiesRelative();
+std::vector<std::string> bookdownZoteroCollections();
+core::json::Value bookdownXRefIndex();
+core::FilePath bookdownCSL();
 
 core::FilePath extractOutputFileCreated(const core::FilePath& inputFile,
                                         const std::string& output);
 
+bool isPathViewAllowed(const core::FilePath& path);
+
 void onBackgroundProcessing(bool isIdle);
+
+void initializeConsoleCtrlHandler();
+
+bool isPythonReplActive();
+
+std::string getActiveLanguage();
+core::Error adaptToLanguage(const std::string& language);
+
+// paths to pandoc and pandoc-citeproc suitable for passing to the shell
+// (string_utils::utf8ToSystem has been called on them)
+std::string pandocPath();
+std::string pandocCiteprocPath();
+
+core::Error runPandoc(const std::vector<std::string>& args,
+                      const std::string& input,
+                      core::system::ProcessResult* pResult);
+
+core::Error runPandocAsync(const std::vector<std::string>& args,
+                           const std::string& input,
+                           const boost::function<void(const core::system::ProcessResult&)>& onCompleted);
+
+core::Error runPandocCiteproc(const std::vector<std::string>& args, core::system::ProcessResult* pResult);
+
+core::Error runPandocCiteprocAsync(const std::vector<std::string>& args,
+                                   const boost::function<void(const core::system::ProcessResult&)>& onCompleted);
 
 } // namespace module_context
 } // namespace session

@@ -1,7 +1,7 @@
 /*
  * Pam.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -71,6 +71,8 @@ private:
    Free free_;
 };
 
+} // anonymous namespace
+
 int conv(int num_msg,
          const struct pam_message** msg,
          struct pam_response** resp,
@@ -99,10 +101,12 @@ int conv(int num_msg,
             boost::regex passwordRegex("\\bpassword:\\s*$",
                                        boost::regex_constants::icase);
             boost::smatch match;
-            if (regex_search(msgText, match, passwordRegex))
+            PAM* pPam = static_cast<PAM*>(appdata_ptr);
+            if (!pPam->requirePasswordPrompt_ || regex_search(msgText, match, passwordRegex))
             {
                resp[i]->resp_retcode = 0;
-               char* password = static_cast<char*>(appdata_ptr);
+
+               char* password = const_cast<char*>(pPam->password_.c_str());
                // respBuf will be freed by the caller
                char* respBuf = static_cast<char*>(pool.alloc(strlen(password) + 1));
                resp[i]->resp = ::strcpy(respBuf, password);
@@ -135,15 +139,16 @@ int conv(int num_msg,
    return PAM_CONV_ERR;
 }
 
-} // anonymous namespace
-
-
-PAM::PAM(const std::string& service, bool silent, bool closeOnDestroy) :
+PAM::PAM(const std::string& service,
+         bool silent,
+         bool closeOnDestroy,
+         bool requirePasswordPrompt) :
       service_(service),
       defaultFlags_(silent ? PAM_SILENT : 0),
       pamh_(nullptr),
       status_(PAM_SUCCESS),
-      closeOnDestroy_(closeOnDestroy)
+      closeOnDestroy_(closeOnDestroy),
+      requirePasswordPrompt_(requirePasswordPrompt)
 {
 }
 
@@ -159,26 +164,26 @@ PAM::~PAM()
    }
 }
 
-std::pair<int, const std::string> PAM::lastError()
+std::string PAM::lastError()
 {
-   return std::pair<int, const std::string>(
-         status_,
-         std::string(::pam_strerror(pamh_, status_)));
+   return std::string(::pam_strerror(pamh_, status_));
 }
 
 int PAM::login(const std::string& username,
                const std::string& password)
 {
+   password_ = password;
+
    struct pam_conv myConv;
    myConv.conv = conv;
-   myConv.appdata_ptr = const_cast<void*>(static_cast<const void*>(password.c_str()));
+   myConv.appdata_ptr = const_cast<void*>(static_cast<const void*>(this));
    status_ = ::pam_start(service_.c_str(),
                          username.c_str(),
                          &myConv,
                          &pamh_);
    if (status_ != PAM_SUCCESS)
    {
-      LOG_ERROR_MESSAGE("pam_start failed: " + lastError().second);
+      LOG_ERROR_MESSAGE("pam_start failed: " + lastError());
       return status_;
    }
 
@@ -186,14 +191,14 @@ int PAM::login(const std::string& username,
    if (status_ != PAM_SUCCESS)
    {
       if (status_ != PAM_AUTH_ERR)
-         LOG_ERROR_MESSAGE("pam_authenticate failed: " + lastError().second);
+         LOG_ERROR_MESSAGE("pam_authenticate failed: " + lastError());
       return status_;
    }
 
    status_ = ::pam_acct_mgmt(pamh_, defaultFlags_);
    if (status_ != PAM_SUCCESS)
    {
-      LOG_ERROR_MESSAGE("pam_acct_mgmt failed: " + lastError().second);
+      LOG_ERROR_MESSAGE("pam_acct_mgmt failed: " + lastError());
       return status_;
    }
 

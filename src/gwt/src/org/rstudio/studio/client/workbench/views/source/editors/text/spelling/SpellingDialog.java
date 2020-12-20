@@ -1,7 +1,7 @@
 /*
  * SpellingDialog.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -30,6 +30,7 @@ import org.rstudio.core.client.Rectangle;
 import org.rstudio.core.client.Rectangle.FailureMode;
 import org.rstudio.core.client.widget.ModalDialogBase;
 import org.rstudio.core.client.widget.ThemedButton;
+import org.rstudio.studio.client.RStudioGinjector;
 
 public class SpellingDialog extends ModalDialogBase implements CheckSpelling.Display
 {
@@ -43,7 +44,7 @@ public class SpellingDialog extends ModalDialogBase implements CheckSpelling.Dis
 
       btnAdd_ = new ThemedButton("Add");
       btnAdd_.setTitle("Add word to user dictionary");
-      btnSkip_ = new ThemedButton("Ignore");
+      btnSkip_ = new ThemedButton("Skip");
       btnIgnoreAll_ = new ThemedButton("Ignore All");
       btnChange_ = new ThemedButton("Change");
       btnChangeAll_ = new ThemedButton("Change All");
@@ -55,6 +56,7 @@ public class SpellingDialog extends ModalDialogBase implements CheckSpelling.Dis
             btnAdd_, btnIgnoreAll_, btnSkip_, btnChange_, btnChangeAll_
       };
 
+      Roles.getListboxRole().setAriaLabelProperty(lstSuggestions_.getElement(), "Suggestions");
       addCancelButton();
    }
 
@@ -199,7 +201,8 @@ public class SpellingDialog extends ModalDialogBase implements CheckSpelling.Dis
          bounds = bounds.attemptToMoveInto(screen, FailureMode.NO_CHANGE);
 
          // Now avoid the selected word
-         move(bounds.avoidBounds(boundsToAvoid_, screen), true);
+         move(bounds.avoidBounds(boundsToAvoid_, screen),
+               !RStudioGinjector.INSTANCE.getUserPrefs().reducedMotion().getValue());
       }
    }
 

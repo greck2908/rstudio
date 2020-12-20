@@ -1,7 +1,7 @@
 /*
  * SecureKeyFile.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -13,11 +13,11 @@
  *
  */
 
-#include <core/FilePath.hpp>
+#include <shared_core/FilePath.hpp>
 #include <core/FileSerializer.hpp>
 
 #include <core/system/PosixSystem.hpp>
-#include <core/system/FileMode.hpp>
+#include <core/system/Xdg.hpp>
 
 #include <server_core/SecureKeyFile.hpp>
 
@@ -42,7 +42,7 @@ core::Error readSecureKeyFile(const FilePath& secureKeyPath,
       {
          error = systemError(boost::system::errc::no_such_file_or_directory,
                              ERROR_LOCATION);
-         error.addProperty("path", secureKeyPath.absolutePath());
+         error.addProperty("path", secureKeyPath.getAbsolutePath());
          return error;
       }
 
@@ -58,7 +58,7 @@ core::Error readSecureKeyFile(const FilePath& secureKeyPath,
       std::string secureKey = core::system::generateUuid(false);
 
       // ensure the parent directory
-      core::Error error = secureKeyPath.parent().ensureDirectory();
+      core::Error error = secureKeyPath.getParent().ensureDirectory();
       if (error)
          return error;
 
@@ -68,7 +68,7 @@ core::Error readSecureKeyFile(const FilePath& secureKeyPath,
          return error;
 
       // change mode it so it is only readable and writeable by this user
-      error = changeFileMode(secureKeyPath, core::system::UserReadWriteMode);
+      error = secureKeyPath.changeFileMode(core::FileMode::USER_READ_WRITE);
       if (error)
          return error;
 
@@ -87,13 +87,14 @@ core::Error readSecureKeyFile(const std::string& filename,
    core::FilePath secureKeyPath;
    if (core::system::effectiveUserIsRoot())
    {
-      secureKeyPath = core::FilePath("/etc/rstudio").complete(filename);
+      // check in our default configuration folder
+      secureKeyPath = core::system::xdg::systemConfigFile(filename);
       if (!secureKeyPath.exists())
-         secureKeyPath = core::FilePath("/var/lib/rstudio-server") 
-                                       .complete(filename);
+         secureKeyPath = core::FilePath("/var/lib/rstudio-server")
+            .completePath(filename);
    }
    else
-      secureKeyPath = core::FilePath("/tmp/rstudio-server").complete(filename);
+      secureKeyPath = core::FilePath("/tmp/rstudio-server").completePath(filename);
 
    return readSecureKeyFile(secureKeyPath, pContents);
 }

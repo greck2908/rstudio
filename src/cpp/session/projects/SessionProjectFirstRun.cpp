@@ -1,7 +1,7 @@
 /*
  * SessionProjectFirstRun.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,7 @@
 
 #include "SessionProjectFirstRun.hpp"
 
-#include <core/FilePath.hpp>
+#include <shared_core/FilePath.hpp>
 #include <core/FileSerializer.hpp>
 
 #include <session/SessionModuleContext.hpp>
@@ -34,39 +34,22 @@ const char* const kFirstRunDocs = "first_run_docs";
 
 } // anonymous namespace
 
-void addFirstRunDoc(const FilePath& projectFile, const std::string& doc)
+void addFirstRunDoc(const FilePath& projectScratchPath, const std::string& doc)
 {
-   FilePath scratchPath;
-   Error error = computeScratchPaths(projectFile, &scratchPath, nullptr);
-   if (error)
-   {
-      LOG_ERROR(error);
-      return;
-   }
-
    std::ostringstream ostr;
    ostr << doc << std::endl;
-   error = core::appendToFile(scratchPath.childPath(kFirstRunDocs), ostr.str());
+   Error error = core::appendToFile(projectScratchPath.completeChildPath(kFirstRunDocs), ostr.str());
    if (error)
       LOG_ERROR(error);
 }
 
-std::vector<std::string> collectFirstRunDocs(const FilePath& projectFile)
+std::vector<std::string> collectFirstRunDocs(const FilePath& projectScratchPath)
 {
    // docs to return
    std::vector<std::string> docs;
 
-   // get the scratch path
-   FilePath scratchPath;
-   Error error = computeScratchPaths(projectFile, &scratchPath, nullptr);
-   if (error)
-   {
-      LOG_ERROR(error);
-      return docs;
-   }
-
    // check for first run file
-   FilePath firstRunDocsPath = scratchPath.childPath(kFirstRunDocs);
+   FilePath firstRunDocsPath = projectScratchPath.completeChildPath(kFirstRunDocs);
    if (firstRunDocsPath.exists())
    {
       Error error = core::readStringVectorFromFile(firstRunDocsPath, &docs);

@@ -1,7 +1,7 @@
 /*
  * ApplicationEndedPopupPanel.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -115,8 +115,8 @@ public class ApplicationEndedPopupPanel extends PopupPanel
       });
    }
 
-   private static final int PREFETCH = 0 ;
-   private static final int QUIT = 1 ;
+   private static final int PREFETCH = 0;
+   private static final int QUIT = 1;
    private static final int SUICIDE = 2;
    private static final int DISCONNECTED = 3;
    private static final int OFFLINE = 4;

@@ -1,7 +1,7 @@
 /*
  * EditDialog.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -128,9 +128,9 @@ public class EditDialog extends ModalDialogBase
       editor_.focus();
    }
 
-   private final String sourceText_ ;
+   private final String sourceText_;
    private final boolean isRCode_;
    private final boolean lineWrapping_;
-   private final AceEditor editor_ ;
+   private final AceEditor editor_;
    private Size minimumSize_;
 }

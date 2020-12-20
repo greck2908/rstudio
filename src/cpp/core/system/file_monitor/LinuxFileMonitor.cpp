@@ -1,7 +1,7 @@
 /*
  * LinuxFileMonitor.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -31,7 +31,7 @@
 #include <boost/multi_index/member.hpp>
 
 #include <core/Log.hpp>
-#include <core/Error.hpp>
+#include <shared_core/Error.hpp>
 #include <core/FileInfo.hpp>
 
 #include <core/system/FileScanner.hpp>
@@ -202,7 +202,7 @@ Error addWatch(const FileInfo& fileInfo,
    // about adding duplicate watches
 
    // define watch mask
-   uint32_t mask = 0 ;
+   uint32_t mask = 0;
    mask |= IN_CREATE;
    mask |= IN_DELETE;
    mask |= IN_MODIFY;
@@ -213,7 +213,7 @@ Error addWatch(const FileInfo& fileInfo,
    // add IN_DONT_FOLLOW unless we are explicitly allowing root symlinks
    // and this is a watch for the root path
    if (!allowRootSymlink ||
-       (fileInfo.absolutePath() != rootPath.absolutePath()))
+       (fileInfo.absolutePath() != rootPath.getAbsolutePath()))
    {
       mask |= IN_DONT_FOLLOW;
    }
@@ -222,7 +222,15 @@ Error addWatch(const FileInfo& fileInfo,
    int wd = ::inotify_add_watch(fd, fileInfo.absolutePath().c_str(), mask);
    if (wd < 0)
    {
-      Error error = systemError(errno, ERROR_LOCATION);
+      // save errno
+      int errorNumber = errno;
+
+      // report more useful error message for ENOSPC
+      std::string message = (errorNumber == ENOSPC)
+         ? "No watches available"
+         : systemErrorMessage(errorNumber);
+
+      Error error = systemCallError("inotify_add_watch", errorNumber, message, ERROR_LOCATION);
       error.addProperty("path", fileInfo.absolutePath());
       return error;
    }
@@ -323,8 +331,8 @@ Error processEvent(FileEventContext* pContext,
          return Success();
 
       // get file info
-      FilePath filePath = FilePath(parentIt->absolutePath()).complete(
-                                                                 pEvent->name);
+      FilePath filePath = FilePath(parentIt->absolutePath()).completePath(
+         pEvent->name);
 
 
       // if the file exists then collect as many extended attributes
@@ -336,7 +344,7 @@ Error processEvent(FileEventContext* pContext,
       }
       else
       {
-         fileInfo = FileInfo(filePath.absolutePath(), pEvent->mask & IN_ISDIR);
+         fileInfo = FileInfo(filePath.getAbsolutePath(), pEvent->mask & IN_ISDIR);
       }
 
       // if this doesn't meet the filter then ignore
@@ -393,7 +401,7 @@ Error processEvent(FileEventContext* pContext,
             // in the normal course of business if a file is deleted between
             // the time the change is detected and we try to inspect it)
             if (error &&
-               (error.code() != boost::system::errc::no_such_file_or_directory))
+               (error != systemError(boost::system::errc::no_such_file_or_directory, ErrorLocation())))
             {
                LOG_ERROR(error);
             }
@@ -549,7 +557,8 @@ void run(const boost::function<void()>& checkForInput)
          // check for context root directory deleted
          if (!pContext->rootPath.exists())
          {
-            Error error = fileNotFoundError(pContext->rootPath.absolutePath(),
+            Error error = fileNotFoundError(
+               pContext->rootPath.getAbsolutePath(),
                                             ERROR_LOCATION);
             terminateWithMonitoringError(pContext, error);
             continue;
@@ -560,15 +569,23 @@ void run(const boost::function<void()>& checkForInput)
          while (true)
          {
             // read
-            int len = posixCall<int>(boost::bind(::read,
-                                                 pContext->fd,
-                                                 eventBuffer,
-                                                 kEventBufferLength));
+            int len = posix::posixCall<int>(
+               boost::bind(
+                  ::read,
+                  pContext->fd,
+                  eventBuffer,
+                  kEventBufferLength));
             if (len < 0)
             {
                // don't terminate for errors indicating no events available
+               // (silly ifdef here is to silence compiler warnings)
+#if EAGAIN == EWOULDBLOCK
+               if (errno == EAGAIN)
+                  break;
+#else
                if (errno == EAGAIN || errno == EWOULDBLOCK)
                   break;
+#endif
 
                // otherwise terminate this watch (notify user and break
                // out of the read loop for this context)

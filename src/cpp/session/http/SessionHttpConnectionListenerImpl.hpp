@@ -1,7 +1,7 @@
 /*
  * SessionHttpConnectionListenerImpl.hpp
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -26,9 +26,9 @@
 
 #include <core/Macros.hpp>
 #include <core/BoostThread.hpp>
-#include <core/FilePath.hpp>
+#include <shared_core/FilePath.hpp>
 #include <core/FileLock.hpp>
-#include <core/Error.hpp>
+#include <shared_core/Error.hpp>
 #include <core/BoostErrors.hpp>
 #include <core/system/System.hpp>
 
@@ -46,10 +46,29 @@
 #include <session/SessionHttpConnectionListener.hpp>
 
 #include "SessionHttpConnectionImpl.hpp"
+#include "../SessionUriHandlers.hpp"
 
 
 namespace rstudio {
 namespace session {
+
+class UploadVisitor : public boost::static_visitor<core::http::UriAsyncUploadHandlerFunction>
+{
+public:
+   core::http::UriAsyncUploadHandlerFunction
+   operator()(const core::http::UriAsyncHandlerFunction& func) const
+   {
+      // return empty function to signify that the func is not an upload handler
+      return core::http::UriAsyncUploadHandlerFunction();
+   }
+
+   core::http::UriAsyncUploadHandlerFunction
+   operator()(const core::http::UriAsyncUploadHandlerFunction& func) const
+   {
+      // return the func itself so it can be invoked
+      return func;
+   }
+};
 
 template <typename ProtocolType>
 class HttpConnectionListenerImpl : public HttpConnectionListener,
@@ -66,7 +85,7 @@ public:
       // cleanup any existing networking state
       core::Error error = cleanup();
       if (error)
-         return error ;
+         return error;
 
       // initialize acceptor
       error = initializeAcceptor(&acceptorService_);
@@ -84,7 +103,7 @@ public:
       core::system::SignalBlocker signalBlocker;
       error = signalBlocker.blockAll();
       if (error)
-         return error ;
+         return error;
 
       // launch the listener thread
       try
@@ -117,7 +136,7 @@ public:
       }
 
       // close acceptor
-      boost::system::error_code ec ;
+      boost::system::error_code ec;
       acceptorService_.closeAcceptor(ec);
       if (ec)
          LOG_ERROR(core::Error(ec, ERROR_LOCATION));
@@ -169,7 +188,7 @@ private:
    virtual bool validateConnection(
       boost::shared_ptr<HttpConnectionImpl<ProtocolType> > ptrConnection) = 0;
 
-   virtual core::Error cleanup() = 0 ;
+   virtual core::Error cleanup() = 0;
 
 private:
    boost::asio::io_service& ioService() { return acceptorService_.ioService(); }
@@ -179,6 +198,10 @@ private:
       // create the connection
       ptrNextConnection_.reset( new HttpConnectionImpl<ProtocolType>(
             ioService(),
+            boost::bind(
+                 &HttpConnectionListenerImpl<ProtocolType>::onHeadersParsed,
+                 this,
+                 _1),
             boost::bind(
                  &HttpConnectionListenerImpl<ProtocolType>::enqueConnection,
                  this,
@@ -218,7 +241,7 @@ private:
             // for errors, log and continue,but don't log errors caused
             // by normal course of socket shutdown
             if (!core::isShutdownError(ec))
-               LOG_ERROR(core::Error(ec, ERROR_LOCATION)) ;
+               LOG_ERROR(core::Error(ec, ERROR_LOCATION));
          }
       }
       catch(const boost::system::system_error& e)
@@ -230,9 +253,31 @@ private:
       // ALWAYS accept next connection
       try
       {
-         acceptNextConnection() ;
+         acceptNextConnection();
       }
       CATCH_UNEXPECTED_EXCEPTION
+   }
+
+   void onHeadersParsed(boost::shared_ptr<HttpConnectionImpl<ProtocolType> > ptrConnection)
+   {
+      // convert to cannonical HttpConnection
+      boost::shared_ptr<HttpConnection> ptrHttpConnection =
+            boost::static_pointer_cast<HttpConnection>(ptrConnection);
+
+      // check if request handler is an upload handler
+      const core::http::Request& request = ptrConnection->request();
+      std::string uri = request.uri();
+      boost::optional<core::http::UriAsyncHandlerFunctionVariant> uriHandler =
+        uri_handlers::handlers().handlerFor(uri);
+
+      if (uriHandler)
+      {
+         core::http::UriAsyncUploadHandlerFunction func =
+               boost::apply_visitor(UploadVisitor(), uriHandler.get());
+
+         if (func)
+            ptrConnection->setUploadHandler(func);
+      }
    }
 
    // NOTE: this logic is duplicated btw here and NamedPipeConnectionListener
@@ -294,7 +339,7 @@ private:
    HttpConnectionQueue eventsConnectionQueue_;
 
    // listener thread
-   boost::thread listenerThread_ ;
+   boost::thread listenerThread_;
 
    // flag indicating we've started
    bool started_;

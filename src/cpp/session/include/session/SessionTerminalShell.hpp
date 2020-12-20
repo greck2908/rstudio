@@ -1,7 +1,7 @@
 /*
  * SessionTerminalShell.hpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,7 @@
 #include <vector>
 
 #include <core/json/JsonRpc.hpp>
-#include <core/FilePath.hpp>
+#include <shared_core/FilePath.hpp>
 
 namespace rstudio {
 namespace session {
@@ -46,8 +46,9 @@ struct TerminalShell
       CustomShell  = 8, // User-specified shell command
       NoShell      = 9, // Non-interactive job with no shell
       PSCore      = 10, // PowerShell Core (v6)
+      PosixZsh    = 11, // Posix: Zsh
 
-      Max          = PSCore
+      Max          = PosixZsh
    };
 
    TerminalShell() = default;
@@ -73,6 +74,9 @@ struct TerminalShell
 
    // get a user-friendly name for the given shell type
    static std::string getShellName(ShellType type);
+
+   // get an internal ID for the given shell type
+   static std::string getShellId(ShellType type);
    
    // map an rstudioapi terminalCreate shell type string to enum type
    static ShellType shellTypeFromString(const std::string& str);

@@ -1,7 +1,7 @@
 /*
  * SessionInvalidScope.hpp
  *
- * Copyright (C) 2009-2015 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,12 +19,8 @@
 #ifndef SESSION_INVALID_SCOPE_HPP
 #define SESSION_INVALID_SCOPE_HPP
 
-#include <core/FilePath.hpp>
+#include <shared_core/FilePath.hpp>
 #include <core/FileSerializer.hpp>
-
-#ifndef _WIN32
-#include <core/system/FileMode.hpp>
-#endif
 
 #include <core/r_util/RSessionContext.hpp>
 
@@ -54,8 +50,7 @@ inline void writeInvalidScope(const core::r_util::SessionContext& context,
    if (!error)
    {
       // chmod on the file so the server can read it
-      core::Error error = changeFileMode(filePath,
-                                         core::system::EveryoneReadWriteMode);
+      core::Error error = filePath.changeFileMode(core::FileMode::ALL_READ_WRITE);
       if (error)
          LOG_ERROR(error);
    }

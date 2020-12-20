@@ -1,7 +1,7 @@
 /*
  * Pattern.java
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -26,22 +26,22 @@ public class Pattern extends JavaScriptObject
    protected Pattern() {}
    
    public static native Pattern create(String pattern) /*-{
-      return new RegExp(pattern, 'gm') ;
-   }-*/ ;
+      return new RegExp(pattern, 'gm');
+   }-*/;
    
    public static native Pattern create(String pattern, String flags) /*-{
-      return new RegExp(pattern, flags) ;
-   }-*/ ;
+      return new RegExp(pattern, flags);
+   }-*/;
    
    public final native int search(String string) /*-{
       return string.search(this);
    }-*/;
 
    public final native Match match(String input, int index) /*-{
-      this.lastIndex = index ;
-      var result = this.exec(input) ;
+      this.lastIndex = index;
+      var result = this.exec(input);
       if (result == null)
-         return null ;
+         return null;
       return {
          value: result[0],
          index: result.index,

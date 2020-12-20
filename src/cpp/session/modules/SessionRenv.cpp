@@ -1,7 +1,7 @@
 /*
  * SessionRenv.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,7 @@
 
 #include "SessionRenv.hpp"
 
-#include <core/Error.hpp>
+#include <shared_core/Error.hpp>
 #include <core/Exec.hpp>
 
 #include <r/RExec.hpp>
@@ -33,7 +33,12 @@ namespace module_context {
 
 bool isRequiredRenvInstalled()
 {
-   return isPackageVersionInstalled("renv", "0.5.0");
+   return isPackageVersionInstalled("renv", "0.9.2");
+}
+
+bool isRenvActive()
+{
+   return !core::system::getenv("RENV_PROJECT").empty();
 }
 
 namespace {
@@ -51,7 +56,7 @@ core::json::Value renvStateAsJson(const std::string method)
       return json::Object();
    }
 
-   if (resultJson.type() != json::ObjectType)
+   if (resultJson.getType() != json::Type::OBJECT)
    {
       error = systemError(boost::system::errc::invalid_argument, ERROR_LOCATION);
       LOG_ERROR(error);

@@ -1,7 +1,7 @@
 /*
  * BuildPane.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,6 +14,7 @@
  */
 package org.rstudio.studio.client.workbench.views.buildtools;
 
+import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.JsArray;
 import com.google.gwt.core.client.JsArrayString;
 import com.google.gwt.event.dom.client.HasClickHandlers;
@@ -24,15 +25,19 @@ import com.google.gwt.user.client.ui.Widget;
 import com.google.inject.Inject;
 
 import org.rstudio.core.client.CodeNavigationTarget;
+import org.rstudio.core.client.ElementIds;
+import org.rstudio.core.client.command.CommandBinder;
+import org.rstudio.core.client.command.Handler;
 import org.rstudio.core.client.events.HasSelectionCommitHandlers;
 import org.rstudio.core.client.events.SelectionCommitEvent;
-import org.rstudio.core.client.events.SelectionCommitHandler;
 import org.rstudio.core.client.resources.ImageResource2x;
+import org.rstudio.core.client.theme.res.ThemeStyles;
 import org.rstudio.core.client.widget.CheckableMenuItem;
 import org.rstudio.core.client.widget.Toolbar;
 import org.rstudio.core.client.widget.ToolbarButton;
 import org.rstudio.core.client.widget.ToolbarMenuButton;
 import org.rstudio.core.client.widget.ToolbarPopupMenu;
+import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.SimpleRequestCallback;
 import org.rstudio.studio.client.common.compile.CompileOutput;
 import org.rstudio.studio.client.common.compile.CompileOutputBufferWithHighlight;
@@ -46,34 +51,40 @@ import org.rstudio.studio.client.workbench.ui.WorkbenchPane;
 import org.rstudio.studio.client.workbench.views.buildtools.model.BookdownFormats;
 import org.rstudio.studio.client.workbench.views.buildtools.model.BuildServerOperations;
 
-public class BuildPane extends WorkbenchPane 
+public class BuildPane extends WorkbenchPane
       implements BuildPresenter.Display
 {
+   static interface Binder extends CommandBinder<Commands, BuildPane>
+   {
+   }
+
    @Inject
    public BuildPane(Commands commands,
+                    EventBus events,
                     Session session,
                     BuildServerOperations server)
    {
-      super("Build");
+      super("Build", events);
+      ((BuildPane.Binder) GWT.create(BuildPane.Binder.class)).bind(commands, this);
+
       commands_ = commands;
       session_ = session;
       server_ = server;
       compilePanel_ = new CompilePanel(new CompileOutputBufferWithHighlight());
       ensureWidget();
    }
-   
+
    @Override
    protected Toolbar createMainToolbar()
    {
-      Toolbar toolbar = new Toolbar();
-      
+      Toolbar toolbar = new Toolbar("Build Tab");
+
       SessionInfo sessionInfo =  session_.getSessionInfo();
       String type = sessionInfo.getBuildToolsType();
       boolean pkg = type == SessionInfo.BUILD_TOOLS_PACKAGE;
       boolean makefile = type == SessionInfo.BUILD_TOOLS_MAKEFILE;
       boolean website = type == SessionInfo.BUILD_TOOLS_WEBSITE;
-      
-      
+
       // always include build all
       ToolbarButton buildAllButton = commands_.buildAll().createToolbarButton();
       if (website)
@@ -88,25 +99,26 @@ public class BuildPane extends WorkbenchPane
          }
       }
       toolbar.addLeftWidget(buildAllButton);
-      
+
       // book build menu
       if (sessionInfo.getBuildToolsBookdownWebsite())
       {
          BookdownBuildPopupMenu buildPopupMenu = new BookdownBuildPopupMenu();
          ToolbarMenuButton buildMenuButton = new ToolbarMenuButton(ToolbarButton.NoText,
                "Build book options", buildPopupMenu, true);
+         ElementIds.assignElementId(buildMenuButton, ElementIds.BUILD_BOOKDOWN_MENUBUTTON);
          toolbar.addLeftWidget(buildMenuButton);
       }
-      
+
       toolbar.addLeftSeparator();
-      
+
       // packages get check package
       if (pkg)
       {
          toolbar.addLeftWidget(commands_.checkPackage().createToolbarButton());
          toolbar.addLeftSeparator();
       }
-      
+
       // create more menu
       if (makefile || website || pkg)
       {
@@ -118,8 +130,8 @@ public class BuildPane extends WorkbenchPane
             moreMenu.addItem(commands_.cleanAll().createMenuItem(false));
             moreMenu.addSeparator();
          }
-         
-         // packages get additional commands 
+
+         // packages get additional commands
          else if (pkg)
          {
             moreMenu.addItem(commands_.devtoolsLoadAll().createMenuItem(false));
@@ -132,57 +144,67 @@ public class BuildPane extends WorkbenchPane
             moreMenu.addItem(commands_.buildSourcePackage().createMenuItem(false));
             moreMenu.addItem(commands_.buildBinaryPackage().createMenuItem(false));
             moreMenu.addSeparator();
-            moreMenu.addItem(commands_.roxygenizePackage().createMenuItem(false));   
+            moreMenu.addItem(commands_.roxygenizePackage().createMenuItem(false));
             moreMenu.addSeparator();
          }
          moreMenu.addItem(commands_.buildToolsProjectSetup().createMenuItem(false));
-         
+
          // add more menu
          ToolbarMenuButton moreButton = new ToolbarMenuButton(
                "More",
                ToolbarButton.NoTitle,
                new ImageResource2x(StandardIcons.INSTANCE.more_actions2x()),
                moreMenu);
+         ElementIds.assignElementId(moreButton, ElementIds.BUILD_MORE_MENUBUTTON);
          toolbar.addLeftWidget(moreButton);
       }
-      
+
+      // build clear button
+      clearBuildButton_ = commands_.clearBuild().createToolbarButton();
+      clearBuildButton_.addStyleName(ThemeStyles.INSTANCE.clearBuildButton());
+      clearBuildButton_.setVisible(true);
+
       // connect compile panel
       compilePanel_.connectToolbar(toolbar);
-     
-      
+      toolbar.addRightWidget(clearBuildButton_);
+
       return toolbar;
    }
-   
+
+   @Handler
+   void onClearBuild()
+   {
+       compilePanel_.clearAll();
+   }
+
    class BookdownBuildPopupMenu extends ToolbarPopupMenu
    {
       @Override
-      public void getDynamicPopupMenu(final 
-            ToolbarPopupMenu.DynamicPopupMenuCallback callback)
+      public void getDynamicPopupMenu(final ToolbarPopupMenu.DynamicPopupMenuCallback callback)
       {
          clearItems();
-         
-         server_.getBookdownFormats(new SimpleRequestCallback<BookdownFormats>() {
 
+         server_.getBookdownFormats(new SimpleRequestCallback<BookdownFormats>()
+         {
             @Override
             public void onResponseReceived(BookdownFormats formats)
             {
                String defaultFormat = formats.getOutputFormat();
-               JsArrayString allFormats = formats.getAllOututFormats(); 
+               JsArrayString allFormats = formats.getAllOututFormats();
                MenuItem allMenu = new FormatMenuItem(
                   "all", "All Formats", defaultFormat == "all");
                addItem(allMenu);
-               addSeparator();    
-               for (int i = 0; i<allFormats.length(); i++)
+               addSeparator();
+               for (int i = 0; i < allFormats.length(); i++)
                {
                   String format = allFormats.get(i);
-                  addItem(new FormatMenuItem(format, 
-                                             defaultFormat == format));
+                  addItem(new FormatMenuItem(format, defaultFormat == format));
                }
                callback.onPopupMenu(BookdownBuildPopupMenu.this);
             }
          });
       }
-      
+
       class FormatMenuItem extends CheckableMenuItem
       {
          public FormatMenuItem(String format, boolean isChecked)
@@ -198,7 +220,7 @@ public class BuildPane extends WorkbenchPane
             isChecked_ = isChecked;
             onStateChanged();
          }
-         
+
          @Override
          public String getLabel()
          {
@@ -216,23 +238,23 @@ public class BuildPane extends WorkbenchPane
          {
             SelectionCommitEvent.fire(buildSubType(), format_);
          }
-         
-         private String format_;
-         private String label_;
-         private boolean isChecked_;
+
+         private final String format_;
+         private final String label_;
+         private final boolean isChecked_;
       }
    }
-   
-   @Override 
+
+   @Override
    protected Widget createMainWidget()
-   {      
+   {
       return compilePanel_;
    }
-   
+
    @Override
    public void buildStarted()
    {
-      compilePanel_.compileStarted(null);  
+      compilePanel_.compileStarted(null);
    }
 
    @Override
@@ -240,10 +262,10 @@ public class BuildPane extends WorkbenchPane
    {
       compilePanel_.showOutput(output, scrollToBottom);
    }
-   
+
    @Override
    public void showErrors(String basePath,
-                          JsArray<SourceMarker> errors, 
+                          JsArray<SourceMarker> errors,
                           boolean ensureVisible,
                           int autoSelect,
                           boolean openErrors,
@@ -251,29 +273,29 @@ public class BuildPane extends WorkbenchPane
    {
       errorsBuildType_ = buildType;
       compilePanel_.showErrors(basePath, errors, autoSelect, openErrors);
-      
+
       if (ensureVisible && SourceMarker.showErrorList(errors))
          ensureVisible();
    }
-   
+
    @Override
    public void buildCompleted()
    {
-      compilePanel_.compileCompleted();  
+      compilePanel_.compileCompleted();
    }
-   
+
    @Override
    public HasClickHandlers stopButton()
    {
       return compilePanel_.stopButton();
    }
-   
+
    @Override
    public HasSelectionCommitHandlers<CodeNavigationTarget> errorList()
    {
       return compilePanel_.errorList();
    }
-   
+
    @Override
    public HasSelectionCommitHandlers<String> buildSubType()
    {
@@ -287,12 +309,12 @@ public class BuildPane extends WorkbenchPane
 
          @Override
          public HandlerRegistration addSelectionCommitHandler(
-               SelectionCommitHandler<String> handler)
+               SelectionCommitEvent.Handler<String> handler)
          {
-            return BuildPane.this.addHandler(handler, 
+            return BuildPane.this.addHandler(handler,
                                              SelectionCommitEvent.getType());
          }
-         
+
       };
    }
 
@@ -301,18 +323,18 @@ public class BuildPane extends WorkbenchPane
    {
       return errorsBuildType_;
    }
-   
+
    @Override
    public void scrollToBottom()
    {
-      compilePanel_.scrollToBottom();   
+      compilePanel_.scrollToBottom();
    }
- 
-   private Commands commands_;
-   private Session session_;
-   private BuildServerOperations server_;
-   private String errorsBuildType_;
-   
-   CompilePanel compilePanel_;
 
+   private ToolbarButton clearBuildButton_;
+   private final Commands commands_;
+   private final Session session_;
+   private final BuildServerOperations server_;
+   private String errorsBuildType_;
+
+   private final CompilePanel compilePanel_;
 }

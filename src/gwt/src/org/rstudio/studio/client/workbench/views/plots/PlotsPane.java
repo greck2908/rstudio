@@ -1,7 +1,7 @@
 /*
  * PlotsPane.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,9 +21,7 @@ import com.google.gwt.event.logical.shared.ResizeEvent;
 import com.google.gwt.event.logical.shared.ResizeHandler;
 import com.google.gwt.event.shared.HandlerRegistration;
 import com.google.gwt.user.client.Command;
-import com.google.gwt.user.client.ui.FlowPanel;
 import com.google.gwt.user.client.ui.LayoutPanel;
-import com.google.gwt.user.client.ui.Panel;
 import com.google.gwt.user.client.ui.Widget;
 import com.google.inject.Inject;
 
@@ -32,6 +30,7 @@ import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.Size;
 import org.rstudio.core.client.widget.ImageFrame;
 import org.rstudio.core.client.widget.Toolbar;
+import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.SimpleRequestCallback;
 import org.rstudio.studio.client.common.dependencies.DependencyManager;
 import org.rstudio.studio.client.common.zoom.ZoomUtils;
@@ -49,10 +48,10 @@ public class PlotsPane extends WorkbenchPane implements Plots.Display,
       HasResizeHandlers
 {
    @Inject
-   public PlotsPane(Commands commands, PlotsServerOperations server,
+   public PlotsPane(Commands commands, EventBus events, PlotsServerOperations server,
          DependencyManager dependencies)
    {
-      super("Plots");
+      super("Plots", events);
       commands_ = commands;
       server_ = server;
       dependencies_ = dependencies;
@@ -71,7 +70,7 @@ public class PlotsPane extends WorkbenchPane implements Plots.Display,
          {
             return "Current Plot";
          }
-         
+
          @Override
          public void generatePublishHtml(
                final CommandWithArg<String> onComplete)
@@ -82,15 +81,15 @@ public class PlotsPane extends WorkbenchPane implements Plots.Display,
                public void execute()
                {
                  final Size size = ZoomUtils.getZoomedSize(
-                       getPlotFrameSize(), 
-                       new Size(400, 350), 
+                       getPlotFrameSize(),
+                       new Size(400, 350),
                        new Size(800, 700));
                   server_.plotsCreateRPubsHtml(
-                     "Plot", 
-                     "", 
+                     "Plot",
+                     "",
                      size.width,
                      size.height,
-                     new SimpleRequestCallback<String>() 
+                     new SimpleRequestCallback<String>()
                      {
                         @Override
                         public void onResponseReceived(String rpubsHtmlFile)
@@ -119,23 +118,20 @@ public class PlotsPane extends WorkbenchPane implements Plots.Display,
       frame_.setMarginHeight(0);
       frame_.setUrl("about:blank");
       frame_.setSize("100%", "100%");
-      ElementIds.assignElementId(frame_.getElement(), 
+      ElementIds.assignElementId(frame_.getElement(),
                                  ElementIds.PLOT_IMAGE_FRAME);
 
       panel_.add(frame_);
       panel_.setWidgetTopBottom(frame_, 0, Unit.PX, 0, Unit.PX);
       panel_.setWidgetLeftRight(frame_, 0, Unit.PX, 0, Unit.PX);
 
-      // Stops mouse events from being routed to the iframe, which would
-      // interfere with dragging the workbench pane sizer. also provide
-      // a widget container where adornments can be added on top fo the
-      // plots panel (e.g. manipulator button)
-      plotsSurface_ = new FlowPanel();
-      plotsSurface_.setSize("100%", "100%");
+      // Provide a widget container where adornments can be added on top of the
+      // plots panel (e.g. manipulator button). Hidden initially so it doens't
+      // block context menu actions such as Copy Image.
+      plotsSurface_ = new PlotsSurface(panel_);
       panel_.add(plotsSurface_);
-      panel_.setWidgetTopBottom(plotsSurface_, 0, Unit.PX, 0, Unit.PX);
-      panel_.setWidgetLeftRight(plotsSurface_, 0, Unit.PX, 0, Unit.PX);
-      
+      plotsSurface_.disableSurface();
+
       // return the panel
       return panel_;
    }
@@ -166,12 +162,12 @@ public class PlotsPane extends WorkbenchPane implements Plots.Display,
       frame_.setImageUrl(plotUrl);
       plotsToolbar_.invalidateSeparators();
    }
-       
+
    public String getPlotUrl()
    {
       return plotUrl_;
    }
-   
+
 
    public void refresh()
    {
@@ -179,16 +175,16 @@ public class PlotsPane extends WorkbenchPane implements Plots.Display,
          frame_.setImageUrl(plotUrl_);
    }
 
-   public Panel getPlotsSurface()
+   public PlotsSurface getPlotsSurface()
    {
       return plotsSurface_;
    }
-   
+
    public Plots.Parent getPlotsParent()
    {
-      return plotsParent_;    
+      return plotsParent_;
    }
-   
+
    public Size getPlotFrameSize()
    {
       return new Size(frame_.getOffsetWidth(), frame_.getOffsetHeight());
@@ -200,7 +196,7 @@ public class PlotsPane extends WorkbenchPane implements Plots.Display,
       super.onResize();
       int width = getOffsetWidth();
       ResizeEvent.fire(this, width, getOffsetHeight());
-      
+
       if (width > 0 && publishButton_ != null)
       {
          publishButton_.setShowCaption(width > 500);
@@ -215,24 +211,24 @@ public class PlotsPane extends WorkbenchPane implements Plots.Display,
    private final Commands commands_;
    private final PlotsServerOperations server_;
    private final DependencyManager dependencies_;
-   
+
    private RSConnectPublishButton publishButton_;
    private LayoutPanel panel_;
    private ImageFrame frame_;
    private String plotUrl_;
    private PlotsToolbar plotsToolbar_ = null;
-   private FlowPanel plotsSurface_ = null;
-   private Plots.Parent plotsParent_ = new Plots.Parent() { 
+   private PlotsSurface plotsSurface_ = null;
+   private Plots.Parent plotsParent_ = new Plots.Parent() {
       public void add(Widget w)
       {
-         panel_.add(w);   
+         panel_.add(w);
       }
-      
+
       public boolean remove(Widget w)
       {
          return panel_.remove(w);
       }
-      
+
       public Iterator<Widget> iterator()
       {
          return panel_.iterator();
@@ -242,16 +238,16 @@ public class PlotsPane extends WorkbenchPane implements Plots.Display,
       {
          panel_.clear();
       }
-      
+
       public void installCustomToolbar(Customizer customizer)
       {
-         plotsToolbar_.installCustomToolbar(customizer);       
+         plotsToolbar_.installCustomToolbar(customizer);
       }
-      
+
       public void removeCustomToolbar()
       {
-         plotsToolbar_.removeCustomToolbar();        
+         plotsToolbar_.removeCustomToolbar();
       }
    };
-   
+
 }

@@ -1,7 +1,7 @@
 /*
  * SessionClientEvent.hpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,7 @@
 
 #include <string>
 
-#include <core/json/Json.hpp>
+#include <shared_core/json/Json.hpp>
 
 namespace rstudio {
 namespace core {
@@ -28,12 +28,12 @@ namespace core {
 
 namespace rstudio {
 namespace session {
-   
+
 namespace client_events {
-   
+
 extern const int kConsolePrompt;
 extern const int kConsoleWriteOutput;
-extern const int kConsoleWriteError ;
+extern const int kConsoleWriteError;
 extern const int kShowErrorMessage;
 extern const int kShowHelp;
 extern const int kBrowseUrl;
@@ -68,7 +68,7 @@ extern const int kConsoleProcessOutput;
 extern const int kConsoleProcessExit;
 extern const int kListChanged;
 extern const int kConsoleProcessCreated;
-extern const int kUiPrefsChanged;
+extern const int kUserPrefsChanged;
 extern const int kHandleUnsavedChanges;
 extern const int kConsoleProcessPrompt;
 extern const int kConsoleProcessCreated;
@@ -182,9 +182,6 @@ extern const int kOpenFileDialog;
 extern const int kRemoveTerminal;
 extern const int kShowPageViewerEvent;
 extern const int kAskSecret;
-extern const int kTestsStarted;
-extern const int kTestsOutput;
-extern const int kTestsCompleted;
 extern const int kJobUpdated;
 extern const int kJobRefresh;
 extern const int kJobOutput;
@@ -196,38 +193,48 @@ extern const int kComputeThemeColors;
 extern const int kRequestDocumentClose;
 extern const int kRequestDocumentCloseCompleted;
 extern const int kExecuteAppCommand;
+extern const int kUserStateChanged;
+extern const int kHighlightUi;
+extern const int kReplaceResult;
+extern const int kReplaceUpdated;
+extern const int kTutorialCommand;
+extern const int kTutorialLaunch;
+extern const int kReticulateEvent;
+extern const int kEnvironmentChanged;
+extern const int kRStudioApiRequest;
+extern const int kDocumentCloseAllNoSave;
 }
-   
+
 class ClientEvent
-{   
+{
 public:
    explicit ClientEvent(int type)
    {
       init(type, core::json::Value());
    }
-   
+
    ClientEvent(int type, const core::json::Value& data)
    {
       init(type, data);
    }
-   
+
    ClientEvent(int type, const char* data)
    {
       init(type, core::json::Value(std::string(data)));
    }
-   
+
    ClientEvent(int type, const std::string& data)
    {
       init(type, core::json::Value(data));
    }
-   
+
    ClientEvent(int type, bool data)
    {
-      core::json::Object boolObject ;
+      core::json::Object boolObject;
       boolObject["value"] = data;
       init(type, boolObject);
    }
-      
+
    // COPYING: via compiler (copyable members)
 
 public:
@@ -235,15 +242,15 @@ public:
    std::string typeName() const;
    const core::json::Value& data() const { return data_; }
    const std::string& id() const { return id_; }
-   
+
    void asJsonObject(int id, core::json::Object* pObject) const;
-     
+
 private:
    void init(int type, const core::json::Value& data);
-  
+
 private:
-   int type_ ;
-   core::json::Value data_ ;
+   int type_;
+   core::json::Value data_;
    std::string id_;
 };
 
@@ -253,10 +260,10 @@ ClientEvent showEditorEvent(const std::string& content,
 
 ClientEvent browseUrlEvent(const std::string& url,
                            const std::string& window = "_blank");
-   
+
 ClientEvent showErrorMessageEvent(const std::string& title,
                                   const std::string& message);
-   
+
 } // namespace session
 } // namespace rstudio
 

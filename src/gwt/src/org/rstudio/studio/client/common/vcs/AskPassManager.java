@@ -1,7 +1,7 @@
 /*
  * AskPassManager.java
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,6 +15,7 @@
 package org.rstudio.studio.client.common.vcs;
 
 import org.rstudio.core.client.Debug;
+import org.rstudio.core.client.MessageDisplay;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.MessageDisplay.PromptWithOptionResult;
 import org.rstudio.core.client.widget.Operation;
@@ -65,7 +66,7 @@ public class AskPassManager
                 !satelliteManager.satelliteWindowExists(targetWindow))
                return true;
             
-            // othewise don't handle
+            // otherwise don't handle
             else
                return false;
          }
@@ -78,10 +79,30 @@ public class AskPassManager
             
             askpassPending_ = true;
             
-            globalDisplay.promptForPassword(
-                  "Password",
-                  e.getPrompt(),
+            String prompt = e.getPrompt();
+            
+            // default to password prompt
+            String title = "Password";
+            int dialogType = MessageDisplay.INPUT_PASSWORD;
+
+            if (prompt.toLowerCase().indexOf("password") != -1)
+            {
+               // if password is mentioned in prompt, treat as password
+               title = "Password";
+               dialogType = MessageDisplay.INPUT_PASSWORD;
+            }
+            else if (prompt.toLowerCase().indexOf("username") != -1)
+            {
+               // if username is mentioned in prmopt, treat as username
+               title = "Username";
+               dialogType = MessageDisplay.INPUT_USERNAME;
+            }
+            
+            globalDisplay.promptForTextWithOption(
+                  title,
+                  prompt,
                   "",
+                  dialogType,
                   e.getRememberPasswordPrompt(),
                   rememberByDefault_,
                   new ProgressOperationWithInput<PromptWithOptionResult>()

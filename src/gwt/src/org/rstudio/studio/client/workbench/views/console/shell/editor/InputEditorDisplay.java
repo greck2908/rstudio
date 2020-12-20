@@ -1,7 +1,7 @@
 /*
  * InputEditorDisplay.java
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -27,22 +27,22 @@ public interface InputEditorDisplay extends HasAllFocusHandlers,
                                             HasClickHandlers,
                                             HasText
 {
-   boolean hasSelection() ;
-   InputEditorSelection getSelection() ;
-   void setSelection(InputEditorSelection selection) ;
+   boolean hasSelection();
+   InputEditorSelection getSelection();
+   void setSelection(InputEditorSelection selection);
    String getSelectionValue();
-   Rectangle getCursorBounds() ;
+   Rectangle getCursorBounds();
    Rectangle getPositionBounds(InputEditorPosition position);
-   Rectangle getBounds() ;
-   void setFocus(boolean focused) ;
+   Rectangle getBounds();
+   void setFocus(boolean focused);
    boolean isFocused();
    /**
     * @param value New value
     * @return Original value
     */
-   String replaceSelection(String value, boolean collapseSelection) ;
-   boolean isSelectionCollapsed() ;
-   void clear() ;
+   String replaceSelection(String value, boolean collapseSelection);
+   boolean isSelectionCollapsed();
+   void clear();
    
    void insertCode(String code);
 

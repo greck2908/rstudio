@@ -1,7 +1,7 @@
 /*
  * ConsoleProgressDialog.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -26,6 +26,10 @@ import com.google.gwt.user.client.ui.*;
 import org.rstudio.core.client.CommandWithArg;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.widget.*;
+import org.rstudio.studio.client.RStudioGinjector;
+import org.rstudio.studio.client.application.AriaLiveService;
+import org.rstudio.studio.client.application.events.AriaLiveStatusEvent.Severity;
+import org.rstudio.studio.client.application.events.AriaLiveStatusEvent.Timing;
 import org.rstudio.studio.client.common.SimpleRequestCallback;
 import org.rstudio.studio.client.common.console.ConsoleOutputEvent;
 import org.rstudio.studio.client.common.console.ConsolePromptEvent;
@@ -199,7 +203,14 @@ public class ConsoleProgressDialog extends ProgressDialog
          return false;
       }
    }
-   
+
+   @Override
+   protected void announceCompletion(String message)
+   {
+      RStudioGinjector.INSTANCE.getAriaLiveService().announce(
+            AriaLiveService.PROGRESS_COMPLETION, message, Timing.IMMEDIATE, Severity.STATUS);
+   }
+
    public void writeOutput(String output)
    {
       maybeShowOnOutput(output);
@@ -269,7 +280,8 @@ public class ConsoleProgressDialog extends ProgressDialog
    {
       if (running_)
       {
-         consoleProcess_.interrupt(new SimpleRequestCallback<Void>() {
+         consoleProcess_.interrupt(new SimpleRequestCallback<Void>()
+         {
             @Override
             public void onResponseReceived(Void response)
             {
@@ -283,6 +295,7 @@ public class ConsoleProgressDialog extends ProgressDialog
                super.onError(error);
             }
          });
+         
          stopButton().setEnabled(false);
       }
       else

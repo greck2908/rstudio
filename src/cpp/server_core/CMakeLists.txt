@@ -1,7 +1,7 @@
 #
 # CMakeLists.txt
 #
-# Copyright (C) 2018 by RStudio, Inc.
+# Copyright (C) 2020 by RStudio, PBC
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -23,6 +23,7 @@ set (SERVER_CORE_SOURCE_FILES
    http/SecureCookie.cpp
    RVersionsScanner.cpp
    SecureKeyFile.cpp
+   ServerDatabase.cpp
    sessions/SessionSignature.cpp
    system/Pam.cpp
    UrlPorts.cpp
@@ -37,10 +38,12 @@ include_directories(
    ${CMAKE_CURRENT_BINARY_DIR}
    ${TESTS_INCLUDE_DIR}
    ${CORE_SOURCE_DIR}/include
+   ${SHARED_CORE_SOURCE_DIR}/include
 )
 
 # define shared library
 add_library(rstudio-server-core STATIC ${SERVER_CORE_SOURCE_FILES} ${SERVER_CORE_HEADER_FILES})
+define_source_file_names(rstudio-server-core)
 
 # link dependencies
 target_link_libraries(
@@ -57,7 +60,7 @@ if (RSTUDIO_UNIT_TESTS_ENABLED)
       ${SERVER_CORE_TEST_FILES}
       ${SERVER_CORE_HEADER_FILES}
    )
-    target_link_libraries(rstudio-server-core-tests
+   target_link_libraries(rstudio-server-core-tests
       rstudio-core
       rstudio-server-core
       ${Boost_LIBRARIES}

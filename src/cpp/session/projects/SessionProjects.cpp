@@ -1,7 +1,7 @@
 /*
  * SessionProjects.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,9 +22,9 @@
 #include <core/r_util/RSessionContext.hpp>
 
 #include <session/SessionModuleContext.hpp>
-#include <session/SessionUserSettings.hpp>
 #include <session/SessionProjectTemplate.hpp>
 #include <session/SessionScopes.hpp>
+#include <session/prefs/UserPrefs.hpp>
 
 #include <r/RExec.hpp>
 #include <r/RRoutines.hpp>
@@ -51,7 +51,7 @@ void onSuspend(Settings*)
    // the onResume handler) because we need it very early in the
    // processes lifetime and onResume happens too late
    projects::ProjectsSettings(options().userScratchPath()).
-         setNextSessionProject(s_projectContext.file().absolutePath());
+         setNextSessionProject(s_projectContext.file().getAbsolutePath());
 }
 
 void onResume(const Settings&) {}
@@ -72,13 +72,13 @@ Error validateProjectPath(const json::JsonRpcRequest& request,
 
 // TODO: how to handle on Windows?
 #ifndef _WIN32
-      error = core::system::isFileWriteable(projectFilePath, &writeable);
+      error = projectFilePath.isWriteable(writeable);
       if (error)
          return error;
 
       if (writeable)
       {
-         error = core::system::isFileWriteable(projectFilePath.parent(), &writeable);
+         error = projectFilePath.getParent().isWriteable(writeable);
          if (error)
             return error;
       }
@@ -155,14 +155,14 @@ bool findProjectFile(const std::string& path, std::string* pResult)
    if (!projectFilePath.isDirectory())
    {
       // handle being passed full path to an existing .Rproj file
-      if (projectFilePath.extensionLowerCase() == ".rproj")
+      if (projectFilePath.getExtensionLowerCase() == ".rproj")
       {
          *pResult = folder;
          return true;
       }
       else
       {
-         return false; 
+         return false;
       }
    }
 
@@ -213,17 +213,17 @@ Error initializeProjectFromTemplate(const FilePath& projectFilePath,
 
    json::Object descriptionJson;
    json::Object inputsJson;
-   error = json::readObject(projectTemplateOptions.get_obj(),
-                            "description", &descriptionJson,
-                            "inputs", &inputsJson);
+   error = json::readObject(projectTemplateOptions.getObject(),
+                            "description", descriptionJson,
+                            "inputs", inputsJson);
    if (error)
       return error;
    
-   FilePath projectPath = projectFilePath.parent();
+   FilePath projectPath = projectFilePath.getParent();
    
    return r::exec::RFunction(".rs.initializeProjectFromTemplate")
-         .addParam(string_utils::utf8ToSystem(projectFilePath.absolutePath()))
-         .addParam(string_utils::utf8ToSystem(projectPath.absolutePath()))
+         .addParam(string_utils::utf8ToSystem(projectFilePath.getAbsolutePath()))
+         .addParam(string_utils::utf8ToSystem(projectPath.getAbsolutePath()))
          .addParam(descriptionJson)
          .addParam(inputsJson)
          .call();
@@ -248,10 +248,10 @@ Error createProject(const json::JsonRpcRequest& request,
    FilePath projectFilePath = module_context::resolveAliasedPath(projectFile);
 
    // Shiny application
-   if (!newShinyAppJson.is_null())
+   if (!newShinyAppJson.isNull())
    {
       // error if the shiny app dir already exists
-      FilePath appDir = projectFilePath.parent();
+      FilePath appDir = projectFilePath.getParent();
       if (appDir.exists())
          return core::fileExistsError(ERROR_LOCATION);
 
@@ -262,9 +262,9 @@ Error createProject(const json::JsonRpcRequest& request,
 
       // copy app.R into the project
       FilePath shinyDir = session::options().rResourcesPath()
-            .childPath("templates/shiny");
+                                            .completeChildPath("templates/shiny");
       
-      error = shinyDir.childPath("app.R").copy(appDir.childPath("app.R"));
+      error = shinyDir.completeChildPath("app.R").copy(appDir.completeChildPath("app.R"));
       if (error)
          LOG_ERROR(error);
 
@@ -272,7 +272,7 @@ Error createProject(const json::JsonRpcRequest& request,
       addFirstRunDoc(projectFilePath, "app.R");
 
       std::string existingProjectFilePath;
-      if (!findProjectFile(projectFilePath.parent().absolutePath(), &existingProjectFilePath))
+      if (!findProjectFile(projectFilePath.getParent().getAbsolutePath(), &existingProjectFilePath))
       {
          // create the project file
          return r_util::writeProjectFile(projectFilePath,
@@ -288,7 +288,7 @@ Error createProject(const json::JsonRpcRequest& request,
    }
    
    // if we have a custom project template, call that first
-   if (!projectTemplateOptions.is_null() &&
+   if (!projectTemplateOptions.isNull() &&
        json::isType<json::Object>(projectTemplateOptions))
    {
       Error error = initializeProjectFromTemplate(projectFilePath, projectTemplateOptions);
@@ -297,12 +297,12 @@ Error createProject(const json::JsonRpcRequest& request,
    }
    
    // default project scaffolding
-   error = projectFilePath.parent().ensureDirectory();
+   error = projectFilePath.getParent().ensureDirectory();
    if (error)
       return error;
 
    std::string existingProjectFilePath;
-   if (!findProjectFile(projectFilePath.parent().absolutePath(), &existingProjectFilePath))
+   if (!findProjectFile(projectFilePath.getParent().getAbsolutePath(), &existingProjectFilePath))
    {
       // create the project file
       error = r_util::writeProjectFile(projectFilePath,
@@ -341,11 +341,11 @@ Error createProjectFile(const json::JsonRpcRequest& request,
    // Check for an existing project file in the directory
    projFilePath = r_util::projectFromDirectory(projDirPath);
 
-   if (projFilePath.empty())
+   if (projFilePath.isEmpty())
    {
       // We didn't find a project file, so we need to make one. Use the name of the project
       // directory as the filename.
-      projFilePath = projDirPath.complete(projDirPath.filename() + ".Rproj");
+      projFilePath = projDirPath.completePath(projDirPath.getFilename() + ".Rproj");
       error = r_util::writeProjectFile(
                projFilePath,
                ProjectContext::buildDefaults(),
@@ -395,6 +395,18 @@ json::Object projectConfigJson(const r_util::RProjectConfig& config)
    configJson["tutorial_path"] = config.tutorialPath;
    configJson["quit_child_processes_on_exit"] = config.quitChildProcessesOnExit;
    configJson["disable_execute_rprofile"] = config.disableExecuteRprofile;
+   configJson["markdown_wrap"] = config.markdownWrap;
+   configJson["markdown_wrap_at_column"] = config.markdownWrapAtColumn;
+   configJson["markdown_references"] = config.markdownReferences;
+   configJson["markdown_canonical"] = config.markdownCanonical;
+   configJson["python_type"] = config.pythonType;
+   configJson["python_version"] = config.pythonVersion;
+   configJson["python_path"] = config.pythonPath;
+   configJson["spelling_dictionary"] = config.spellingDictionary;
+   if (config.zoteroLibraries.has_value())
+      configJson["zotero_libraries"] = json::toJsonArray(config.zoteroLibraries.get());
+   else
+      configJson["zotero_libraries"] = json::Value(); // null
 
    return configJson;
 }
@@ -527,19 +539,19 @@ Error rProjectBuildOptionsFromJson(const json::Object& optionsJson,
    json::Object autoRoxJson;
    Error error = json::readObject(
        optionsJson,
-       "makefile_args", &(pOptions->makefileArgs),
-       "preview_website", &(pOptions->previewWebsite),
-       "live_preview_website", &(pOptions->livePreviewWebsite),
-       "website_output_format", &(pOptions->websiteOutputFormat),
-       "auto_roxygenize_options", &autoRoxJson);
+       "makefile_args", pOptions->makefileArgs,
+       "preview_website", pOptions->previewWebsite,
+       "live_preview_website", pOptions->livePreviewWebsite,
+       "website_output_format", pOptions->websiteOutputFormat,
+       "auto_roxygenize_options", autoRoxJson);
    if (error)
       return error;
 
    return json::readObject(
        autoRoxJson,
-       "run_on_check", &(pOptions->autoRoxygenizeForCheck),
-       "run_on_package_builds", &(pOptions->autoRoxygenizeForBuildPackage),
-       "run_on_build_and_reload", &(pOptions->autoRoxygenizeForBuildAndReload));
+       "run_on_check", pOptions->autoRoxygenizeForCheck,
+       "run_on_package_builds", pOptions->autoRoxygenizeForBuildPackage,
+       "run_on_build_and_reload", pOptions->autoRoxygenizeForBuildAndReload);
 }
 
 Error rProjectVcsOptionsFromJson(const json::Object& optionsJson,
@@ -547,37 +559,27 @@ Error rProjectVcsOptionsFromJson(const json::Object& optionsJson,
 {
    return json::readObject(
          optionsJson,
-         "active_vcs_override", &(pOptions->vcsOverride));
+         "active_vcs_override", pOptions->vcsOverride);
 }
 
-Error writeProjectOptions(const json::JsonRpcRequest& request,
-                         json::JsonRpcResponse* /*pResponse*/)
+Error writeProjectConfig(const json::Object& configJson)
 {
-   // get the project config, vcs options, and build options
-   json::Object configJson, vcsOptionsJson, buildOptionsJson;
-   Error error = json::readObjectParam(request.params, 0,
-                                       "config", &configJson,
-                                       "vcs_options", &vcsOptionsJson,
-                                       "build_options", &buildOptionsJson);
-   if (error)
-      return error;
-
    // read the config
    r_util::RProjectConfig config;
-   error = json::readObject(
+   Error error = json::readObject(
                     configJson,
-                    "version", &(config.version),
-                    "restore_workspace", &(config.restoreWorkspace),
-                    "save_workspace", &(config.saveWorkspace),
-                    "always_save_history", &(config.alwaysSaveHistory),
-                    "enable_code_indexing", &(config.enableCodeIndexing),
-                    "use_spaces_for_tab", &(config.useSpacesForTab),
-                    "num_spaces_for_tab", &(config.numSpacesForTab),
-                    "default_encoding", &(config.encoding),
-                    "default_sweave_engine", &(config.defaultSweaveEngine),
-                    "default_latex_program", &(config.defaultLatexProgram),
-                    "root_document", &(config.rootDocument),
-                    "quit_child_processes_on_exit", &(config.quitChildProcessesOnExit));
+                    "version", config.version,
+                    "restore_workspace", config.restoreWorkspace,
+                    "save_workspace", config.saveWorkspace,
+                    "always_save_history", config.alwaysSaveHistory,
+                    "enable_code_indexing", config.enableCodeIndexing,
+                    "use_spaces_for_tab", config.useSpacesForTab,
+                    "num_spaces_for_tab", config.numSpacesForTab,
+                    "default_encoding", config.encoding,
+                    "default_sweave_engine", config.defaultSweaveEngine,
+                    "default_latex_program", config.defaultLatexProgram,
+                    "root_document", config.rootDocument,
+                    "quit_child_processes_on_exit", config.quitChildProcessesOnExit);
    if (error)
       return error;
 
@@ -603,45 +605,122 @@ Error writeProjectOptions(const json::JsonRpcRequest& request,
       {
          config.defaultOpenDocs = existingConfig.defaultOpenDocs;
       }
+
+      if (!existingConfig.defaultTutorial.empty())
+      {
+         config.defaultTutorial = existingConfig.defaultTutorial;
+      }
    }
 
    error = json::readObject(
                     configJson,
-                    "auto_append_newline", &(config.autoAppendNewline),
-                    "strip_trailing_whitespace", &(config.stripTrailingWhitespace),
-                    "line_endings", &(config.lineEndings));
+                    "auto_append_newline", config.autoAppendNewline,
+                    "strip_trailing_whitespace", config.stripTrailingWhitespace,
+                    "line_endings", config.lineEndings);
    if (error)
       return error;
 
    error = json::readObject(
                     configJson,
-                    "build_type", &(config.buildType),
-                    "package_use_devtools", &(config.packageUseDevtools),
-                    "package_path", &(config.packagePath),
-                    "package_install_args", &(config.packageInstallArgs),
-                    "package_build_args", &(config.packageBuildArgs),
-                    "package_build_binary_args", &(config.packageBuildBinaryArgs),
-                    "package_check_args", &(config.packageCheckArgs),
-                    "package_roxygenize", &(config.packageRoxygenize),
-                    "makefile_path", &(config.makefilePath),
-                    "website_path", &(config.websitePath),
-                    "custom_script_path", &(config.customScriptPath),
-                    "tutorial_path", &(config.tutorialPath));
+                    "build_type", config.buildType,
+                    "package_use_devtools", config.packageUseDevtools,
+                    "package_path", config.packagePath,
+                    "package_install_args", config.packageInstallArgs,
+                    "package_build_args", config.packageBuildArgs,
+                    "package_build_binary_args", config.packageBuildBinaryArgs,
+                    "package_check_args", config.packageCheckArgs,
+                    "package_roxygenize", config.packageRoxygenize,
+                    "makefile_path", config.makefilePath,
+                    "website_path", config.websitePath,
+                    "custom_script_path", config.customScriptPath,
+                    "tutorial_path", config.tutorialPath);
    if (error)
       return error;
 
-   error = json::readObject(configJson, "disable_execute_rprofile", &(config.disableExecuteRprofile));
+   error = json::readObject(configJson, "disable_execute_rprofile", config.disableExecuteRprofile);
    if (error)
       return error;
 
    // read the r version info
    json::Object rVersionJson;
-   error = json::readObject(configJson, "r_version", &rVersionJson);
+   error = json::readObject(configJson, "r_version", rVersionJson);
    if (error)
       return error;
    error = json::readObject(rVersionJson,
-                            "number", &(config.rVersion.number),
-                            "arch", &(config.rVersion.arch));
+                            "number", config.rVersion.number,
+                            "arch", config.rVersion.arch);
+   if (error)
+      return error;
+
+   // read markdown options
+   error = json::readObject(configJson,
+                            "markdown_wrap", config.markdownWrap,
+                            "markdown_wrap_at_column", config.markdownWrapAtColumn,
+                            "markdown_references", config.markdownReferences,
+                            "markdown_canonical", config.markdownCanonical);
+   if (error)
+      return error;
+
+   // read zotero options
+   error = json::readObject(configJson, "zotero_libraries", config.zoteroLibraries);
+   if (error)
+      return error;
+
+   // read python options
+   error = json::readObject(configJson,
+                            "python_type", config.pythonType,
+                            "python_version", config.pythonVersion,
+                            "python_path", config.pythonPath);
+   
+   if (error)
+      return error;
+
+   // read spelling options
+   error = json::readObject(configJson,
+                            "spelling_dictionary", config.spellingDictionary);
+   if (error)
+      return error;
+
+   // write the config
+   error = r_util::writeProjectFile(s_projectContext.file(),
+                                    ProjectContext::buildDefaults(),
+                                    config);
+   if (error)
+      return error;
+
+   // set the config
+   setProjectConfig(config);
+
+   return Success();
+
+
+}
+
+Error writeProjectConfigRpc(const json::JsonRpcRequest& request,
+                            json::JsonRpcResponse* pResponse)
+{
+   json::Object configJson;
+   Error error = json::readParam(request.params, 0, &configJson);
+   if (error)
+      return error;
+
+   return writeProjectConfig(configJson);
+}
+
+Error writeProjectOptions(const json::JsonRpcRequest& request,
+                          json::JsonRpcResponse* pResponse)
+{
+   // get the project config, vcs options and build options
+   json::Object configJson, vcsOptionsJson, buildOptionsJson;
+   Error error = json::readObjectParam(request.params, 0,
+                                       "config", &configJson,
+                                       "vcs_options", &vcsOptionsJson,
+                                       "build_options", &buildOptionsJson);
+   if (error)
+      return error;
+
+   // write project config
+   error = writeProjectConfig(configJson);
    if (error)
       return error;
 
@@ -656,16 +735,6 @@ Error writeProjectOptions(const json::JsonRpcRequest& request,
    error = rProjectBuildOptionsFromJson(buildOptionsJson, &buildOptions);
    if (error)
       return error;
-
-   // write the config
-   error = r_util::writeProjectFile(s_projectContext.file(),
-                                    ProjectContext::buildDefaults(),
-                                    config);
-   if (error)
-      return error;
-
-   // set the config
-   setProjectConfig(config);
 
    // write the vcs options
    error = s_projectContext.writeVcsOptions(vcsOptions);
@@ -701,11 +770,26 @@ Error writeProjectVcsOptions(const json::JsonRpcRequest& request,
    return Success();
 }
 
-
-void onQuit()
+void saveLastProjectPath()
 {
    projects::ProjectsSettings(options().userScratchPath()).
                         setLastProjectPath(s_projectContext.file());
+}
+
+void onQuit()
+{
+   saveLastProjectPath();
+}
+
+void afterSessionInitHook(bool newSession)
+{
+   // After fully successful startup, wait 30 seconds (default) and then write the last project
+   // path. This project path will get restored at startup, so we want to be very confident it
+   // doesn't crash or misbehave on load.
+   module_context::scheduleDelayedWork(
+         boost::posix_time::seconds(
+            prefs::userPrefs().projectSafeStartupSeconds()),
+         saveLastProjectPath, true);
 }
 
 void onFilesChanged(const std::vector<core::system::FileChangeEvent>& events)
@@ -714,16 +798,16 @@ void onFilesChanged(const std::vector<core::system::FileChangeEvent>& events)
    {
       // if the project file changed then sync its changes
       if (event.fileInfo().absolutePath() ==
-          s_projectContext.file().absolutePath())
+         s_projectContext.file().getAbsolutePath())
       {
          // update project context
          syncProjectFileChanges();
 
          // fire event to client
          json::Object dataJson;
-         dataJson["type"] = "project";
-         dataJson["prefs"] = s_projectContext.uiPrefs();
-         ClientEvent event(client_events::kUiPrefsChanged, dataJson);
+         dataJson["name"] = kUserPrefsProjectLayer;
+         dataJson["values"] = s_projectContext.uiPrefs();
+         ClientEvent event(client_events::kUserPrefsChanged, dataJson);
          module_context::enqueClientEvent(event);
 
          break;
@@ -770,7 +854,7 @@ FilePath resolveProjectSwitch(const std::string& projectPath)
 void onClientInit(const json::Object& errorToSend)
 {
    // enque the error
-   if (!errorToSend.empty())
+   if (!errorToSend.isEmpty())
    {
       ClientEvent event(client_events::kOpenProjectError, errorToSend);
       module_context::enqueClientEvent(event);
@@ -796,14 +880,14 @@ void startup(const std::string& firstProjectPath)
    FilePath lastProjectPath = projSettings.lastProjectPath();
 
    // check for explicit project none scope
-   if (session::options().sessionScope().isProjectNone() || 
-       session::options().initialProjectPath().absolutePath() == kProjectNone)
+   if (session::options().sessionScope().isProjectNone() ||
+      session::options().initialProjectPath().getAbsolutePath() == kProjectNone)
    {
       projectFilePath = resolveProjectSwitch(kProjectNone);
    }
 
    // check for explicit request for a project (file association or url based)
-   else if (!session::options().initialProjectPath().empty())
+   else if (!session::options().initialProjectPath().isEmpty())
    {
       projectFilePath = session::options().initialProjectPath();
    }
@@ -827,14 +911,14 @@ void startup(const std::string& firstProjectPath)
    // check for other working dir override (implies a launch of a file
    // but not of a project). this code path is here to prevent
    // the next code path from executing
-   else if (!session::options().initialWorkingDirOverride().empty())
+   else if (!session::options().initialWorkingDirOverride().isEmpty())
    {
       projectFilePath = FilePath();
    }
 
    // check for restore last project
-   else if (userSettings().alwaysRestoreLastProject() &&
-            !lastProjectPath.empty())
+   else if (prefs::userPrefs().restoreLastProject() &&
+            !lastProjectPath.isEmpty())
    {
 
       // get last project path
@@ -854,15 +938,14 @@ void startup(const std::string& firstProjectPath)
 
    // if we have a project file path then try to initialize the
    // project context (show a warning to the user if we can't)
-   bool isNewProject = false;
-   if (!projectFilePath.empty())
+   if (!projectFilePath.isEmpty())
    {
       std::string userErrMsg;
-      Error error = s_projectContext.startup(projectFilePath, &userErrMsg, &isNewProject);
+      Error error = s_projectContext.startup(projectFilePath, &userErrMsg);
       if (error)
       {
          // log the error
-         error.addProperty("project-file", projectFilePath.absolutePath());
+         error.addProperty("project-file", projectFilePath.getAbsolutePath());
          error.addProperty("user-msg", userErrMsg);
          LOG_ERROR(error);
 
@@ -874,42 +957,24 @@ void startup(const std::string& firstProjectPath)
          module_context::events().onClientInit.connect(boost::bind(onClientInit, openProjectError));
       }
    }
-
-   // add default open docs if specified in the project
-   // and the project has never been opened before
-   std::string defaultOpenDocs = projectContext().config().defaultOpenDocs;
-   if (!defaultOpenDocs.empty() && isNewProject)
-   {
-      std::vector<std::string> docs;
-      boost::algorithm::split(docs, defaultOpenDocs, boost::is_any_of(":"));
-
-      for (std::string& doc : docs)
-      {
-         boost::algorithm::trim(doc);
-
-         FilePath docPath = projectContext().directory().complete(doc);
-         if (docPath.exists())
-         {
-            addFirstRunDoc(projectFilePath, doc);
-         }
-      }
-   }
 }
 
 SEXP rs_writeProjectFile(SEXP projectFilePathSEXP)
 {
-   std::string absolutePath = r::sexp::asString(projectFilePathSEXP);
+   std::string absolutePath = r::sexp::asUtf8String(projectFilePathSEXP);
    FilePath projectFilePath(absolutePath);
    
    Error error = r_util::writeProjectFile(
             projectFilePath,
             ProjectContext::buildDefaults(),
             ProjectContext::defaultConfig());
-   
+
+   if (error)
+      r::exec::warning(error.asString());
+
+   bool succeeded = error == Success();
    r::sexp::Protect protect;
-   return error ?
-            r::sexp::create(false, &protect) :
-            r::sexp::create(true, &protect);
+   return r::sexp::create(succeeded, &protect);
 }
 
 SEXP rs_addFirstRunDoc(SEXP projectFileAbsolutePathSEXP, SEXP docRelativePathsSEXP)
@@ -932,7 +997,7 @@ SEXP rs_addFirstRunDoc(SEXP projectFileAbsolutePathSEXP, SEXP docRelativePathsSE
 
 SEXP rs_requestOpenProject(SEXP projectFileSEXP, SEXP newSessionSEXP)
 {
-   std::string projectFile = r::sexp::asString(projectFileSEXP);
+   std::string projectFile = r::sexp::asUtf8String(projectFileSEXP);
    bool newSession = r::sexp::asLogical(newSessionSEXP);
    
    // opening projects in a new session is only supported in desktop, RSP
@@ -956,14 +1021,19 @@ SEXP rs_requestOpenProject(SEXP projectFileSEXP, SEXP newSessionSEXP)
 Error initialize()
 {
    // register R methods
-   RS_REGISTER_CALL_METHOD(rs_writeProjectFile, 1);
-   RS_REGISTER_CALL_METHOD(rs_addFirstRunDoc, 2);
-   RS_REGISTER_CALL_METHOD(rs_requestOpenProject, 2);
+   RS_REGISTER_CALL_METHOD(rs_writeProjectFile);
+   RS_REGISTER_CALL_METHOD(rs_addFirstRunDoc);
+   RS_REGISTER_CALL_METHOD(rs_requestOpenProject);
    
    // call project-context initialize
    Error error = s_projectContext.initialize();
    if (error)
       return error;
+
+   // initialize project-level preferences
+   error = prefs::initializeProjectPrefs();
+   if (error)
+      LOG_ERROR(error);
 
    // subscribe to file_monitor for project file changes
    projects::FileMonitorCallbacks cb;
@@ -971,8 +1041,9 @@ Error initialize()
    cb.onMonitoringDisabled = onMonitoringDisabled;
    s_projectContext.subscribeToFileMonitor("", cb);
 
-   // subscribe to quit for setting last project path
+   // subscribe to quit/deferred init for setting last project path
    module_context::events().onQuit.connect(onQuit);
+   module_context::events().afterSessionInitHook.connect(afterSessionInitHook);
 
    // reset switch to project path so it's a one shot deal; we only do this after successful init so
    // that we can retry a project switch if it doesn't get off the ground the first time
@@ -984,7 +1055,7 @@ Error initialize()
 
    using boost::bind;
    using namespace module_context;
-   ExecBlock initBlock ;
+   ExecBlock initBlock;
    initBlock.addFunctions()
       (bind(registerRpcMethod, "validate_project_path", validateProjectPath))
       (bind(registerRpcMethod, "get_new_project_context", getNewProjectContext))
@@ -993,6 +1064,7 @@ Error initialize()
       (bind(registerRpcMethod, "create_project_file", createProjectFile))
       (bind(registerRpcMethod, "read_project_options", readProjectOptions))
       (bind(registerRpcMethod, "write_project_options", writeProjectOptions))
+      (bind(registerRpcMethod, "write_project_config", writeProjectConfigRpc))
       (bind(registerRpcMethod, "write_project_vcs_options", writeProjectVcsOptions))
       (bind(registerRpcMethod, "find_project_in_folder", findProjectInFolder))
    ;
@@ -1009,14 +1081,16 @@ json::Array websiteOutputFormatsJson()
    json::Array formatsJson;
    if (projectContext().config().buildType == r_util::kBuildTypeWebsite)
    {
-      r::exec::RFunction getFormats(".rs.getAllOutputFormats");
-      getFormats.addParam(string_utils::utf8ToSystem(
-              projectContext().buildTargetPath().absolutePath()));
-      getFormats.addParam(projectContext().defaultEncoding());
       std::vector<std::string> formats;
-      Error error = getFormats.call(&formats);
+      
+      Error error = r::exec::RFunction(".rs.getAllOutputFormats")
+            .addUtf8Param(projectContext().buildTargetPath())
+            .addParam(projectContext().defaultEncoding())
+            .call(&formats);
+      
       if (error)
          LOG_ERROR(error);
+      
       formatsJson = json::toJsonArray(formats);
    }
    return formatsJson;

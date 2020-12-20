@@ -1,7 +1,7 @@
 /*
  * ServerAuthHandler.cpp
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,12 +20,14 @@
 
 #include <boost/algorithm/string.hpp>
 
+#include <core/DateTime.hpp>
 #include <core/FileLock.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/json/JsonRpc.hpp>
-#include <core/system/FileMode.hpp>
 #include <core/system/PosixUser.hpp>
 #include <core/Thread.hpp>
+
+#include <server_core/ServerDatabase.hpp>
 
 #include <server/ServerConstants.hpp>
 #include <server/ServerObject.hpp>
@@ -37,6 +39,7 @@
 #include <session/SessionScopes.hpp>
 
 using namespace rstudio::core;
+using namespace rstudio::core::database;
 
 namespace rstudio {
 namespace server {
@@ -44,9 +47,6 @@ namespace auth {
 namespace handler {
 
 namespace {
-
-FilePath s_revocationList;
-FilePath s_revocationLockFile;
 
 boost::posix_time::ptime cookieExpiration(const std::string& cookie)
 {
@@ -59,7 +59,6 @@ boost::posix_time::ptime cookieExpiration(const std::string& cookie)
       std::string expirationStr = http::util::urlDecode(expiration);
       return http::util::parseHttpDate(expirationStr);
    }
-
    return boost::posix_time::second_clock::universal_time();
 }
 
@@ -95,39 +94,109 @@ void updateCredentialsNotSupported(
    pConnection->writeResponse();
 }
 
-bool isCookieRevoked(const std::string& cookie)
+Error readRevocationListFromDatabase(std::vector<std::string>* pEntries)
 {
-   boost::posix_time::ptime now = boost::posix_time::second_clock::universal_time();
+   // establish a new transaction with the database
+   boost::shared_ptr<IConnection> connection = server_core::database::getConnection();
+   Transaction transaction(connection);
+
+   // first, delete all stale cookies from the database
+   std::string expiration = date_time::format(boost::posix_time::microsec_clock::universal_time(),
+                                              date_time::kIso8601Format);
+   Query deleteQuery = connection->query("DELETE FROM revoked_cookie WHERE expiration <= :val")
+         .withInput(expiration);
+   Error error = connection->execute(deleteQuery);
+   if (error)
+   {
+      error.addProperty("description", "Could not delete expired revoked cookies from the database");
+      return error;
+   }
+
+   // get all cookie entries from the database
+   Query fetchQuery = connection->query("SELECT cookie_data FROM revoked_cookie");
+   Rowset rowset;
+   error = connection->execute(fetchQuery, rowset);
+   if (error)
+   {
+      error.addProperty("description", "Could not retrieve revoked cookies from the database");
+      return error;
+   }
+
+   for (RowsetIterator it = rowset.begin(); it != rowset.end(); ++it)
+   {
+      Row& row = *it;
+      pEntries->push_back(row.get<std::string>(0));
+   }
+
+   transaction.commit();
+   return Success();
+}
+
+void removeStaleCookieFromDatabase(const RevokedCookie& cookie,
+                                   const boost::shared_ptr<IConnection>& connection)
+{
+   std::string expiration = date_time::format(cookie.expiration, date_time::kIso8601Format);
+   Query query = connection->query("DELETE FROM revoked_cookie WHERE cookie_data = :dat")
+         .withInput(cookie.cookie);
+
+   Error error = connection->execute(query);
+   if (error)
+   {
+      error.addProperty("description", "Could not delete expired revoked cookie from the database");
+      LOG_ERROR(error);
+   }
+}
+
+
+Error writeRevokedCookieToDatabase(const RevokedCookie& cookie,
+                                   boost::shared_ptr<IConnection> connection = boost::shared_ptr<IConnection>())
+{
+   std::string expiration = date_time::format(cookie.expiration, date_time::kIso8601Format);
+
+   // use existing connection if passed in, otherwise grab a new one
+   if (!connection)
+      connection = server_core::database::getConnection();
+
+   Query query = connection->query("INSERT INTO revoked_cookie VALUES (:exp, :dat)")
+         .withInput(expiration)
+         .withInput(cookie.cookie);
+
+   Error error = connection->execute(query);
+   if (error)
+   {
+      error.addProperty("description", "Could not insert revoked cookie into the database");
+      return error;
+   }
+
+   return Success();
+}
+
+Error writeRevokedCookiesToDatabase()
+{
+   boost::shared_ptr<IConnection> connection = server_core::database::getConnection();
+   Transaction transaction(connection);
 
    LOCK_MUTEX(s_mutex)
    {
-      // check for cookie in revocation list, deleting expired elements as we go
-      for (auto it = s_revokedCookies.begin(); it != s_revokedCookies.end();)
+      for (auto it = s_revokedCookies.begin(); it != s_revokedCookies.end(); ++it)
       {
-         const RevokedCookie& other = *it;
-         if (other.cookie == cookie)
-            return true;
-
-         if (other.expiration <= now)
-         {
-            it = s_revokedCookies.erase(it);
-            continue;
-         }
-         else
-         {
-            ++it;
-         }
+         const RevokedCookie& cookie = *it;
+         Error error = writeRevokedCookieToDatabase(cookie, connection);
+         if (error)
+            return error;
       }
    }
    END_LOCK_MUTEX
 
-   return false;
+   transaction.commit();
+   return Success();
 }
 
-Error readRevocationList(std::vector<std::string>* pEntries)
+Error readRevocationListFromFile(const FilePath& revocationList,
+                                 std::vector<std::string>* pEntries)
 {
    // read the current revocation list
-   Error error = readStringVectorFromFile(s_revocationList, pEntries);
+   Error error = readStringVectorFromFile(revocationList, pEntries);
    if (error)
       return error;
 
@@ -146,20 +215,56 @@ Error readRevocationList(std::vector<std::string>* pEntries)
    return Success();
 }
 
-Error changeOwnership(const FilePath& file)
+bool isCookieRevoked(const std::string& cookie)
 {
-   // changes ownership of file to the server user
-   core::system::user::User serverUser;
-   Error error = core::system::user::userFromUsername(options().serverUser(), &serverUser);
-   if (error)
-      return error;
+   bool attemptedConnection = false;
+   boost::shared_ptr<IConnection> connection;
+   boost::posix_time::ptime now = boost::posix_time::second_clock::universal_time();
 
-   return core::system::posixCall<int>(
-            boost::bind(::chown,
-                        file.absolutePath().c_str(),
-                        serverUser.userId,
-                        serverUser.groupId),
-            ERROR_LOCATION);
+   LOCK_MUTEX(s_mutex)
+   {
+      // check for cookie in revocation list, deleting expired elements as we go
+      for (auto it = s_revokedCookies.begin(); it != s_revokedCookies.end();)
+      {
+         const RevokedCookie& other = *it;
+         if (other.cookie == cookie)
+            return true;
+
+         if (other.expiration <= now)
+         {
+            if (!attemptedConnection)
+            {
+               // grab a connection from the pool, but only wait for a short amount of time
+               // this ensures that we do not delay the sign in process too long - deleting stale
+               // cookies from the database immediately is not of critical importance, as this operation will
+               // be retried on all subsequent auths / process restarts
+               server_core::database::getConnection(boost::posix_time::milliseconds(500), &connection);
+               attemptedConnection = true;
+            }
+
+            if (connection)
+            {
+               removeStaleCookieFromDatabase(other, connection);
+
+               // we only erase cookies from the memory map if they were also removed from the database
+               // to ensure that if we couldn't delete them immediately, we retry the operation later
+               it = s_revokedCookies.erase(it);
+               continue;
+            }
+            else
+            {
+               ++it;
+            }
+         }
+         else
+         {
+            ++it;
+         }
+      }
+   }
+   END_LOCK_MUTEX
+
+   return false;
 }
 
 } // anonymous namespace
@@ -167,6 +272,79 @@ Error changeOwnership(const FilePath& file)
 namespace overlay {
 
 Error initialize()
+{
+   return Success();
+}
+
+bool canStaySignedIn()
+{
+   return true;
+}
+
+Error isUserLicensed(const std::string& username,
+                     bool* pLicensed)
+{
+   *pLicensed = true;
+   return Success();
+}
+
+bool isUserListCookieValid(const std::string& cookieValue)
+{
+   return true;
+}
+
+bool shouldShowUserLicenseWarning()
+{
+   return false;
+}
+
+bool isUserAdmin()
+{
+   return false;
+}
+
+std::string getUserListCookieValue()
+{
+   return "9c16856330a7400cbbbba228392a5d83";
+}
+
+unsigned int getActiveUserCount()
+{
+   return 0;
+}
+
+json::Array getLicensedUsers()
+{
+   return json::Array();
+}
+
+json::Array getAllUsers()
+{
+   return json::Array();
+}
+
+Error lockUser(boost::asio::io_service& ioService,
+               const std::string& username)
+{
+   return Success();
+}
+
+Error unlockUser(boost::asio::io_service& ioService,
+                 const std::string& username)
+{
+   return Success();
+}
+
+Error setAdmin(boost::asio::io_service& ioService,
+               const std::string& username,
+               bool isAdmin)
+{
+   return Success();
+}
+
+Error addUser(boost::asio::io_service& ioService,
+              const std::string& username,
+              bool isAdmin)
 {
    return Success();
 }
@@ -191,12 +369,22 @@ RevokedCookie::RevokedCookie(const std::string& cookie)
 }
 
 std::string getUserIdentifier(const core::http::Request& request,
-                              http::Response* pResponse)
+                              bool requireUserListCookie)
 {
    if (isCookieRevoked(request.cookieValue(kUserIdCookie)))
       return std::string();
 
-   return s_handler.getUserIdentifier(request, pResponse);
+   std::string userIdentifier = s_handler.getUserIdentifier(request);
+   if (userIdentifier.empty())
+      return std::string();
+
+   if (requireUserListCookie)
+   {
+      if (!overlay::isUserListCookieValid(request.cookieValue(kUserListCookie)))
+         return std::string();
+   }
+
+   return userIdentifier;
 }
 
 std::string userIdentifierToLocalUsername(const std::string& userIdentifier)
@@ -309,7 +497,11 @@ void refreshAuthCookies(const std::string& userIdentifier,
    if (server::options().authTimeoutMinutes() > 0 &&
        !s_handler.refreshAuthCookies.empty())
    {
-      bool persist = request.cookieValue(kPersistAuthCookie) == "1" ? true : false;
+      // clear any existing auth cookies first - this method can be invoked multiple
+      // times depending on the handler type (for example, an upload handler)
+      pResponse->clearCookies();
+      std::string persistCookie = request.cookieValue(kPersistAuthCookie);
+      bool persist = persistCookie == "1" ? true : false;
       s_handler.refreshAuthCookies(request, userIdentifier, persist, pResponse);
    }
 }
@@ -344,58 +536,18 @@ void invalidateAuthCookie(const std::string& cookie,
    if (cookie.empty())
       return;
 
-   // create a file lock to gain exclusive access to the revocation list
-   boost::shared_ptr<FileLock> lock = FileLock::createDefault();
-   ScopedFileLock fileLock(lock, s_revocationLockFile);
-   Error error = fileLock.error();
-   if (error)
-   {
-      // if we could not acquire the lock, some other rserver process has
-      // attempt to retry the operation on an exponential backoff timer
-      if (!backoffPtr)
-      {
-         backoffPtr = boost::make_shared<ExponentialBackoff>(server::server()->ioService(),
-                                                             boost::posix_time::seconds(1),
-                                                             boost::posix_time::seconds(15),
-                                                             boost::bind(invalidateAuthCookie, cookie, _1));
-      }
-
-      bool keepTrying = backoffPtr->next();
-      if (!keepTrying)
-      {
-         LOG_ERROR_MESSAGE("Could not invalidate user auth cookie - could not acquire revocation list lockfile");
-         LOG_ERROR(error);
-      }
-
-      return;
-   }
-
-   // read the current revocation list
-   std::vector<std::string> revokedCookies;
-   error = readRevocationList(&revokedCookies);
-   if (error)
-   {
-      LOG_ERROR_MESSAGE("Could not invalidate user auth cookie - could not read revocation list");
-      LOG_ERROR(error);
-      return;
-   }
-
-   // add the new entry
-   revokedCookies.push_back(cookie);
-
-   // write the new contents to file
-   error = writeStringVectorToFile(s_revocationList, revokedCookies);
-   if (error)
-   {
-      LOG_ERROR_MESSAGE("Could not invalidate user auth cookie - could not write to revocation list");
-      LOG_ERROR(error);
-      return;
-   }
+   RevokedCookie revokedCookie(cookie);
 
    // store the revoked cookie in memory - we only check the memory cache when
    // checking incoming requests to see if the cookie presented has been revoked
    // because it is too expensive to hit the disk every time
-   insertRevokedCookie(RevokedCookie(cookie));
+   insertRevokedCookie(revokedCookie);
+
+   // attempt to revoke the cookie - if the database insert fails, we still notify
+   // other nodes so they can at least update their in-memory cache
+   Error error = writeRevokedCookieToDatabase(revokedCookie);
+   if (error)
+      LOG_ERROR(error);
 
    onCookieRevoked(cookie);
 }
@@ -404,95 +556,83 @@ Error initialize()
 {
    // initialize by loading the current contents of the revocation list into memory
 
-   // create revocation list directory and ensure the server user has permission to write to it
-   // if the directory already exists, we will not attempt to change ownership as this means
-   // the directory was setup by an administrator and we should respect its permissions
-   FilePath rootDir(options().authRevocationListDir());
-   if (!rootDir.exists())
-   {
-      Error error = rootDir.ensureDirectory();
-      if (error)
-      {
-         LOG_ERROR_MESSAGE("Could not create revocation list directory " + rootDir.absolutePath());
-         return error;
-      }
-
-      if (core::system::effectiveUserIsRoot())
-      {
-         error = changeOwnership(rootDir);
-         if (error)
-         {
-            LOG_ERROR_MESSAGE("Could not change ownership of revocation list directory " + rootDir.absolutePath());
-            return error;
-         }
-      }
-   }
-
-   s_revocationList = rootDir.childPath("revocation-list");
-   s_revocationLockFile = rootDir.childPath("revocation-list.lock");
+   // first, look for an existing file-based revocation list
+   // RStudio versions prior to 1.4 wrote the list to a file, as database integration did not yet exist
+   FilePath rootDir = options().authRevocationListDir();
+   FilePath revocationList = rootDir.completeChildPath("revocation-list");
+   FilePath revocationLockFile = rootDir.completeChildPath("revocation-list.lock");
 
    // create a file lock to gain exclusive access to the revocation list
    boost::shared_ptr<FileLock> lock = FileLock::createDefault();
    int numTries = 0;
 
+   bool lockAcquired = false;
    while (numTries < 30)
    {
-      ScopedFileLock fileLock(lock, s_revocationLockFile);
-      Error error = fileLock.error();
-      if (error)
+      // only attempt file locking if the revocation list exists
+      // if it does not, then we have already previously migrated to the database
+      if (revocationList.exists())
       {
-         // if we could not acquire the lock, some other rserver process has
-         // keep trying for some time before giving up
-         ++numTries;
-         boost::this_thread::sleep(boost::posix_time::seconds(1));
-         continue;
-      }
-
-      // successfully acquired lock
-      // create file if it does not exist
-      error = s_revocationList.ensureFile();
-      if (error)
-      {
-         LOG_ERROR_MESSAGE("Could not create revocation list");
-         return error;
-      }
-
-      if (core::system::effectiveUserIsRoot())
-      {
-         // ensure revocation file is owned by the server user
-         // this ensures that it can be written to even when we drop privilege
-         error = changeOwnership(s_revocationList);
+         Error error = lock->acquire(revocationLockFile);
          if (error)
+         {
+            // if we could not acquire the lock, some other rserver process has
+            // keep trying for some time before giving up
+            ++numTries;
+            boost::this_thread::sleep(boost::posix_time::seconds(1));
+            continue;
+         }
+
+         lockAcquired = true;
+
+         // successfully acquired lock
+         // migrate the revocation list file to the database if it exists
+
+         // read the current revocation list into memory
+         std::vector<std::string> revokedCookies;
+         error = readRevocationListFromFile(revocationList, &revokedCookies);
+         if (error)
+         {
+            error.addProperty("description", "Could not read revocation list");
+            LOG_ERROR(error);
+         }
+
+         for (const std::string& cookie : revokedCookies)
+            insertRevokedCookie(RevokedCookie(cookie));
+
+         // write the revocation list to the database
+         error = writeRevokedCookiesToDatabase();
+         if (error)
+         {
+            error.addProperty("description", "Could not migrate revocation list to the database");
+            LOG_ERROR(error);
+         }
+
+         // now that the revocation list has been moved to the database, remove the old file-based list
+         error = revocationList.removeIfExists();
+         if (error)
+            LOG_ERROR(error);
+      }
+      else
+      {
+         // load the initial revocation list from the database
+         std::vector<std::string> revokedCookies;
+         Error error = readRevocationListFromDatabase(&revokedCookies);
+         if (error)
+         {
+            error.addProperty("description", "Could not read revoked cookies from the database");
             return error;
+         }
+
+         for (const std::string& cookie : revokedCookies)
+            insertRevokedCookie(RevokedCookie(cookie));
       }
 
-      // ensure that only the server user can read/write to it, so other users of the system
-      // cannot muck with the contents!
-      error = core::system::changeFileMode(s_revocationList, core::system::UserReadWriteMode);
-      if (error)
+      if (lockAcquired)
       {
-         LOG_ERROR_MESSAGE("Could not set revocation file permissions");
-         return error;
-      }
-
-      // read the current revocation list into memory
-      std::vector<std::string> revokedCookies;
-      error = readRevocationList(&revokedCookies);
-      if (error)
-      {
-         LOG_ERROR_MESSAGE("Could not read revocation list");
-         return error;
-      }
-
-      for (const std::string& cookie : revokedCookies)
-         insertRevokedCookie(RevokedCookie(cookie));
-
-      // write the contents back out to file as stale entries have been removed
-      error = writeStringVectorToFile(s_revocationList, revokedCookies);
-      if (error)
-      {
-         LOG_ERROR_MESSAGE("Could not write to revocation list");
-         return error;
+         Error error = lock->release();
+         if (error)
+            LOG_ERROR(error);
       }
 
       return overlay::initialize();

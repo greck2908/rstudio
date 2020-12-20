@@ -1,7 +1,7 @@
 /*
  * PanelWithToolbars.java
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -51,13 +51,29 @@ public class PanelWithToolbars extends ResizeComposite
          secondaryToolbar.getWrapper().addStyleName(ThemeStyles.INSTANCE.tallerToolbarWrapper());
       }
       
-      if (statusBar != null)
-         panel_.addSouth(statusBar.asWidget(), statusBar.getHeight());
+      if (statusBar != null) {
+         statusBarWidget_ = statusBar.asWidget();
+         panel_.addSouth(statusBarWidget_, statusBar.getHeight());
+      }
 
       panel_.add(mainWidget_);
 
       initWidget(panel_);
    }
+   
+   public void setMainWidget(Widget mainWidget)
+   {
+      panel_.remove(mainWidget_);
+      panel_.add(mainWidget);
+      mainWidget_ = mainWidget;
+   }
+   
+   public void showStatusBar(boolean show)
+   {
+      if (statusBarWidget_ != null)
+         panel_.setWidgetHidden(statusBarWidget_, !show);
+   }
+   
 
    public void insertNorth(Widget widget, double size, Widget before) 
    {
@@ -75,4 +91,5 @@ public class PanelWithToolbars extends ResizeComposite
 
    private DockLayoutPanel panel_;
    private Widget mainWidget_;
+   private Widget statusBarWidget_ = null;
 }

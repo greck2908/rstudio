@@ -1,7 +1,7 @@
 /*
  * SessionScopes.hpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,15 +23,14 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/range/adaptor/map.hpp>
 
-#include <core/FilePath.hpp>
+#include <shared_core/FilePath.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/StringUtils.hpp>
 #include <core/system/System.hpp>
-#include <core/json/Json.hpp>
+#include <shared_core/json/Json.hpp>
 #include <core/json/JsonRpc.hpp>
 
 #ifndef _WIN32
-#include <core/system/FileMode.hpp>
 #include <sys/stat.h>
 #endif
 
@@ -47,9 +46,9 @@ namespace {
 
 inline core::FilePath projectIdsFilePath(const core::FilePath& userScratchPath)
 {
-   core::FilePath filePath = userScratchPath.childPath(
-                                    kProjectsSettings "/project-id-mappings");
-   core::Error error = filePath.parent().ensureDirectory();
+   core::FilePath filePath = userScratchPath.completeChildPath(
+      kProjectsSettings "/project-id-mappings");
+   core::Error error = filePath.getParent().ensureDirectory();
    if (error)
       LOG_ERROR(error);
    return filePath;
@@ -101,23 +100,23 @@ inline core::Error projectPathFromEntry(const core::FilePath& projectEntry,
 
    // read the contents
    core::json::Value projectEntryVal;
-   if (!core::json::parse(entryContents, &projectEntryVal))
+   if (projectEntryVal.parse(entryContents))
    {
       error = core::Error(core::json::errc::ParseError,
                                 ERROR_LOCATION);
-      error.addProperty("path", projectEntry.absolutePath());
+      error.addProperty("path", projectEntry.getAbsolutePath());
       return error;
    }
 
    // extract the path
    std::string projectPath;
-   if (projectEntryVal.type() == core::json::ObjectType)
+   if (projectEntryVal.getType() == core::json::Type::OBJECT)
    {
-      const core::json::Object& obj = projectEntryVal.get_obj();
-      core::json::Object::iterator it = obj.find(kProjectEntryDir);
-      if (it != obj.end() && (*it).value().type() == core::json::StringType)
+      const core::json::Object& obj = projectEntryVal.getObject();
+      core::json::Object::Iterator it = obj.find(kProjectEntryDir);
+      if (it != obj.end() && (*it).getValue().getType() == core::json::Type::STRING)
       {
-         projectPath = (*it).value().get_str();
+         projectPath = (*it).getValue().getString();
       }
    }
 
@@ -127,7 +126,7 @@ inline core::Error projectPathFromEntry(const core::FilePath& projectEntry,
       error = core::systemError(boost::system::errc::invalid_argument,
                        "No project directory found in " kProjectEntryDir,
                        ERROR_LOCATION);
-      error.addProperty("path", projectEntry.absolutePath());
+      error.addProperty("path", projectEntry.getAbsolutePath());
       return error;
    }
 
@@ -141,13 +140,13 @@ bool isSharedProject(const core::FilePath& sharedStoragePath,
 {
 #ifndef _WIN32
    core::FilePath projectEntryPath =
-         sharedStoragePath.complete(kProjectSharedDir)
-                          .complete(projectId.asString() + kProjectEntryExt);
+      sharedStoragePath.completePath(kProjectSharedDir)
+                       .completePath(projectId.asString() + kProjectEntryExt);
    if (projectEntryPath.exists())
    {
       // an entry exists, meaning this particular project is shared
       // determine if we can access it
-      core::system::isFileReadable(projectEntryPath, pHasAccess);
+      projectEntryPath.isReadable(*pHasAccess);
       return true;
    }
    else
@@ -168,11 +167,11 @@ bool isSharedProject(const core::FilePath& sharedStoragePath,
       return false;
 
    *pProjectEntryPath =
-         sharedStoragePath.complete(kProjectSharedDir)
-                          .complete(projectId.asString() + kProjectEntryExt);
+      sharedStoragePath.completePath(kProjectSharedDir)
+                       .completePath(projectId.asString() + kProjectEntryExt);
 
    struct stat st;
-   *pOwnedByEffectiveUser = ::stat(pProjectEntryPath->absolutePath().c_str(), &st) == 0 &&
+   *pOwnedByEffectiveUser = ::stat(pProjectEntryPath->getAbsolutePath().c_str(), &st) == 0 &&
                             st.st_uid == ::geteuid();
    return true;
 }
@@ -192,12 +191,12 @@ std::string toFilePath(const core::r_util::ProjectId& projectId,
    core::FilePath projectEntryPath;
    bool hasAccess = false;
    bool ownedByEffectiveUser = false;
-   bool useQualifiedId = 
-           !projectId.userId().empty() &&
-           sharedStoragePath.complete(kProjectSharedDir).exists() &&
-           isSharedProject(sharedStoragePath, projectId, &projectEntryPath, &hasAccess, &ownedByEffectiveUser) &&
-           hasAccess &&
-           !ownedByEffectiveUser;
+   bool useQualifiedId =
+      !projectId.userId().empty() &&
+         sharedStoragePath.completePath(kProjectSharedDir).exists() &&
+      isSharedProject(sharedStoragePath, projectId, &projectEntryPath, &hasAccess, &ownedByEffectiveUser) &&
+      hasAccess &&
+      !ownedByEffectiveUser;
 
    // if it did, use the fully qualified name; otherwise, use just the project
    // ID (our own projects are stored unqualified in the map)
@@ -247,13 +246,13 @@ inline std::string sharedProjectId(const core::FilePath& sharedStoragePath,
                                    const std::string& projectDir)
 {
    // skip if no shared storage path 
-   if (!sharedStoragePath.complete(kProjectSharedDir).exists())
+   if (!sharedStoragePath.completePath(kProjectSharedDir).exists())
       return "";
 
    // enumerate the project entries in shared storage (this should succeed)
    std::vector<core::FilePath> projectEntries;
-   core::Error error = sharedStoragePath.complete(kProjectSharedDir)
-                                        .children(&projectEntries);
+   core::Error error = sharedStoragePath.completePath(kProjectSharedDir)
+                                        .getChildren(projectEntries);
    if (error)
    {
       LOG_ERROR(error);
@@ -263,7 +262,7 @@ inline std::string sharedProjectId(const core::FilePath& sharedStoragePath,
    for (const core::FilePath& projectEntry : projectEntries)
    {
       // skip files that don't look like project entries
-      if (projectEntry.extensionLowerCase() != kProjectEntryExt)
+      if (projectEntry.getExtensionLowerCase() != kProjectEntryExt)
          continue;
 
       std::string projectPath;
@@ -276,7 +275,7 @@ inline std::string sharedProjectId(const core::FilePath& sharedStoragePath,
       }
       else if (projectDir == projectPath)
       {
-         return projectEntry.stem();
+         return projectEntry.getStem();
       }
    }
 
@@ -363,8 +362,7 @@ inline core::r_util::ProjectId toProjectId(const std::string& projectDir,
 
    // ensure the file has restrictive permissions
 #ifndef _WIN32
-   error = core::system::changeFileMode(projectIdsPath,
-                                        core::system::UserReadWriteMode);
+   error = projectIdsPath.changeFileMode(core::FileMode::USER_READ_WRITE);
    if (error)
       LOG_ERROR(error);
 #endif

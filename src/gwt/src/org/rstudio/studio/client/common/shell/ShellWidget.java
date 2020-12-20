@@ -1,7 +1,7 @@
 /*
  * ShellWidget.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,30 +23,33 @@ import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.TimeBufferedCommand;
 import org.rstudio.core.client.VirtualConsole;
+import org.rstudio.core.client.dom.DOMRect;
 import org.rstudio.core.client.dom.DomUtils;
 import org.rstudio.core.client.jsonrpc.RpcObjectList;
 import org.rstudio.core.client.widget.BottomScrollPanel;
 import org.rstudio.core.client.widget.FontSizer;
 import org.rstudio.core.client.widget.PreWidget;
 import org.rstudio.studio.client.RStudioGinjector;
+import org.rstudio.studio.client.application.AriaLiveService;
 import org.rstudio.studio.client.application.Desktop;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.debugging.model.UnhandledError;
 import org.rstudio.studio.client.common.debugging.ui.ConsoleError;
 import org.rstudio.studio.client.workbench.model.ConsoleAction;
-import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 import org.rstudio.studio.client.workbench.views.console.ConsoleResources;
 import org.rstudio.studio.client.workbench.views.console.events.RunCommandWithDebugEvent;
 import org.rstudio.studio.client.workbench.views.console.shell.editor.InputEditorDisplay;
 import org.rstudio.studio.client.workbench.views.source.editors.text.AceEditor;
 import org.rstudio.studio.client.workbench.views.source.editors.text.AceEditor.NewLineMode;
+import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Renderer;
 import org.rstudio.studio.client.workbench.views.source.editors.text.events.CursorChangedEvent;
-import org.rstudio.studio.client.workbench.views.source.editors.text.events.CursorChangedHandler;
 import org.rstudio.studio.client.workbench.views.source.editors.text.events.PasteEvent;
+import org.rstudio.studio.client.workbench.views.source.editors.text.events.RenderFinishedEvent;
+import org.rstudio.studio.client.workbench.views.source.editors.text.themes.AceTheme;
 
 import com.google.gwt.core.client.Scheduler;
 import com.google.gwt.core.client.Scheduler.RepeatingCommand;
-import com.google.gwt.core.client.Scheduler.ScheduledCommand;
 import com.google.gwt.dom.client.Document;
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.dom.client.SpanElement;
@@ -54,7 +57,6 @@ import com.google.gwt.dom.client.Style.Unit;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.event.dom.client.FocusEvent;
-import com.google.gwt.event.dom.client.FocusHandler;
 import com.google.gwt.event.dom.client.KeyCodes;
 import com.google.gwt.event.dom.client.KeyDownEvent;
 import com.google.gwt.event.dom.client.KeyDownHandler;
@@ -73,56 +75,82 @@ public class ShellWidget extends Composite implements ShellDisplay,
                                                       RequiresResize,
                                                       ConsoleError.Observer
 {
-   public ShellWidget(AceEditor editor, UIPrefs prefs, EventBus events)
+   public ShellWidget(AceEditor editor,
+                      UserPrefs prefs,
+                      EventBus events,
+                      AriaLiveService ariaLive,
+                      String outputLabel)
    {
       styles_ = ConsoleResources.INSTANCE.consoleStyles();
       events_ = events;
       prefs_ = prefs;
+      ariaLive_ = ariaLive;
       
       SelectInputClickHandler secondaryInputHandler = new SelectInputClickHandler();
 
-      output_ = new ConsoleOutputWriter(RStudioGinjector.INSTANCE.getVirtualConsoleFactory());
+      output_ = new ConsoleOutputWriter(RStudioGinjector.INSTANCE.getVirtualConsoleFactory(), outputLabel);
       output_.getWidget().setStylePrimaryName(styles_.output());
       output_.getWidget().addClickHandler(secondaryInputHandler);
-      ElementIds.assignElementId(output_.getElement(), 
-                                 ElementIds.CONSOLE_OUTPUT);
+      ElementIds.assignElementId(output_.getElement(), ElementIds.CONSOLE_OUTPUT);
       output_.getWidget().addPasteHandler(secondaryInputHandler);
 
       pendingInput_ = new PreWidget();
       pendingInput_.setStyleName(styles_.output());
       pendingInput_.addClickHandler(secondaryInputHandler);
 
-      prompt_ = new HTML() ;
-      prompt_.setStylePrimaryName(styles_.prompt()) ;
+      prompt_ = new HTML();
+      prompt_.setStylePrimaryName(styles_.prompt());
       prompt_.addStyleName(KEYWORD_CLASS_NAME);
 
-      input_ = editor ;
+      input_ = editor;
+      renderer_ = input_.getWidget().getEditor().getRenderer();
+      
       input_.setShowLineNumbers(false);
       input_.setShowPrintMargin(false);
-      if (!Desktop.isDesktop())
-         input_.setNewLineMode(NewLineMode.Unix);
       input_.setUseWrapMode(true);
       input_.setPadding(0);
       input_.autoHeight();
-      final Widget inputWidget = input_.asWidget();
-      ElementIds.assignElementId(inputWidget.getElement(),
-                                 ElementIds.CONSOLE_INPUT);
-      input_.addClickHandler(secondaryInputHandler) ;
-      inputWidget.addStyleName(styles_.input());
-      input_.addCursorChangedHandler(new CursorChangedHandler()
+      
+      if (!Desktop.isDesktop())
+         input_.setNewLineMode(NewLineMode.Unix);
+      
+      input_.addClickHandler(secondaryInputHandler);
+      input_.addFocusHandler((FocusEvent event) -> scrollIntoView());
+      
+      // NOTE: we cannot scroll into view immediately after the cursor
+      // has changed, as Ace may not have rendered the updated cursor
+      // position yet. For that reason, we set the pending scroll flag
+      // and allow it to happen at the completion of next Ace render.
+      input_.addCursorChangedHandler((CursorChangedEvent event) ->
       {
-         public void onCursorChanged(CursorChangedEvent event)
+         scrollIntoViewPending_ = true;
+      });
+      
+      // This one is kind of awkward. If a user pastes multi-line content
+      // into the Ace instance, it might force the scroll panel to render
+      // the associated scrollbar. However, doing so will also force Ace
+      // to re-wrap code, since the editor width has effectively been
+      // decreased in response to the new scroller being rendered. This
+      // unfortunately leads to an awkward case where pasting multi-line
+      // code can actually cause Ace to stop rendering the last few lines
+      // of pasted content.
+      //
+      // The solution here is to force Ace to check whether a resize
+      // is necessary after a render has finished.
+      //
+      // We also check whether any other code has requested a scroll into
+      // view at this point as well, since the rendered cursor implies we
+      // can correctly compute the scroll position.
+      input_.addRenderFinishedHandler(new RenderFinishedEvent.Handler()
+      {
+         @Override
+         public void onRenderFinished(RenderFinishedEvent event)
          {
-            Scheduler.get().scheduleDeferred(new ScheduledCommand()
-            {
-               @Override
-               public void execute()
-               {
-                  input_.scrollToCursor(scrollPanel_, 8, 60);
-               }
-            });
+            checkForResize();
+            checkForPendingScroll();
          }
       });
+      
       input_.addCapturingKeyDownHandler(new KeyDownHandler()
       {
          @Override
@@ -179,14 +207,10 @@ public class ShellWidget extends Composite implements ShellDisplay,
             }
          }
       });
-      input_.addFocusHandler(new FocusHandler()
-      {
-         @Override
-         public void onFocus(FocusEvent event)
-         {
-            scrollToBottom();
-         }
-      });
+      
+      final Widget inputWidget = input_.asWidget();
+      ElementIds.assignElementId(inputWidget.getElement(), ElementIds.CONSOLE_INPUT);
+      inputWidget.addStyleName(styles_.input());
 
       inputLine_ = new DockPanel();
       inputLine_.setHorizontalAlignment(DockPanel.ALIGN_LEFT);
@@ -225,7 +249,7 @@ public class ShellWidget extends Composite implements ShellDisplay,
          }
       };
 
-      initWidget(scrollPanel_) ;
+      initWidget(scrollPanel_);
 
       addCopyHook(getElement());
    }
@@ -249,20 +273,18 @@ public class ShellWidget extends Composite implements ShellDisplay,
    }
 
    private boolean initialized_ = false;
+   
    @Override
    protected void onLoad()
    {
       super.onLoad();
+      
       if (!initialized_)
       {
          initialized_ = true;
-         Scheduler.get().scheduleDeferred(new ScheduledCommand()
-         {
-            public void execute()
-            {
-               doOnLoad();
-               scrollPanel_.scrollToBottom();
-            }
+         Scheduler.get().scheduleDeferred(() -> {
+            doOnLoad();
+            scrollPanel_.scrollToBottom();
          });
       }
 
@@ -278,6 +300,7 @@ public class ShellWidget extends Composite implements ShellDisplay,
       input_.forceCursorChange();
    }
 
+   @Override
    public void setSuppressPendingInput(boolean suppressPendingInput)
    {
       suppressPendingInput_ = suppressPendingInput;
@@ -286,7 +309,8 @@ public class ShellWidget extends Composite implements ShellDisplay,
    public void consoleWriteError(final String error)
    {
       clearPendingInput();
-      output(error, getErrorClass(), true /*isError*/, false /*ignoreLineCount*/);
+      output(error, getErrorClass(), true /*isError*/, false /*ignoreLineCount*/,
+            isAnnouncementEnabled(AriaLiveService.CONSOLE_LOG));
 
       // Pick up the elements emitted to the console by this call. If we get 
       // extended information for this error, we'll need to swap out the simple 
@@ -346,12 +370,15 @@ public class ShellWidget extends Composite implements ShellDisplay,
       events_.fireEvent(new RunCommandWithDebugEvent(command));
    }
 
+   @Override
    public void consoleWriteOutput(final String output)
    {
       clearPendingInput();
-      output(output, styles_.output(), false /*isError*/, false /*ignoreLineCount*/);
+      output(output, styles_.output(), false /*isError*/, false /*ignoreLineCount*/,
+            isAnnouncementEnabled(AriaLiveService.CONSOLE_LOG));
    }
 
+   @Override
    public void consoleWriteInput(final String input, String console)
    {
       // if coming from another console id (i.e. notebook chunk), clear the
@@ -362,7 +389,7 @@ public class ShellWidget extends Composite implements ShellDisplay,
 
       clearPendingInput();
       output(input, styles_.command() + KEYWORD_CLASS_NAME, false /*isError*/, 
-            false /*ignoreLineCount*/);
+            false /*ignoreLineCount*/, isAnnouncementEnabled(AriaLiveService.CONSOLE_COMMAND));
    }
    
    private void clearPendingInput()
@@ -371,10 +398,11 @@ public class ShellWidget extends Composite implements ShellDisplay,
       pendingInput_.setVisible(false);
    }
 
+   @Override
    public void consoleWritePrompt(final String prompt)
    {
       output(prompt, styles_.prompt() + KEYWORD_CLASS_NAME, false /*isError*/,
-            false /*ignoreLineCount*/);
+            false /*ignoreLineCount*/, isAnnouncementEnabled(AriaLiveService.CONSOLE_COMMAND));
       clearErrors_ = true;
    }
 
@@ -385,13 +413,13 @@ public class ShellWidget extends Composite implements ShellDisplay,
       return console.toString();
    }
 
+   @Override
    public void consolePrompt(String prompt, boolean showInput)
    {
       if (prompt != null)
          prompt = consolify(prompt);
 
       prompt_.getElement().setInnerText(prompt);
-      //input_.clear() ;
       ensureInputVisible();
 
       // Deal gracefully with multi-line prompts
@@ -404,15 +432,30 @@ public class ShellWidget extends Composite implements ShellDisplay,
       output_.ensureStartingOnNewLine();
    }
 
+   @Override
    public void ensureInputVisible()
    {
-      scrollPanel_.scrollToBottom();
+      // NOTE: we don't scroll immediately as this is normally called
+      // in response to mutations of the console input buffer, and so
+      // we need to wait until Ace has finished rendering in response
+      // to that change.
+      //
+      // In case there wasn't an Ace render in-flight, we also force a check
+      // for pending scroll (which will then force the cursor into view)
+      if (!scrollIntoViewPending_)
+      {
+         scrollIntoViewPending_ = true;
+         Scheduler.get().scheduleDeferred(() -> checkForPendingScroll());
+      }
    }
    
    private String getErrorClass()
    {
-      return styles_.error() + " " + 
-             RStudioGinjector.INSTANCE.getUIPrefs().getThemeErrorClass();
+      return styles_.error() + 
+         (prefs_.highlightConsoleErrors().getValue() ? 
+            " " + AceTheme.getThemeErrorClass(
+                RStudioGinjector.INSTANCE.getUserState().theme().getValue().cast()) : 
+            "");
    }
 
    /**
@@ -421,21 +464,27 @@ public class ShellWidget extends Composite implements ShellDisplay,
     * @param className Text style
     * @param isError Is this an error message?
     * @param ignoreLineCount Output without checking buffer length?
+    * @param ariaLiveAnnounce Include in arialive output announcement
     * @return was this output below the maximum buffer line count?
     */
    private boolean output(String text,
                           String className,
                           boolean isError,
-                          boolean ignoreLineCount)
+                          boolean ignoreLineCount,
+                          boolean ariaLiveAnnounce)
    {
       boolean canContinue = output_.outputToConsole(text, className, 
-                                                    isError, ignoreLineCount);
+                                                    isError, ignoreLineCount,
+                                                    ariaLiveAnnounce);
 
       // if we're currently scrolled to the bottom, nudge the timer so that we
       // will keep up with output
       if (scrollPanel_.isScrolledToBottom())
          resizeCommand_.nudge();
       
+      if (liveRegion_ != null)
+         liveRegion_.announce(output_.getNewText());
+
       return canContinue;
    }
 
@@ -483,6 +532,7 @@ public class ShellWidget extends Composite implements ShellDisplay,
          private int i = startIndex;
          private int chunksize = 1000;
 
+         @Override
          public boolean execute()
          {
             boolean canContinue = false;
@@ -505,25 +555,29 @@ public class ShellWidget extends Composite implements ShellDisplay,
                      canContinue = output(action.getData() + "\n",
                                           styles_.command() + " " + KEYWORD_CLASS_NAME,
                                           false /*isError*/, 
-                                          true /*ignoreLineCount*/);
+                                          true /*ignoreLineCount*/,
+                                          false /*announce*/);
                      break;
                   case ConsoleAction.OUTPUT:
                      canContinue = output(action.getData(),
                                           styles_.output(),
                                           false /*isError*/,
-                                          true /*ignoreLineCount*/);
+                                          true /*ignoreLineCount*/,
+                                          false /*announce*/);
                      break;
                   case ConsoleAction.ERROR:
                      canContinue = output(action.getData(),
                                           getErrorClass(),
                                           true /*isError*/,
-                                          true /*ignoreLineCount*/);
+                                          true /*ignoreLineCount*/,
+                                          false /*announce*/);
                      break;
                   case ConsoleAction.PROMPT:
                      canContinue = output(action.getData(),
                                           styles_.prompt() + " " + KEYWORD_CLASS_NAME,
                                           false /*isError*/,
-                                          true /*ignoreLineCount*/);
+                                          true /*ignoreLineCount*/,
+                                          false /*announce*/);
                      break;
                }
                if (!canContinue)
@@ -546,9 +600,10 @@ public class ShellWidget extends Composite implements ShellDisplay,
       });
    }
 
+   @Override
    public void focus()
    {
-      input_.setFocus(true) ;
+      input_.setFocus(true);
    }
    
    /**
@@ -559,6 +614,7 @@ public class ShellWidget extends Composite implements ShellDisplay,
                                                     KeyDownHandler,
                                                     PasteEvent.Handler
    {
+      @Override
       public void onClick(ClickEvent event)
       {
          // If clicking on the input panel already, stop propagation.
@@ -586,6 +642,7 @@ public class ShellWidget extends Composite implements ShellDisplay,
          }
       }
 
+      @Override
       public void onKeyDown(KeyDownEvent event)
       {
          if (event.getSource() == input_)
@@ -612,11 +669,15 @@ public class ShellWidget extends Composite implements ShellDisplay,
                if (event.isControlKeyDown() || event.isMetaKeyDown())
                   return;
                break;
+            case KeyCodes.KEY_TAB:
+               if (prefs_ == null || prefs_.tabKeyMoveFocus().getValue())
+                  return;
          }
          input_.setFocus(true);
          delegateEvent(input_.asWidget(), event);
       }
       
+      @Override
       public void onPaste(PasteEvent event)
       {
          // When pasting, focus the input so it'll receive the pasted text
@@ -629,7 +690,7 @@ public class ShellWidget extends Composite implements ShellDisplay,
       }
 
       private AceEditor input_;
-      private Timer inputFocus_ = new Timer()
+      private final Timer inputFocus_ = new Timer()
       {
          @Override
          public void run()
@@ -637,8 +698,20 @@ public class ShellWidget extends Composite implements ShellDisplay,
             // Don't drive focus to the input unless there is no selection.
             // Otherwise it would interfere with the ability to select stuff
             // from the output buffer for copying to the clipboard.
-            if (!DomUtils.selectionExists() && isInputOnscreen())
-               input_.setFocus(true);
+            if (DomUtils.selectionExists() || !isInputOnscreen())
+               return;
+            
+            // When focusing Ace, if the user hasn't yet typed anything into
+            // the input line, then Ace will erroneously adjust the scroll
+            // position upwards upon focus. Rather than patching Ace, we instead
+            // just re-scroll to the bottom if we were already scrolled to the
+            // bottom after giving focus to the Ace editor instance.
+            //
+            // https://github.com/rstudio/rstudio/issues/6231
+            boolean wasScrolledToBottom = scrollPanel_.isScrolledToBottom();
+            input_.setFocus(true);
+            if (wasScrolledToBottom)
+               scrollPanel_.scrollToBottom();
          }
       };
    }
@@ -672,23 +745,34 @@ public class ShellWidget extends Composite implements ShellDisplay,
       }
    }
 
+   @Override
    public void clearOutput()
    {
       output_.clearConsoleOutput();
+      clearLiveRegion();
       cleared_ = true;
    }
    
+   @Override
    public InputEditorDisplay getInputEditorDisplay()
    {
-      return input_ ;
+      return input_;
    }
 
+   @Override
+   public ConsoleOutputWriter getConsoleOutputWriter()
+   {
+      return output_;
+   }
+
+   @Override
    public String processCommandEntry()
    {
       // parse out the command text
       String promptText = prompt_.getElement().getInnerText();
       String commandText = input_.getCode();
       input_.setText("");
+      
       // Force render to avoid subtle command movement in the console, caused
       // by the prompt disappearing before the input line does
       input_.forceImmediateRender();
@@ -712,17 +796,19 @@ public class ShellWidget extends Composite implements ShellDisplay,
 
       ensureInputVisible();
 
-      return commandText ;
+      return commandText;
    }
 
+   @Override
    public HandlerRegistration addCapturingKeyDownHandler(KeyDownHandler handler)
    {
-      return input_.addCapturingKeyDownHandler(handler) ;
+      return input_.addCapturingKeyDownHandler(handler);
    }
 
+   @Override
    public HandlerRegistration addKeyPressHandler(KeyPressHandler handler)
    {
-      return input_.addKeyPressHandler(handler) ;
+      return input_.addKeyPressHandler(handler);
    }
    
    @Override
@@ -737,31 +823,37 @@ public class ShellWidget extends Composite implements ShellDisplay,
       return input_.addKeyUpHandler(handler);
    }
 
+   @Override
    public int getCharacterWidth()
    {
       return DomUtils.getCharacterWidth(getElement(), styles_.console());
    }
    
+   @Override
    public boolean isPromptEmpty()
    {
       return StringUtil.isNullOrEmpty(prompt_.getText());
    }
    
+   @Override
    public String getPromptText()
    {
       return StringUtil.notNull(prompt_.getText());
    }
    
+   @Override
    public void setReadOnly(boolean readOnly)
    {
       input_.setReadOnly(readOnly);
    }
 
+   @Override
    public int getMaxOutputLines()
    {
       return output_.getMaxOutputLines();
    }
    
+   @Override
    public void setMaxOutputLines(int maxLines)
    {
       output_.setMaxOutputLines(maxLines);
@@ -779,6 +871,7 @@ public class ShellWidget extends Composite implements ShellDisplay,
       return this;
    }
 
+   @Override
    public void onResize()
    {
       if (getWidget() instanceof RequiresResize)
@@ -790,23 +883,137 @@ public class ShellWidget extends Composite implements ShellDisplay,
    {
       scrollPanel_.onContentSizeChanged();
    }
+
+   public Widget getOutputWidget()
+   {
+      return output_.getWidget();
+   }
+
+   @Override
+   public void enableLiveReporting()
+   {
+      liveRegion_ = new AriaLiveShellWidget(prefs_);
+      verticalPanel_.add(liveRegion_);
+   }
+
+   @Override
+   public void clearLiveRegion()
+   {
+      if (liveRegion_ != null)
+         liveRegion_.clearLiveRegion();
+   }
+
+   private boolean isAnnouncementEnabled(String announcement)
+   {
+      return ariaLive_ != null && !ariaLive_.isDisabled(announcement);
+   }
+
+   private void scrollIntoView()
+   {
+      int padding = 8;
+      
+      // Get the bounding rectangles for the scroll panel + cursor element.
+      // Note that we rely on getBoundingClientRect() here as the Ace cursor
+      // element is rendered using CSS transforms, and those transforms are
+      // not represented in offsetTop.
+      //
+      // Note that we cannot reliably synchronously force Ace (or the browser)
+      // to render the cursor, so we instead check for a "bogus" rectangle and
+      // conclude this implies there is a pending render in-flight that we can
+      // later respond to.
+      renderer_.renderCursor();
+      DOMRect child = DomUtils.getBoundingClientRect(renderer_.getCursorElement());
+      
+      boolean isRendering = child.getWidth() == 0 && child.getHeight() == 0;
+      if (isRendering)
+      {
+         scrollIntoViewPending_ = true;
+         Scheduler.get().scheduleDeferred(() -> checkForPendingScroll());
+         return;
+      }
+      
+      DOMRect parent = DomUtils.getBoundingClientRect(scrollPanel_.getElement());
+      
+      // Scroll the cursor into view as required.
+      int oldScrollPos = scrollPanel_.getVerticalScrollPosition();
+      int newScrollPos = oldScrollPos;
+      
+      if (child.getTop() - padding < parent.getTop())
+      {
+         newScrollPos =
+               scrollPanel_.getVerticalScrollPosition() -
+               parent.getTop() +
+               child.getTop() -
+               padding;
+      }
+      else if (child.getBottom() + padding > parent.getBottom())
+      {
+         newScrollPos =
+               scrollPanel_.getVerticalScrollPosition() -
+               parent.getBottom() +
+               child.getBottom() +
+               padding;
+      }
+      else
+      {
+         // No scroll update required.
+         return;
+      }
+      
+      // Don't scroll if the difference is less than a pixel.
+      // This is necessary for cases where the IDE is zoomed,
+      // as we will end up comparing fractional pixels which
+      // may lead to small but non-zero differences in position.
+      int diff = Math.abs(newScrollPos - oldScrollPos);
+      if (diff < 1)
+         return;
+            
+      scrollPanel_.setVerticalScrollPosition(newScrollPos);
+   }
+   
+   private void checkForResize()
+   {
+      int width = input_.getWidget().getOffsetWidth();
+      if (width == editorWidth_)
+         return;
+      
+      editorWidth_ = width;
+      scrollIntoViewPending_ = true;
+      input_.onResize();
+      input_.forceImmediateRender();
+   }
+   
+   private void checkForPendingScroll()
+   {
+      if (scrollIntoViewPending_)
+      {
+         scrollIntoViewPending_ = false;
+         scrollIntoView();
+      }
+   }
    
    private boolean cleared_ = false;
    private final ConsoleOutputWriter output_;
-   private PreWidget pendingInput_ ;
-   private final HTML prompt_ ;
-   protected final AceEditor input_ ;
-   private final DockPanel inputLine_ ;
-   private final VerticalPanel verticalPanel_ ;
-   protected final ClickableScrollPanel scrollPanel_ ;
-   private ConsoleResources.ConsoleStyles styles_;
+   private final PreWidget pendingInput_;
+   private final HTML prompt_;
+   private AriaLiveShellWidget liveRegion_ = null;
+   protected final AceEditor input_;
+   protected final Renderer renderer_;
+   private final DockPanel inputLine_;
+   protected final ClickableScrollPanel scrollPanel_;
+   private final ConsoleResources.ConsoleStyles styles_;
    private final TimeBufferedCommand resizeCommand_;
    private boolean suppressPendingInput_;
    private final EventBus events_;
-   private final UIPrefs prefs_;
+   private final UserPrefs prefs_;
+   private final AriaLiveService ariaLive_;
+   private VerticalPanel verticalPanel_;
    
+   private int editorWidth_ = -1;
+   private boolean scrollIntoViewPending_ = false;
+
    // A list of errors that have occurred between console prompts. 
-   private Map<String, List<Element>> errorNodes_ = new TreeMap<String, List<Element>>();
+   private final Map<String, List<Element>> errorNodes_ = new TreeMap<>();
    private boolean clearErrors_ = false;
 
    private static final String KEYWORD_CLASS_NAME = ConsoleResources.KEYWORD_CLASS_NAME;

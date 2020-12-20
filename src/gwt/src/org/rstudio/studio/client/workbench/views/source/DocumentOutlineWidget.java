@@ -1,7 +1,7 @@
 /*
  * DocumentOutlineWidget.java
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,16 +14,19 @@
  */
 package org.rstudio.studio.client.workbench.views.source;
 
+import com.google.gwt.aria.client.OrientationValue;
+import com.google.gwt.aria.client.Roles;
+import org.rstudio.core.client.ClassIds;
 import org.rstudio.core.client.CommandWithArg;
 import org.rstudio.core.client.Counter;
 import org.rstudio.core.client.HandlerRegistrations;
 import org.rstudio.core.client.StringUtil;
+import org.rstudio.core.client.a11y.A11y;
 import org.rstudio.core.client.dom.DomUtils;
 import org.rstudio.core.client.theme.res.ThemeStyles;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.common.filetypes.TextFileType;
-import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
-import org.rstudio.studio.client.workbench.prefs.model.UIPrefsAccessor;
+import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 import org.rstudio.studio.client.workbench.views.source.editors.text.Scope;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ScopeFunction;
 import org.rstudio.studio.client.workbench.views.source.editors.text.TextEditingTarget;
@@ -58,13 +61,36 @@ import com.google.inject.Inject;
 public class DocumentOutlineWidget extends Composite
                   implements EditorThemeStyleChangedEvent.Handler
 {
-   public class VerticalSeparator extends Composite
+   public static class EmptyPlaceholder extends FlowPanel
+   {
+      public EmptyPlaceholder()
+      {
+         add(new Label("No outline available"));
+         addStyleName(RES.styles().emptyPlaceholder());
+      }
+   }
+   
+   
+   public static class VerticalSeparator extends Composite
    {
       public VerticalSeparator()
       {
          panel_ = new FlowPanel();
          panel_.addStyleName(RES.styles().leftSeparator());
+         Roles.getSeparatorRole().set(panel_.getElement());
+         Roles.getSeparatorRole().setAriaOrientationProperty(panel_.getElement(),
+               OrientationValue.VERTICAL);
          initWidget(panel_);
+      }
+      
+      // should be called after the separator is added to a parent
+      public void pad()
+      {
+         // This is a somewhat hacky way of allowing the separator to 'fit'
+         // to a size of 4px, but overflow an extra 4px (to provide extra
+         // space for a mouse cursor to drag or resize)
+         Element parent = getElement().getParentElement();
+         parent.getStyle().setPaddingRight(4, Unit.PX);
       }
       
       private final FlowPanel panel_;
@@ -94,7 +120,6 @@ public class DocumentOutlineWidget extends Composite
                target_.navigateToPosition(
                      SourcePosition.create(node_.getPreamble().getRow(), node_.getPreamble().getColumn()),
                      true);
-               target_.getDocDisplay().alignCursor(node_.getPreamble(), 0.1);
                
                // Defer focus so it occurs after click has been fully handled
                Scheduler.get().scheduleDeferred(new ScheduledCommand()
@@ -201,34 +226,29 @@ public class DocumentOutlineWidget extends Composite
    }
    
    @Inject
-   private void initialize(UIPrefs uiPrefs)
+   private void initialize(UserPrefs uiPrefs)
    {
-      uiPrefs_ = uiPrefs;
+      userPrefs_ = uiPrefs;
    }
    
    public DocumentOutlineWidget(TextEditingTarget target)
    {
       RStudioGinjector.INSTANCE.injectMembers(this);
       
-      emptyPlaceholder_ = new FlowPanel();
-      emptyPlaceholder_.add(new Label("No outline available"));
-      emptyPlaceholder_.addStyleName(RES.styles().emptyPlaceholder());
+      emptyPlaceholder_ = new EmptyPlaceholder();
       
       container_ = new DockLayoutPanel(Unit.PX);
       container_.addStyleName(RES.styles().container());
+      ClassIds.assignClassId(container_, ClassIds.DOC_OUTLINE_CONTAINER);
       target_ = target;
       
       separator_ = new VerticalSeparator();
       container_.addWest(separator_, 4);
-      
-      // This is a somewhat hacky way of allowing the separator to 'fit'
-      // to a size of 4px, but overflow an extra 4px (to provide extra
-      // space for a mouse cursor to drag or resize)
-      Element parent = separator_.getElement().getParentElement();
-      parent.getStyle().setPaddingRight(4, Unit.PX);
+      separator_.pad();
       
       tree_ = new Tree();
       tree_.addStyleName(RES.styles().tree());
+      Roles.getTreeRole().setAriaLabelProperty(tree_.getElement(), "Document Outline");
       
       panel_ = new FlowPanel();
       panel_.addStyleName(RES.styles().panel());
@@ -253,6 +273,19 @@ public class DocumentOutlineWidget extends Composite
       updateStyles(emptyPlaceholder_, event.getStyle());
    }
    
+   public void setAriaVisible(boolean visible)
+   {
+      if (visible)
+         A11y.setARIAVisible(getElement());
+      else
+         A11y.setARIAHidden(getElement());
+   }
+
+   public void setTabIndex(int index)
+   {
+      tree_.setTabIndex(index);
+   }
+
    private void initHandlers()
    {
       handlers_.add(target_.getDocDisplay().addScopeTreeReadyHandler(new ScopeTreeReadyEvent.Handler()
@@ -292,7 +325,7 @@ public class DocumentOutlineWidget extends Composite
       
       handlers_.add(target_.addEditorThemeStyleChangedHandler(this));
       
-      handlers_.add(uiPrefs_.shownSectionsInDocumentOutline().bind(new CommandWithArg<String>()
+      handlers_.add(userPrefs_.docOutlineShow().bind(new CommandWithArg<String>()
       {
          @Override
          public void execute(String prefValue)
@@ -410,11 +443,11 @@ public class DocumentOutlineWidget extends Composite
    
    private boolean shouldDisplayNode(Scope node)
    {
-      String shownSectionsPref = uiPrefs_.shownSectionsInDocumentOutline().getGlobalValue();
-      if (node.isChunk() && shownSectionsPref == UIPrefsAccessor.DOC_OUTLINE_SHOW_SECTIONS_ONLY)
+      String shownSectionsPref = userPrefs_.docOutlineShow().getGlobalValue();
+      if (node.isChunk() && shownSectionsPref == UserPrefs.DOC_OUTLINE_SHOW_SECTIONS_ONLY)
          return false;
       
-      if (isUnnamedNode(node) && shownSectionsPref != UIPrefsAccessor.DOC_OUTLINE_SHOW_ALL)
+      if (isUnnamedNode(node) && shownSectionsPref != UserPrefs.DOC_OUTLINE_SHOW_ALL)
          return false;
       
       // NOTE: the 'is*' items are not mutually exclusive
@@ -427,7 +460,7 @@ public class DocumentOutlineWidget extends Composite
       
       // don't show R functions or R sections in .Rmd unless requested
       TextFileType fileType = target_.getDocDisplay().getFileType();
-      if (shownSectionsPref != UIPrefsAccessor.DOC_OUTLINE_SHOW_ALL && fileType.isRmd())
+      if (shownSectionsPref != UserPrefs.DOC_OUTLINE_SHOW_ALL && fileType.isRmd())
       {
          if (node.isFunction())
             return false;
@@ -486,7 +519,7 @@ public class DocumentOutlineWidget extends Composite
    private final FlowPanel panel_;
    private final VerticalSeparator separator_;
    private final Tree tree_;
-   private final FlowPanel emptyPlaceholder_;
+   private final EmptyPlaceholder emptyPlaceholder_;
    
    private final TextEditingTarget target_;
    private final HandlerRegistrations handlers_;
@@ -495,7 +528,7 @@ public class DocumentOutlineWidget extends Composite
    private Scope currentScope_;
    private Scope currentVisibleScope_;
    
-   private UIPrefs uiPrefs_;
+   private UserPrefs userPrefs_;
    
    // Styles, Resources etc. ----
    public interface Styles extends CssResource
@@ -525,7 +558,7 @@ public class DocumentOutlineWidget extends Composite
       Styles styles();
    }
    
-   private static Resources RES = GWT.create(Resources.class);
+   public static Resources RES = GWT.create(Resources.class);
    static {
       RES.styles().ensureInjected();
    }

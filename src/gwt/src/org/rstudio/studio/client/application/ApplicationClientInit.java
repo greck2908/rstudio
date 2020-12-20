@@ -1,7 +1,7 @@
 /*
  * ApplicationClientInit.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -184,7 +184,8 @@ public class ApplicationClientInit implements RTimeoutOptions.RTimeoutObserver
    }
 
    private final ApplicationServerOperations server_;
-   private final GlobalDisplay globalDisplay_ ;
+   @SuppressWarnings("unused")
+   private final GlobalDisplay globalDisplay_;
    private Timer timeoutTimer_ = null;
    private boolean timedOut_ = false;
    private ServerRequestCallback<SessionInfo> rpcRequestCallback_;

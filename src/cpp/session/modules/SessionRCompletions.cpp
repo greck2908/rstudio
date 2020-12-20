@@ -1,7 +1,7 @@
 /*
  * SessionRCompletions.cpp
  *
- * Copyright (C) 2009-2019 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -490,7 +490,7 @@ SEXP rs_listIndexedPackages()
    pkgNames.reserve(pkgPaths.size());
    for (const FilePath& pkgPath : pkgPaths)
    {
-      pkgNames.push_back(pkgPath.absolutePath());
+      pkgNames.push_back(pkgPath.getAbsolutePath());
    }
    
    r::sexp::Protect protect;

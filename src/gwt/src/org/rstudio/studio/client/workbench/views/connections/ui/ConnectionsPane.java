@@ -1,7 +1,7 @@
 /*
  * ConnectionsPane.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -47,6 +47,7 @@ import org.rstudio.core.client.BrowseCap;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.cellview.ImageButtonColumn;
 import org.rstudio.core.client.command.AppCommand;
+import org.rstudio.core.client.command.VisibleChangedEvent;
 import org.rstudio.core.client.command.VisibleChangedHandler;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.theme.RStudioDataGridResources;
@@ -66,6 +67,7 @@ import org.rstudio.core.client.widget.ToolbarMenuButton;
 import org.rstudio.core.client.widget.ToolbarPopupMenu;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.workbench.commands.Commands;
+import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 import org.rstudio.studio.client.workbench.ui.WorkbenchPane;
 import org.rstudio.studio.client.workbench.views.connections.ConnectionsPresenter;
 import org.rstudio.studio.client.workbench.views.connections.events.ActiveConnectionsChangedEvent;
@@ -83,15 +85,15 @@ public class ConnectionsPane extends WorkbenchPane
                                         ActiveConnectionsChangedEvent.Handler
 {
    @Inject
-   public ConnectionsPane(Commands commands, EventBus eventBus)
+   public ConnectionsPane(Commands commands, EventBus eventBus, UserPrefs userPrefs)
    {
       // initialize
-      super("Connections");
+      super("Connections", eventBus);
       commands_ = commands;
-      eventBus_ = eventBus;
+      userPrefs_ = userPrefs;
 
       // track activation events to update the toolbar
-      eventBus_.addHandler(ActiveConnectionsChangedEvent.TYPE, this);
+      events_.addHandler(ActiveConnectionsChangedEvent.TYPE, this);
       
       // create data grid
       keyProvider_ = new ProvidesKey<Connection>() {
@@ -257,10 +259,10 @@ public class ConnectionsPane extends WorkbenchPane
       setConnection(connection, connectVia);
       
       installConnectionExplorerToolbar(connection);
-      
+
       // show the right panel (connection explorer)
       mainPanel_.slideWidgets(
-            SlidingLayoutPanel.Direction.SlideRight, true, () ->
+            SlidingLayoutPanel.Direction.SlideRight, !userPrefs_.reducedMotion().getValue(), () ->
             {
                connectionExplorer_.onResize();
             });
@@ -335,7 +337,7 @@ public class ConnectionsPane extends WorkbenchPane
    @Override
    protected Toolbar createMainToolbar()
    {
-      toolbar_ = new Toolbar();
+      toolbar_ = new Toolbar("Connections Tab");
    
       searchWidget_ = new SearchWidget("Filter by connection", new SuggestOracle() {
          @Override
@@ -401,7 +403,7 @@ public class ConnectionsPane extends WorkbenchPane
       commands_.disconnectConnection().addVisibleChangedHandler(
                                        new VisibleChangedHandler() {
          @Override
-         public void onVisibleChanged(AppCommand command)
+         public void onVisibleChanged(VisibleChangedEvent event)
          {
             connectMenuButton_.setVisible(
                   !commands_.disconnectConnection().isVisible());
@@ -416,11 +418,12 @@ public class ConnectionsPane extends WorkbenchPane
    @Override
    protected SecondaryToolbar createSecondaryToolbar()
    {
-      secondaryToolbar_ = new SecondaryToolbar();
+      secondaryToolbar_ = new SecondaryToolbar("Connections Tab Connection");
       secondaryToolbar_.addLeftWidget(connectionName_ = new ToolbarLabel());
       connectionIcon_ = new Image();
       connectionIcon_.setWidth("16px");
       connectionIcon_.setHeight("16px");
+      connectionIcon_.setAltText(""); // decorative image
       connectionType_ = new ToolbarLabel();
       connectionType_.getElement().getStyle().setMarginLeft(5, Unit.PX);
       connectionType_.getElement().getStyle().setMarginRight(10, Unit.PX);
@@ -458,7 +461,7 @@ public class ConnectionsPane extends WorkbenchPane
                @Override
                public void execute()
                {
-                  eventBus_.fireEvent(
+                  events_.fireEvent(
                         new PerformConnectionEvent(
                               connectVia, 
                               connectionExplorer_.getConnectCode()));    
@@ -601,7 +604,7 @@ public class ConnectionsPane extends WorkbenchPane
    private ToolbarLabel connectionType_;
    
    private final Commands commands_;
-   private final EventBus eventBus_;
+   private final UserPrefs userPrefs_;
    
    // Resources, etc ----
    public interface Resources extends RStudioDataGridResources

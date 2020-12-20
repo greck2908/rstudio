@@ -1,7 +1,7 @@
 /*
  * PosixShellUtilsTests.cpp
  *
- * Copyright (C) 2009-16 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,7 @@
 
 #include <iostream>
 
-#include <core/Error.hpp>
+#include <shared_core/Error.hpp>
 
 #include <core/system/ShellUtils.hpp>
 
@@ -34,15 +34,23 @@ test_context("Shell Escaping")
    {
       std::string dollars = "$$$";
       std::string escaped  = escape(dollars);
-      std::string expected = "\"\\$\\$\\$\"";
+      std::string expected = "'$$$'";
       expect_true(escaped == expected);
    }
    
    test_that("Commands with backslashes are escaped")
    {
-      std::string backslashes = "\\\\\\";
+      std::string backslashes = R"(\\\)";
       std::string escaped = escape(backslashes);
-      std::string expected = "\"\\\\\\\\\\\\\"";
+      std::string expected = R"('\\\')";
+      expect_true(escaped == expected);
+   }
+   
+   test_that("Inner quotes are properly handled")
+   {
+      std::string text = "Text with 'inner quotes'.";
+      std::string escaped = escape(text);
+      std::string expected = R"('Text with '"'"'inner quotes'"'"'.')";
       expect_true(escaped == expected);
    }
 }

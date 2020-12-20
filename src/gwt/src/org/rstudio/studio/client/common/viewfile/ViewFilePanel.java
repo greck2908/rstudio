@@ -1,7 +1,7 @@
 /*
  * ViewFilePanel.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -39,7 +39,7 @@ import org.rstudio.studio.client.server.VoidServerRequestCallback;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.model.RemoteFileSystemContext;
 import org.rstudio.studio.client.workbench.model.Session;
-import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 import org.rstudio.studio.client.workbench.ui.FontSizeManager;
 import org.rstudio.studio.client.workbench.views.files.model.FilesServerOperations;
 import org.rstudio.studio.client.workbench.views.source.PanelWithToolbars;
@@ -48,6 +48,7 @@ import org.rstudio.studio.client.workbench.views.source.editors.text.DocDisplay;
 import org.rstudio.studio.client.workbench.views.source.editors.text.TextDisplay;
 import org.rstudio.studio.client.workbench.views.source.editors.text.TextEditingTarget;
 import org.rstudio.studio.client.workbench.views.source.editors.text.TextEditingTargetFindReplace;
+import org.rstudio.studio.client.workbench.views.source.editors.text.TextEditingTargetPrefsHelper;
 import org.rstudio.studio.client.workbench.views.source.editors.text.findreplace.FindReplaceBar;
 
 import com.google.gwt.dom.client.NativeEvent;
@@ -78,7 +79,7 @@ public class ViewFilePanel extends Composite implements TextDisplay
    public ViewFilePanel(GlobalDisplay globalDisplay,
                         DocDisplay docDisplay,
                         FileTypeRegistry fileTypeRegistry,
-                        UIPrefs uiPrefs,
+                        UserPrefs uiPrefs,
                         EventBus events,
                         Commands commands,
                         FilesServerOperations server,
@@ -97,18 +98,19 @@ public class ViewFilePanel extends Composite implements TextDisplay
       docDisplay_ = docDisplay; 
       docDisplay_.setReadOnly(true);
       
-      TextEditingTarget.registerPrefs(releaseOnDismiss_, 
+      TextEditingTargetPrefsHelper.registerPrefs(releaseOnDismiss_, 
             uiPrefs,
             null,
             docDisplay_,
-            new TextEditingTarget.PrefsContext()
+            new TextEditingTargetPrefsHelper.PrefsContext()
             {
                @Override
                public FileSystemItem getActiveFile()
                {
                   return targetFile_;
                }
-            });
+            },
+            TextEditingTargetPrefsHelper.PrefsSet.Full);
 
       TextEditingTarget.syncFontSize(releaseOnDismiss_, 
            events, 
@@ -385,6 +387,11 @@ public class ViewFilePanel extends Composite implements TextDisplay
    
    private class ViewFileToolbar extends Toolbar
    {
+      public ViewFileToolbar()
+      {
+         super("View File Tab");
+      }
+      
       @Override
       public int getHeight()
       {

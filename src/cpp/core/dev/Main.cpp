@@ -1,7 +1,7 @@
 /*
  * Main.cpp
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,12 +18,12 @@
 
 #include <boost/test/minimal.hpp>
 
-#include <core/Error.hpp>
+#include <shared_core/Error.hpp>
 #include <core/Log.hpp>
+#include <core/FileSerializer.hpp>
 #include <core/system/System.hpp>
 
-
-#include <core/r_util/RSessionContext.hpp>
+#include <core/r_util/RVersionsPosix.hpp>
 
 using namespace rstudio;
 using namespace rstudio::core;
@@ -33,29 +33,33 @@ int test_main(int argc, char * argv[])
    try
    { 
       // setup log
-      initializeStderrLog("coredev", core::system::kLogLevelWarning);
+      log::setLogLevel(log::LogLevel::WARN);
+      log::setProgramId("coredev")
+      system::initializeStderrLog("coredev", log::LogLevel::WARN);
 
       // ignore sigpipe
       Error error = core::system::ignoreSignal(core::system::SigPipe);
       if (error)
          LOG_ERROR(error);
 
+      using namespace r_util;
+      std::vector<RVersion> versions;
+      error = readRVersionsFromFile(FilePath("rstudio-some-r-versions"), &versions);
+      if (error)
+         return core::system::exitFailure(error, ERROR_LOCATION);
 
-      r_util::SessionContext context(
-          "jsmith", r_util::SessionScope("~/finance/reports/q1-final", "45"));
 
-      std::string file = r_util::sessionContextToStreamFile(context);
-      std::cerr << file << std::endl;
+      RVersion version = selectVersion("3.1.0", "/opt/R/3.1.0/lib/R", versions);
 
-      r_util::SessionContext context2 = r_util::streamFileToSessionContext(file);
 
-      BOOST_CHECK(context == context2);
+      std::cerr << version << std::endl;
+
 
       return EXIT_SUCCESS;
    }
    CATCH_UNEXPECTED_EXCEPTION
    
    // if we got this far we had an unexpected exception
-   return EXIT_FAILURE ;
+   return EXIT_FAILURE;
 }
 

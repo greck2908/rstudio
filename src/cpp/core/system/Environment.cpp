@@ -1,7 +1,7 @@
 /*
  * Environment.cpp
  *
- * Copyright (C) 2009-18 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,6 +16,9 @@
 #include <core/system/Environment.hpp>
 
 #include <algorithm>
+#include <boost/regex.hpp>
+
+#include <core/Algorithm.hpp>
 
 #include <boost/bind.hpp>
 
@@ -86,21 +89,38 @@ void unsetenv(Options* pEnvironment, const std::string& name)
                        pEnvironment->end());
 }
 
+namespace {
+
+std::string modifyPath(const std::string& path,
+                       const std::string& entry,
+                       bool prepend)
+{
+   // if the PATH is empty, we can just use the
+   // requested entry as-is
+   if (path.empty())
+      return entry;
+
+   // otherwise, prepend or append as appropriate
+   return prepend
+         ? entry + kPathSeparator + path
+         : path + kPathSeparator + entry;
+}
+
+} // end anonymous namespace
+
+void addToPath(const std::string& filePath,
+               bool prepend)
+{
+   std::string oldPath = getenv("PATH");
+   std::string newPath = modifyPath(oldPath, filePath, prepend);
+   setenv("PATH", newPath);
+}
+
 void addToPath(std::string* pPath,
                const std::string& filePath,
                bool prepend)
 {
-   if (prepend)
-   {
-      *pPath = filePath + kPathSeparator + *pPath;
-   }
-   else
-   {
-      if (!pPath->empty())
-         pPath->append(kPathSeparator);
-
-      pPath->append(filePath);
-   }
+   *pPath = modifyPath(*pPath, filePath, prepend);
 }
 
 // add to the PATH within an Options struture
@@ -108,23 +128,20 @@ void addToPath(Options* pEnvironment,
                const std::string& filePath,
                bool prepend)
 {
-   std::string path = getenv(*pEnvironment, "PATH");
-   if (prepend)
-      path = filePath + kPathSeparator + path;
-   else
-      path = path + kPathSeparator + filePath;
-   setenv(pEnvironment, "PATH", path);
+   std::string oldPath = getenv(*pEnvironment, "PATH");
+   std::string newPath = modifyPath(oldPath, filePath, prepend);
+   setenv(pEnvironment, "PATH", newPath);
 }
 
 bool parseEnvVar(const std::string envVar, Option* pEnvVar)
 {
-   std::string::size_type pos = envVar.find("=") ;
+   std::string::size_type pos = envVar.find("=");
    if ( pos != std::string::npos )
    {
-      std::string key = envVar.substr(0, pos) ;
+      std::string key = envVar.substr(0, pos);
       std::string value;
       if ( (pos + 1) < envVar.size() )
-         value = envVar.substr(pos + 1) ;
+         value = envVar.substr(pos + 1);
       *pEnvVar = std::make_pair(key,value);
       return true;
    }
@@ -132,6 +149,22 @@ bool parseEnvVar(const std::string envVar, Option* pEnvVar)
    {
       return false;
    }
+}
+
+std::string expandEnvVars(const Options& environment, const std::string& str)
+{
+   std::string result(str);
+   for (const auto& pair: environment)
+   {
+      // replace bare forms (/home/$USER)
+      boost::regex reVar("\\$" + pair.first + "\\>");
+      result = boost::regex_replace(result, reVar, pair.second);
+
+      // replace curly brace forms (/home/${USER})
+      boost::regex reBraceVar("\\${" + pair.first + "}");
+      result = boost::regex_replace(result, reBraceVar, pair.second);
+   }
+   return result;
 }
 
 } // namespace system

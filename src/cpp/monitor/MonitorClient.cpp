@@ -1,7 +1,7 @@
 /*
  * MonitorClient.cpp
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,6 +17,8 @@
 
 #include <monitor/MonitorClient.hpp>
 
+#include <shared_core/ILogDestination.hpp>
+
 #include "MonitorClientImpl.hpp"
 
 namespace rstudio {
@@ -24,27 +26,35 @@ namespace monitor {
 
 namespace {
 
-class MonitorLogWriter : public core::LogWriter
+class MonitorLogDestination : public core::log::ILogDestination
 {
 public:
-   MonitorLogWriter(const std::string& programIdentity)
-      : programIdentity_(programIdentity)
+   MonitorLogDestination(core::log::LogLevel logLevel, const std::string& programIdentity) :
+      ILogDestination(logLevel),
+      programIdentity_(programIdentity)
    {
    }
 
-   virtual void log(core::system::LogLevel level, const std::string& message)
+   unsigned int getId() const override
    {
-      log(programIdentity_, level, message);
+      // Return a unique ID that's not likely to be used by other log destination types (stderr and syslog are 0 & 1,
+      // and file log destinations in the server start at 3.
+      return 56;
    }
 
-   virtual void log(const std::string& programIdentity,
-                    core::system::LogLevel level,
-                    const std::string& message)
+   void reload() override
    {
-      client().logMessage(programIdentity, level, message);
+      // Nothing to do.
    }
 
-   virtual int logLevel() { return core::system::kLogLevelDebug; }
+   void writeLog(core::log::LogLevel logLevel, const std::string& message) override
+   {
+      // Don't log messages which are more detailed than the configured maximum.
+      if (logLevel > m_logLevel)
+         return;
+
+      client().logMessage(programIdentity_, logLevel, message);
+   }
 
 private:
    std::string programIdentity_;
@@ -56,13 +66,12 @@ Client* s_pClient = NULL;
 
 } // anonymous namespace
 
-boost::shared_ptr<core::LogWriter> Client::createLogWriter(
+std::shared_ptr<core::log::ILogDestination> Client::createLogDestination(
+                                    core::log::LogLevel logLevel,
                                     const std::string& programIdentity)
 {
-   return boost::shared_ptr<core::LogWriter>(
-                                 new MonitorLogWriter(programIdentity));
+   return std::shared_ptr<core::log::ILogDestination>(new MonitorLogDestination(logLevel, programIdentity));
 }
-
 
 void initializeMonitorClient(const std::string& metricsSocket,
                              const std::string& auth,
@@ -84,24 +93,26 @@ void initializeMonitorClient(const std::string& metricsSocket,
 void initializeMonitorClient(const std::string& tcpAddress,
                              const std::string& tcpPort,
                              bool useSsl,
+                             bool verifySslCerts,
                              const std::string& prefixUri,
                              const std::string& auth,
                              bool useSharedSecret)
 {
    BOOST_ASSERT(s_pClient == NULL);
-   s_pClient = new SyncClient(tcpAddress, tcpPort, useSsl, prefixUri, auth, useSharedSecret);
+   s_pClient = new SyncClient(tcpAddress, tcpPort, useSsl, verifySslCerts, prefixUri, auth, useSharedSecret);
 }
 
 void initializeMonitorClient(const std::string& tcpAddress,
                              const std::string& tcpPort,
                              bool useSsl,
+                             bool verifySslCerts,
                              const std::string& prefixUri,
                              const std::string& auth,
                              boost::asio::io_service& ioService,
                              bool useSharedSecret)
 {
    BOOST_ASSERT(s_pClient == NULL);
-   s_pClient = new AsyncClient(tcpAddress, tcpPort, useSsl, prefixUri, auth, ioService, useSharedSecret);
+   s_pClient = new AsyncClient(tcpAddress, tcpPort, useSsl, verifySslCerts, prefixUri, auth, ioService, useSharedSecret);
 }
 
 Client& client()

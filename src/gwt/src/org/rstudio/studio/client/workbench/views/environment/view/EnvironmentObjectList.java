@@ -1,7 +1,7 @@
 /*
  * EnvironmentObjectList.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -185,6 +185,7 @@ public class EnvironmentObjectList extends EnvironmentObjectDisplay
             {
                String imageUri = "";
                String imageStyle = style_.expandIcon();
+               String imageAlt = "";
                if (object.canExpand())
                {
                   imageStyle = imageStyle + " " + ThemeStyles.INSTANCE.handCursor();
@@ -196,17 +197,19 @@ public class EnvironmentObjectList extends EnvironmentObjectDisplay
                             new ImageResource2x(EnvironmentResources.INSTANCE.expandIcon2x());
 
                   imageUri = expandImage.getSafeUri().asString();
+                  imageAlt = object.expanded ? "Collapse Object" : "Expand Object";
                }
                else if (object.hasTraceInfo())
                {
                   imageUri = new ImageResource2x(EnvironmentResources.INSTANCE
                         .tracedFunction2x()).getSafeUri().asString();
                   imageStyle += (" " + style_.unclickableIcon());
+                  imageAlt = "Has Trace";
                }
                if (imageUri.length() > 0)
                {
                   return "<input type=\"image\" src=\"" + imageUri + "\" " +
-                         "class=\"" + imageStyle + "\" />";                        
+                         "class=\"" + imageStyle + "\" alt=\"" + imageAlt + "\" />";
                }
                return "";
             }
@@ -512,18 +515,18 @@ public class EnvironmentObjectList extends EnvironmentObjectDisplay
          for (int idx = 0; idx < contents.length(); idx++)
          {
             TableRowBuilder detail = startRow().className(style_.detailRow());
+            
             detail.startTD().endTD();
-            TableCellBuilder objectDetail = detail.startTD();
+            
             String content = contents.get(idx);
-            // remove known R indentation prefixes
-            if (content.startsWith(" $") || content.startsWith("  ")) 
-               content = content.substring(2, content.length());
-            content = content.trim();
+            
+            TableCellBuilder objectDetail = detail.startTD();
             objectDetail.colSpan(3)
                     .title(content)
                     .text(content)
                     .endTD();
             detail.endTR();
+            
          }
       }
    }

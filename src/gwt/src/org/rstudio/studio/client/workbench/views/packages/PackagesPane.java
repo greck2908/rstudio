@@ -1,7 +1,7 @@
 /*
  * PackagesPane.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,6 +17,7 @@ package org.rstudio.studio.client.workbench.views.packages;
 import java.util.ArrayList;
 import java.util.List;
 import org.rstudio.core.client.Debug;
+import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.cellview.AriaLabeledCheckboxCell;
 import org.rstudio.core.client.cellview.ImageButtonColumn;
 import org.rstudio.core.client.cellview.ImageButtonColumn.TitleProvider;
@@ -41,6 +42,7 @@ import org.rstudio.studio.client.packrat.model.PackratContext;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.projects.ProjectContext;
+import org.rstudio.studio.client.workbench.projects.RenvContext;
 import org.rstudio.studio.client.workbench.ui.WorkbenchPane;
 import org.rstudio.studio.client.workbench.views.packages.model.PackageInfo;
 import org.rstudio.studio.client.workbench.views.packages.model.PackageInstallContext;
@@ -86,7 +88,7 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
                        GlobalDisplay display,
                        EventBus events)
    {
-      super("Packages");
+      super("Packages", events);
       commands_ = commands;
       session_ = session;
       display_ = display;
@@ -99,7 +101,7 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
    @Override
    public void setObserver(PackagesDisplayObserver observer)
    {
-      observer_ = observer ;  
+      observer_ = observer;
    }
    
    @Override
@@ -110,13 +112,19 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
       packagesDataProvider_.setList(packages);
       createPackagesTable();
 
+      // manage visibility of Packrat / renv menu buttons
       PackratContext packratContext = projectContext_.getPackratContext();
+      RenvContext renvContext = projectContext_.getRenvContext();
       
-      // show the toolbar button if Packrat mode is on
-      packratMenuButton_.setVisible(packratContext.isModeOn());
+      packratMenuButton_.setVisible(false);
+      renvMenuButton_.setVisible(false);
+      if (packratContext.isModeOn())
+         packratMenuButton_.setVisible(true);
+      else if (renvContext.active)
+         renvMenuButton_.setVisible(true);
       
       // always show the separator before the packrat commands
-      prePackratSeparator_.setVisible(true);
+      projectButtonSeparator_.setVisible(true);
    }
    
    @Override
@@ -136,7 +144,7 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
    @Override
    public void setPackageStatus(PackageStatus status)
    {
-      int row = packageRow(status.getName(), status.getLib()) ;
+      int row = packageRow(status.getName(), status.getLib());
       
       if (row != -1)
       {
@@ -160,7 +168,7 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
    
    private int packageRow(String packageName, String packageLib)
    {
-      // if we haven't retreived packages yet then return not found
+      // if we haven't retrieved packages yet then return not found
       if (packagesDataProvider_ == null)
          return -1;
       
@@ -174,17 +182,17 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
          if (packageInfo.getName() == packageName &&
              packageInfo.getLibrary() == packageLib)
          {
-            row = i ;
+            row = i;
             break;
          }
       }
-      return row ;
+      return row;
    }
    
    @Override
    protected Toolbar createMainToolbar()
    {
-      Toolbar toolbar = new Toolbar();
+      Toolbar toolbar = new Toolbar("Packages Tab");
      
       // install packages
       toolbar.addLeftWidget(commands_.installPackage().createToolbarButton());
@@ -192,7 +200,7 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
       
       // update packages
       toolbar.addLeftWidget(commands_.updatePackages().createToolbarButton());
-      prePackratSeparator_ = toolbar.addLeftSeparator();
+      projectButtonSeparator_ = toolbar.addLeftSeparator();
       
       // packrat (all packrat UI starts out hidden and then appears
       // in response to changes in the packages state)
@@ -214,6 +222,21 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
        );
       toolbar.addLeftWidget(packratMenuButton_);
       packratMenuButton_.setVisible(false);
+      
+      // create renv menu + button
+      ToolbarPopupMenu renvMenu = new ToolbarPopupMenu();
+      renvMenu.addItem(commands_.renvHelp().createMenuItem(false));
+      renvMenu.addSeparator();
+      renvMenu.addItem(commands_.renvSnapshot().createMenuItem(false));
+      renvMenu.addItem(commands_.renvRestore().createMenuItem(false));
+      
+      renvMenuButton_ = new ToolbarMenuButton(
+            "renv",
+            ToolbarButton.NoTitle,
+            commands_.packratBootstrap().getImageResource(), // TODO
+            renvMenu);
+      toolbar.addLeftWidget(renvMenuButton_);
+      renvMenuButton_.setVisible(false);
             
       searchWidget_ = new SearchWidget("Filter by package name", new SuggestOracle() {
          @Override
@@ -225,6 +248,7 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
                   new Response(new ArrayList<Suggestion>()));
          }
       });
+      
       searchWidget_.addValueChangeHandler(new ValueChangeHandler<String>() {
          @Override
          public void onValueChange(ValueChangeEvent<String> event)
@@ -232,6 +256,8 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
             observer_.onPackageFilterChanged(event.getValue().trim());   
          }
       });
+      
+      ElementIds.assignElementId(searchWidget_, ElementIds.SW_PACKAGES);
       toolbar.addRightWidget(searchWidget_);
       
       toolbar.addRightSeparator();
@@ -515,7 +541,7 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
       packagesTableContainer_.add(packagesTable_);
       layoutPackagesTable();
       
-      // unbind old table from data provider incase we've re-generated the pane
+      // unbind old table from data provider in case we've re-generated the pane
       for (HasData<PackageInfo> display : packagesDataProvider_.getDataDisplays())
          packagesDataProvider_.removeDataDisplay(display);
       
@@ -660,10 +686,12 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
    private DataGrid<PackageInfo> packagesTable_;
    private ListDataProvider<PackageInfo> packagesDataProvider_;
    private SearchWidget searchWidget_;
-   private PackagesDisplayObserver observer_ ;
+   private PackagesDisplayObserver observer_;
    
    private ToolbarMenuButton packratMenuButton_;
-   private Widget prePackratSeparator_;
+   private ToolbarMenuButton renvMenuButton_;
+   private Widget projectButtonSeparator_;
+   
    private LayoutPanel packagesTableContainer_;
    private int gridRenderRetryCount_;
    private ProjectContext projectContext_;

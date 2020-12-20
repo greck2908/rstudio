@@ -1,7 +1,7 @@
 /*
  * TextFileType.java
  *
- * Copyright (C) 2009-17 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -229,6 +229,11 @@ public class TextFileType extends EditableFileType
       return FileTypeRegistry.SQL.getTypeId().equals(getTypeId());
    }
    
+   public boolean isYaml()
+   {
+      return FileTypeRegistry.YAML.getTypeId().equals(getTypeId());
+   }
+   
    public boolean requiresKnit()
    {
       return FileTypeRegistry.RMARKDOWN.getTypeId().equals(getTypeId()) ||
@@ -319,6 +324,11 @@ public class TextFileType extends EditableFileType
          results.add(commands.previewSql());
       }
       
+      if (isYaml())
+      {
+         results.add(commands.commentUncomment());
+      }
+      
       if ((canExecuteCode() && !isScript()) || isC())
       {
          results.add(commands.reindent());
@@ -401,6 +411,13 @@ public class TextFileType extends EditableFileType
          results.add(commands.executeSubsequentChunks());
          results.add(commands.executeCurrentChunk());
          results.add(commands.executeNextChunk());
+         results.add(commands.runSelectionAsJob());
+         results.add(commands.runSelectionAsLauncherJob());
+      }
+      if (isMarkdown())
+      {
+         results.add(commands.toggleRmdVisualMode());
+         results.add(commands.enableProsemirrorDevTools());
       }
       if (canCheckSpelling())
       {
@@ -427,14 +444,19 @@ public class TextFileType extends EditableFileType
       results.add(commands.popoutDoc());
       if (!SourceWindowManager.isMainSourceWindow())
          results.add(commands.returnDocToMain());
-      
+
       if (isR())
       {
          results.add(commands.sourceAsLauncherJob());
          results.add(commands.sourceAsJob());
+         results.add(commands.runSelectionAsJob());
+         results.add(commands.runSelectionAsLauncherJob());
       }
 
       results.add(commands.sendToTerminal());
+      results.add(commands.sendFilenameToTerminal());
+      results.add(commands.openNewTerminalAtEditorLocation());
+      results.add(commands.toggleSoftWrapMode());
 
       return results;
    }
@@ -454,12 +476,14 @@ public class TextFileType extends EditableFileType
 
          return reTextType_.match(token.getType(), 0) != null ||
             reStringType_.match(token.getType(), 0) != null ||
-            reHeaderType_.match(token.getType(), 0) != null;
+            reHeaderType_.match(token.getType(), 0) != null ||
+            reCommentType_.match(token.getType(), 0) != null;
       };
    }
 
-   // special token predicate for only getting commented words
-   public TokenPredicate getCommentsTokenPredicate()
+   // default to only returning comments and text, override in subclasses
+   // for more or less specificity
+   public TokenPredicate getSpellCheckTokenPredicate()
    {
       return (token, row, column) ->
       {
@@ -467,10 +491,10 @@ public class TextFileType extends EditableFileType
             return false;
          }
 
-         return reTextType_.match(token.getType(), 0) != null ||
-            reStringType_.match(token.getType(), 0) != null ||
-            reHeaderType_.match(token.getType(), 0) != null ||
-            reCommentType_.match(token.getType(), 0) != null;
+         return (reCommentType_.match(token.getType(), 0) != null ||
+                 reTextType_.match(token.getType(), 0) != null) &&
+                 reKeywordType_.match(token.getType(), 0) == null &&
+                 reIdentifierType_.match(token.getType(), 0) == null;
       };
    }
 
@@ -483,7 +507,7 @@ public class TextFileType extends EditableFileType
          {
             if (UnicodeLetters.isLetter(c))
                return CharClass.Word;
-            else if (c == '\'')
+            else if (c == '\'' || c == '’')
                return CharClass.Boundary;
             else
                return CharClass.NonWord;
@@ -521,9 +545,11 @@ public class TextFileType extends EditableFileType
    private final boolean canPreviewFromR_;
    private final String defaultExtension_;
 
-   private static Pattern reTextType_ = Pattern.create("\\btext\\b");
-   private static Pattern reStringType_ = Pattern.create("\\bstring\\b");
-   private static Pattern reHeaderType_ = Pattern.create("\\bheading\\b");
-   private static Pattern reNospellType_ = Pattern.create("\\bnospell\\b");
-   private static Pattern reCommentType_ = Pattern.create("\\bcomment\\b");
+   protected static Pattern reTextType_ = Pattern.create("\\btext\\b");
+   protected static Pattern reStringType_ = Pattern.create("\\bstring\\b");
+   protected static Pattern reHeaderType_ = Pattern.create("\\bheading\\b");
+   protected static Pattern reNospellType_ = Pattern.create("\\bnospell\\b");
+   protected static Pattern reCommentType_ = Pattern.create("\\bcomment\\b");
+   protected static Pattern reKeywordType_ = Pattern.create("\\bkeyword\\b");
+   protected static Pattern reIdentifierType_ = Pattern.create("\\bidentifier\\b");
 }

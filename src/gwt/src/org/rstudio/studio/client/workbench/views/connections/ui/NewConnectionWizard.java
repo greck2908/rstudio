@@ -1,7 +1,7 @@
 /*
  * NewConnectionWizard.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -25,7 +25,7 @@ import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.common.HelpLink;
-import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 import org.rstudio.studio.client.workbench.views.connections.events.NewConnectionWizardRequestCloseEvent;
 import org.rstudio.studio.client.workbench.views.connections.model.ConnectionOptions;
 import org.rstudio.studio.client.workbench.views.connections.model.ConnectionsServerOperations;
@@ -42,7 +42,7 @@ import com.google.inject.Inject;
 public class NewConnectionWizard extends Wizard<NewConnectionContext, ConnectionOptions>
 {
    @Inject
-   private void initialize(UIPrefs uiPrefs,
+   private void initialize(UserPrefs uiPrefs,
                            EventBus events,
                            GlobalDisplay globalDisplay,
                            ConnectionsServerOperations server)

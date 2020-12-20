@@ -1,7 +1,7 @@
 /*
  * Edit.java
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,19 +20,18 @@ import org.rstudio.core.client.widget.ProgressIndicator;
 import org.rstudio.core.client.widget.ProgressOperationWithInput;
 import org.rstudio.studio.client.server.VoidServerRequestCallback;
 import org.rstudio.studio.client.workbench.views.edit.events.ShowEditorEvent;
-import org.rstudio.studio.client.workbench.views.edit.events.ShowEditorHandler;
 import org.rstudio.studio.client.workbench.views.edit.model.EditServerOperations;
 
 
-public class Edit implements ShowEditorHandler
+public class Edit implements ShowEditorEvent.Handler
 {
    public abstract static class Shim extends AsyncShim<Edit>
-         implements ShowEditorHandler
+         implements ShowEditorEvent.Handler
    {
       public abstract void onShowEditor(ShowEditorEvent event);
    }
 
-   public static interface Display
+   public interface Display
    {
       void show(String text,
                 boolean isRCode,
@@ -44,7 +43,7 @@ public class Edit implements ShowEditorHandler
    public Edit(Display view,
                EditServerOperations server)
    {
-      view_ = view ;
+      view_ = view;
       server_ = server;
    }
 
@@ -77,5 +76,4 @@ public class Edit implements ShowEditorHandler
 
    private final Display view_;
    private final EditServerOperations server_;
-
 }

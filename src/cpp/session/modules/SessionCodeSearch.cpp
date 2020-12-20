@@ -1,7 +1,7 @@
 /*
  * SessionCodeSearch.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -31,11 +31,13 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string/split.hpp>
 
-#include <core/Error.hpp>
-#include <core/Exec.hpp>
-#include <core/FilePath.hpp>
+#include <shared_core/Error.hpp>
+#include <shared_core/FilePath.hpp>
+#include <shared_core/SafeConvert.hpp>
+
+#include <core/Debug.hpp>
 #include <core/FileSerializer.hpp>
-#include <core/SafeConvert.hpp>
+#include <core/Exec.hpp>
 #include <core/collection/Tree.hpp>
 
 #include <core/r_util/RSourceIndex.hpp>
@@ -47,7 +49,6 @@
 #include <r/RExec.hpp>
 #include <r/RRoutines.hpp>
 
-#include <session/SessionUserSettings.hpp>
 #include <session/SessionModuleContext.hpp>
 #include <session/SessionAsyncRProcess.hpp>
 #include <session/SessionRUtil.hpp>
@@ -61,7 +62,7 @@
 
 #include <core/Macros.hpp>
 
-using namespace rstudio::core ;
+using namespace rstudio::core;
 
 namespace rstudio {
 namespace session {  
@@ -79,13 +80,13 @@ bool isWithinIgnoredDirectory(const FilePath& filePath)
       return false;
    
    FilePath projDir = projectContext().directory();
-   FilePath parentPath = filePath.parent();
+   FilePath parentPath = filePath.getParent();
    std::string websiteDir = module_context::websiteOutputDir();
    bool isPackageProject = projectContext().isPackageProject();
    
    // allow plain files living within the 'revdep' folder
    if (isPackageProject &&
-       parentPath.filename() == "revdep" &&
+       parentPath.getFilename() == "revdep" &&
        !filePath.isDirectory())
    {
       return false;
@@ -96,10 +97,10 @@ bool isWithinIgnoredDirectory(const FilePath& filePath)
    // TODO: it would be better to encode this as a filter that
    // disables traversing of sub-directories we don't want to index
    for (;
-        !parentPath.empty() && parentPath != projDir;
-        parentPath = parentPath.parent())
+        !parentPath.isEmpty() && parentPath != projDir;
+        parentPath = parentPath.getParent())
    {
-      std::string parentName = parentPath.filename();
+      std::string parentName = parentPath.getFilename();
       
       // node_modules
       if (parentName == "node_modules")
@@ -111,11 +112,11 @@ bool isWithinIgnoredDirectory(const FilePath& filePath)
       
       // packrat
       if (parentName == "packrat" &&
-          parentPath.childPath("packrat.lock").exists())
+         parentPath.completeChildPath("packrat.lock").exists())
          return true;
       
       // cmake build directory
-      if (parentPath.childPath("cmake_install.cmake").exists())
+      if (parentPath.completeChildPath("cmake_install.cmake").exists())
          return true;
 
       // revdep sub-directories
@@ -206,7 +207,7 @@ void print_tree(tree<Entry> const& tr)
       int depth = tr.depth(it);
       for (int i = 0; i < depth; i++)
          std::cerr << "--";
-      std::cerr << (*it).fileInfo.absolutePath() << "\n";
+      std::cerr << (*it).fileInfo.getAbsolutePath() << "\n";
    }
 #endif
 }
@@ -262,7 +263,7 @@ public:
       //     --> foo/bar
       //                  --> foo/bar/baz
       iterator parent = begin();
-      DEBUG("First parent: '" << (*parent).fileInfo.absolutePath() << "'");
+      DEBUG("First parent: '" << (*parent).fileInfo.getAbsolutePath() << "'");
 
       std::string::size_type matchIndex = absolutePath.find('/');
       
@@ -274,7 +275,7 @@ public:
                   true);
          
          Entry entry(path);
-         DEBUG("Entry: '" << entry.fileInfo.absolutePath() << "'");
+         DEBUG("Entry: '" << entry.fileInfo.getAbsolutePath() << "'");
 
          if (isSamePath(*parent, entry))
          {
@@ -283,7 +284,7 @@ public:
 
          else if (number_of_children(parent) == 0)
          {
-            DEBUG("- Inserting new node as first child of '" << (*parent).fileInfo.absolutePath() << "'");
+            DEBUG("- Inserting new node as first child of '" << (*parent).fileInfo.getAbsolutePath() << "'");
 
             iterator newItr = append_child(parent, entry);
             DEBUG("- Parent now has " << number_of_children(parent) << " children.");
@@ -298,7 +299,7 @@ public:
 
             for (; it != end; ++it)
             {
-               DEBUG("-- Current node: '" << (*it).fileInfo.absolutePath() << "'");
+               DEBUG("-- Current node: '" << (*it).fileInfo.getAbsolutePath() << "'");
                if (isSamePath(*it, entry))
                {
                   DEBUG("-- Found it!");
@@ -308,12 +309,12 @@ public:
 
             if (it == end)
             {
-               DEBUG("- Adding another child to parent '" << (*parent).fileInfo.absolutePath() << "'");
+               DEBUG("- Adding another child to parent '" << (*parent).fileInfo.getAbsolutePath() << "'");
                parent = append_child(parent, entry);
             }
             else
             {
-               DEBUG("- Node already exists; setting parent to child (" << (*parent).fileInfo.absolutePath() << ")");
+               DEBUG("- Node already exists; setting parent to child (" << (*parent).fileInfo.getAbsolutePath() << ")");
                parent = it;
             }
          }
@@ -323,8 +324,8 @@ public:
       DEBUG("Exiting directory node insertion phase");
       
       // Now, we have the filename. We append that to the parent.
-      DEBUG("Parent: '" << (*parent).fileInfo.absolutePath() << "'");
-      DEBUG("Entry: '" << entry.fileInfo.absolutePath() << "'");
+      DEBUG("Parent: '" << (*parent).fileInfo.getAbsolutePath() << "'");
+      DEBUG("Entry: '" << entry.fileInfo.getAbsolutePath() << "'");
       if (parent.number_of_children() == 0)
       {
          DEBUG("- No children at parent node; adding child");
@@ -350,8 +351,8 @@ public:
          sibling_iterator end = parent.end();
          for (; it != end; ++it)
          {
-            DEBUG("-- Current node: '" << (*it).fileInfo.absolutePath() << "'");
-            DEBUG("-- Entry       : '" << entry.fileInfo.absolutePath() << "'");
+            DEBUG("-- Current node: '" << (*it).fileInfo.getAbsolutePath() << "'");
+            DEBUG("-- Entry       : '" << entry.fileInfo.getAbsolutePath() << "'");
             
             if (isSamePath(*it, entry))
             {
@@ -416,7 +417,7 @@ private:
       sibling_iterator end = parent.end();
       for (; it != end; ++it)
       {
-         DEBUG("- Current branch: '" << (*it).fileInfo.absolutePath() << "'");
+         DEBUG("- Current branch: '" << (*it).fileInfo.getAbsolutePath() << "'");
          if (isSamePath(*it, entry))
          {
             *pResult = it;
@@ -609,12 +610,12 @@ public:
       // get the start and end iterators -- default to all leaves
       EntryTree::leaf_iterator it = pEntries_->begin_leaf();
       
-      DEBUG("Searching for node '" << parentPath.absolutePath());
+      DEBUG("Searching for node '" << parentPath.getAbsolutePath());
       Entry parentEntry(core::toFileInfo(parentPath));
       EntryTree::iterator parent = pEntries_->find(parentEntry);
       if (parent != pEntries_->end())
       {
-         DEBUG("Found node: '" + (*parent).fileInfo.absolutePath() + "'");
+         DEBUG("Found node: '" + (*parent).fileInfo.getAbsolutePath() + "'");
          DEBUG("Node has: '" << pEntries_->number_of_children(parent) << "' children.");
          DEBUG("Node has: '" << pEntries_->number_of_siblings(parent) << "' siblings.");
 
@@ -632,7 +633,7 @@ public:
       {
          const Entry& entry = *it;
          
-         DEBUG("Node: '" << (*it).fileInfo.absolutePath() << "'");
+         DEBUG("Node: '" << (*it).fileInfo.getAbsolutePath() << "'");
          
          // skip if it's not a source file
          if (sourceFilesOnly && !isSourceFile(entry.fileInfo))
@@ -640,7 +641,7 @@ public:
          
          // get file and name
          FilePath filePath(entry.fileInfo.absolutePath());
-         std::string name = filePath.filename();
+         std::string name = filePath.getFilename();
 
          // compare for match (wildcard or standard)
          bool matches = false;
@@ -675,7 +676,7 @@ public:
          if (matches)
          {
             // name and aliased path
-            pNames->push_back(filePath.filename());
+            pNames->push_back(filePath.getFilename());
             pPaths->push_back(module_context::createAliasedPath(filePath));
 
             // return if we are past max results
@@ -778,7 +779,7 @@ public:
       EntryTree::iterator parentItr = pEntries_->find_branch(parentEntry);
       if (parentItr == pEntries_->end())
       {
-         LOG_ERROR_MESSAGE("Failed to find node '" + parentPath.absolutePath() + "'");
+         LOG_ERROR_MESSAGE("Failed to find node '" + parentPath.getAbsolutePath() + "'");
          return;
       }
       
@@ -864,7 +865,7 @@ private:
             // file was removed after entering the indexing queue)
             if (!core::isPathNotFoundError(error))
             {
-               error.addProperty("src-file", filePath.absolutePath());
+               error.addProperty("src-file", filePath.getAbsolutePath());
                LOG_ERROR(error);
             }
             return;
@@ -893,7 +894,7 @@ private:
          pEntries_->erase(it);
       else
       {
-         DEBUG("Failed to remove index entry for file: '" << fileInfo.absolutePath() << "'");
+         DEBUG("Failed to remove index entry for file: '" << fileInfo.getAbsolutePath() << "'");
          print_tree(*pEntries_);
       }
    }
@@ -907,10 +908,10 @@ private:
          return false;
 
       // filter files by name and extension
-      std::string ext = filePath.extensionLowerCase();
-      std::string filename = filePath.filename();
+      std::string ext = filePath.getExtensionLowerCase();
+      std::string filename = filePath.getFilename();
       return !filePath.isDirectory() &&
-              (ext == ".r" || ext == ".rnw" ||
+              (ext == ".r" || ext == ".rnw" || ext == ".rtex" ||
                ext == ".rmd" || ext == ".rmarkdown" ||
                ext == ".rhtml" || ext == ".rd" ||
                ext == ".h" || ext == ".hpp" ||
@@ -919,6 +920,7 @@ private:
                ext == ".toml" || ext == ".scala" ||
                ext == ".css" || ext == ".scss" || ext == ".sass" ||
                filename == "DESCRIPTION" ||
+               filename == "Dockerfile" || 
                filename == "NAMESPACE" ||
                filename == "README" ||
                filename == "NEWS" ||
@@ -942,12 +944,12 @@ private:
          return false;
 
       // check for R extension
-      std::string ext = filePath.extensionLowerCase();
+      std::string ext = filePath.getExtensionLowerCase();
       if (ext != ".r" && ext != ".s")
          return false;
 
       // skip large files
-      if (filePath.size() > 2 * 1024 * 1024)
+      if (filePath.getSize() > 2 * 1024 * 1024)
          return false;
 
       // ok to index
@@ -1007,7 +1009,7 @@ void RSourceIndexes::update(const boost::shared_ptr<SourceDocument>& pDoc)
    idMap_[pDoc->id()] = pIndex;
    
    // create aliases
-   filePathMap_[filePath.absolutePath()] = pIndex;
+   filePathMap_[filePath.getAbsolutePath()] = pIndex;
    
    // kick off an update if necessary
    r_packages::AsyncPackageInformationProcess::update();
@@ -1020,7 +1022,7 @@ void RSourceIndexes::remove(const std::string& id, const std::string&)
    FilePath filePath;
    Error error = source_database::getPath(id, &filePath);
    if (!error)
-      filePathMap_.erase(filePath.absolutePath());
+      filePathMap_.erase(filePath.getAbsolutePath());
 }
 
 void RSourceIndexes::removeAll()
@@ -1214,7 +1216,7 @@ void searchSourceDatabaseFiles(const std::string& term,
 
       // get filename
       FilePath filePath = module_context::resolveAliasedPath(context);
-      std::string filename = filePath.filename();
+      std::string filename = filePath.getFilename();
 
       // compare for match (wildcard or standard)
       bool matches = false;
@@ -1400,13 +1402,17 @@ class SourceItem
 public:
    enum Type
    {
-      None = 0,
-      Function = 1,
-      Method = 2,
-      Class = 3,
-      Enum = 4,
+      None      = 0,
+      Function  = 1,
+      Method    = 2,
+      Class     = 3,
+      Enum      = 4,
       EnumValue = 5,
-      Namespace = 6
+      Namespace = 6,
+      Section   = 7,
+      Figure    = 8,
+      Table     = 9,
+      Math      = 10,
    };
 
    SourceItem()
@@ -1420,14 +1426,16 @@ public:
               const std::string& extraInfo,
               const std::string& context,
               int line,
-              int column)
+              int column,
+              const json::Object& metadata = json::Object())
       : type_(type),
         name_(name),
         parentName_(parentName),
         extraInfo_(extraInfo),
         context_(context),
         line_(line),
-        column_(column)
+        column_(column),
+        metadata_(metadata)
    {
    }
 
@@ -1440,6 +1448,7 @@ public:
    const std::string& context() const { return context_; }
    int line() const { return line_; }
    int column() const { return column_; }
+   const json::Object& metadata() const { return metadata_; }
 
 private:
    Type type_;
@@ -1449,6 +1458,7 @@ private:
    std::string context_;
    int line_;
    int column_;
+   json::Object metadata_;
 };
 
 SourceItem fromRSourceItem(const r_util::RSourceItem& rSourceItem)
@@ -1478,7 +1488,7 @@ SourceItem fromRSourceItem(const r_util::RSourceItem& rSourceItem)
    if (rSourceItem.signature().size() > 0)
    {
       extraInfo.append("{");
-      for (std::size_t i = 0; i<rSourceItem.signature().size(); i++)
+      for (std::size_t i = 0; i < rSourceItem.signature().size(); i++)
       {
          if (i > 0)
             extraInfo.append(", ");
@@ -1544,6 +1554,127 @@ SourceItem fromCppDefinition(const clang::CppDefinition& cppDefinition)
       safe_convert::numberTo<int>(cppDefinition.location.column, 1));
 }
 
+void fillFromBookdownRefs(const std::string& term,
+                          std::vector<SourceItem>* pSourceItems)
+{
+   // retrieve refs for this project
+   core::json::Value bookdownIndex = module_context::bookdownXRefIndex();
+   
+   // may be null if we have no bookdown refs (typically implies
+   // we're not in a bookdown project)
+   if (!bookdownIndex.isObject())
+      return;
+   
+   std::string baseDir;
+   core::json::Array bookdownRefs;
+   
+   Error error = core::json::readObject(
+            bookdownIndex.getObject(),
+            "baseDir", baseDir,
+            "refs", bookdownRefs);
+   
+   if (error)
+   {
+      LOG_ERROR(error);
+      return;
+   }
+   
+   FilePath basePath = module_context::resolveAliasedPath(baseDir);
+   
+   // {
+   //     "file": "01-intro.Rmd",
+   //     "type": "h1",
+   //     "id": "intro",
+   //     "title": "Introduction" (optional)
+   // }
+   
+   for (const json::Value& bookdownRef : bookdownRefs)
+   {
+      if (!bookdownRef.isObject())
+         continue;
+      
+      std::string file, type, id;
+      Error error = core::json::readObject(
+               bookdownRef.getObject(),
+               "file", file,
+               "type", type,
+               "id", id);
+      
+      if (error)
+      {
+         LOG_ERROR(error);
+         continue;
+      }
+
+      // title is optional
+      std::string title;
+      if (bookdownRef.getObject().hasMember("title"))
+         title = bookdownRef.getObject()["title"].getString();
+      
+      // figure out appropriate source item type
+      SourceItem::Type sourceType = SourceItem::None;
+      if (type == "fig")
+      {
+         sourceType = SourceItem::Figure;
+      }
+      else if (type == "tab")
+      {
+         sourceType = SourceItem::Table;
+      }
+      else if (type == "h1" || type == "h2" || type == "h3" ||
+               type == "h4" || type == "h5" || type == "h6")
+      {
+         sourceType = SourceItem::Section;
+      }
+      else if (type == "thm" || type == "lem" || type == "cor" ||
+               type == "prp" || type == "cnj" || type == "def" ||
+               type == "exr" || type == "eq")
+      {
+         sourceType = SourceItem::Math;
+      }
+      
+      // form appropriate text for display
+      std::string displayText;
+      
+      switch (sourceType)
+      {
+      case SourceItem::Figure:
+      case SourceItem::Table:
+      case SourceItem::Math:
+         displayText = type + ":" + id;
+         break;
+         
+      default:
+         displayText = title;
+         break;
+      }
+      
+      // check to see if this is a subsequence match of the
+      // user-provided search term
+      if (!string_utils::isSubsequence(displayText, term, true))
+         continue;
+
+      // add the suffix (if any)
+      if (bookdownRef.getObject().hasMember("suffix"))
+         displayText += bookdownRef.getObject()["suffix"].getString();
+      
+      // bundle xref into source item
+      json::Object meta;
+      meta["type"] = "xref";
+      meta["xref"] = bookdownRef;
+      
+      // we found a match: construct source item and add to list
+      SourceItem item(
+               sourceType, displayText, "", "",
+               module_context::createAliasedPath(
+                  basePath.completeChildPath(file)),
+               -1, -1,
+               meta);
+      
+      pSourceItems->push_back(item);
+   }
+}
+
 template <typename TValue, typename TFunc>
 json::Array toJsonArray(
       const std::vector<SourceItem> &items,
@@ -1569,8 +1700,9 @@ Error searchCode(const json::JsonRpcRequest& request,
    Error error = json::readParams(request.params, &term, &maxResultsInt);
    if (error)
       return error;
-   std::size_t maxResults = safe_convert::numberTo<int, std::size_t>(maxResultsInt,
-                                                                20);
+   
+   std::size_t maxResults =
+         safe_convert::numberTo<int, std::size_t>(maxResultsInt, 20);
 
    // object to return
    json::Object result;
@@ -1602,6 +1734,9 @@ Error searchCode(const json::JsonRpcRequest& request,
                   cppDefinitions.end(),
                   std::back_inserter(srcItems),
                   fromCppDefinition);
+   
+   // search bookdown xref index
+   fillFromBookdownRefs(term, &srcItems);
 
    // typedef necessary for range-based-for to work with pairs
    typedef std::pair<int, int> PairIntInt;
@@ -1673,6 +1808,7 @@ Error searchCode(const json::JsonRpcRequest& request,
    src["context"] = toJsonArray<std::string>(srcItemsFiltered, &SourceItem::context);
    src["line"] = toJsonArray<int>(srcItemsFiltered, &SourceItem::line);
    src["column"] = toJsonArray<int>(srcItemsFiltered, &SourceItem::column);
+   src["metadata"] = toJsonArray<json::Object>(srcItemsFiltered, &SourceItem::metadata);
    result["source_items"] = src;
 
    // set more available bit
@@ -1792,7 +1928,7 @@ void getFunctionS3Methods(const std::string& methodName, json::Array* pMethods)
    std::transform(methods.begin(),
                   methods.end(),
                   std::back_inserter(*pMethods),
-                  boost::bind(json::toJsonString, _1));
+                  boost::bind(json::toJsonValue<std::string>, _1));
 
 }
 
@@ -1818,7 +1954,7 @@ public:
 
          // read , separated fields
          std::string types = match[2];
-         using namespace boost ;
+         using namespace boost;
          char_separator<char> comma(",");
          tokenizer<char_separator<char> > typeTokens(types, comma);
          std::transform(typeTokens.begin(),
@@ -1865,7 +2001,7 @@ void getFunctionS4Methods(const std::string& methodName, json::Array* pMethods)
       std::transform(methods.begin(),
                      methods.end(),
                      std::back_inserter(*pMethods),
-                     boost::bind(json::toJsonString, _1));
+                     boost::bind(json::toJsonValue<std::string>, _1));
    }
 }
 
@@ -2071,7 +2207,7 @@ json::Value createS3MethodDefinition(const std::string& name)
 json::Value createS4MethodDefinition(const FunctionInfo& functionInfo)
 {
    // lookup the method
-   std::string functionNamespace ;
+   std::string functionNamespace;
    r::sexp::Protect rProtect;
    SEXP functionSEXP = R_NilValue;
    Error error = getS4Method(functionInfo,
@@ -2280,8 +2416,7 @@ Error findFunctionInSearchPath(const json::JsonRpcRequest& request,
       return error;
 
    // handle fromWhere NULL case
-   std::string fromWhere = fromWhereJSON.is_null() ? "" :
-                                                     fromWhereJSON.get_str();
+   std::string fromWhere = fromWhereJSON.isNull() ? "" : fromWhereJSON.getString();
 
 
    // call into R to determine the token
@@ -2481,7 +2616,7 @@ Error initialize()
    
    using boost::bind;
    using namespace module_context;
-   ExecBlock initBlock ;
+   ExecBlock initBlock;
    initBlock.addFunctions()
       (bind(registerRpcMethod, "search_code", searchCode))
       (bind(registerRpcMethod, "get_function_definition", getFunctionDefinition))
@@ -2513,7 +2648,7 @@ void addAllProjectSymbols(std::set<std::string>* pSymbols)
 {
    FilePath buildTarget = projects::projectContext().buildTargetPath();
    
-   if (!buildTarget.empty())
+   if (!buildTarget.isEmpty())
       projectIndex().walkFiles(
                buildTarget,
                boost::bind(callbacks::addAllProjectSymbols, _1, pSymbols));

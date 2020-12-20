@@ -1,7 +1,7 @@
 /*
  * SessionConnections.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,7 +20,7 @@
 #include <boost/algorithm/string/predicate.hpp>
 
 #include <core/Log.hpp>
-#include <core/Error.hpp>
+#include <shared_core/Error.hpp>
 #include <core/Exec.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/system/Process.hpp>
@@ -33,9 +33,10 @@
 
 #include <session/SessionConsoleProcess.hpp>
 #include <session/SessionModuleContext.hpp>
-#include <session/SessionUserSettings.hpp>
 #include <session/SessionPackageProvidedExtension.hpp>
 #include <session/SessionUrlPorts.hpp>
+
+#include <session/prefs/UserPrefs.hpp>
 
 #include "ActiveConnections.hpp"
 #include "ConnectionHistory.hpp"
@@ -154,17 +155,17 @@ SEXP rs_connectionOpened(SEXP connectionSEXP)
 void addObjectSpecifiers(const json::Array& specifiers, 
                          r::exec::RFunction* pFunction)
 {
-   for (unsigned i = 0; i < specifiers.size(); i++) 
+   for (unsigned i = 0; i < specifiers.getSize(); i++)
    {
       // make sure we're dealing with a json object
       const json::Value& val = specifiers[i];
-      if (val.type() != json::ObjectType)
+      if (val.getType() != json::Type::OBJECT)
          continue;
 
       // extract the name and type of the specifier
       std::string name, type;
-      Error error = json::readObject(val.get_obj(), 
-            "name", &name, "type", &type);
+      Error error = json::readObject(val.getObject(),
+            "name", name, "type", type);
       if (error)
       {
          LOG_ERROR(error);
@@ -218,14 +219,14 @@ SEXP rs_availableRemoteServers()
 
       // get the host
       json::Object idJson;
-      Error error = json::readObject(connectionJson.get_obj(), "id", &idJson);
+      Error error = json::readObject(connectionJson.getObject(), "id", idJson);
       if (error)
       {
          LOG_ERROR(error);
          continue;
       }
       std::string host;
-      error = json::readObject(idJson, "host", &host);
+      error = json::readObject(idJson, "host", host);
       if (error)
       {
          LOG_ERROR(error);
@@ -247,7 +248,7 @@ SEXP rs_availableRemoteServers()
 
 SEXP rs_availableConnections()
 {
-   std::string data = json::write(connectionsRegistryAsJson());
+   std::string data = connectionsRegistryAsJson().write();
 
    r::sexp::Protect rProtect;
    return r::sexp::create(data, &rProtect);
@@ -477,7 +478,7 @@ void connectionPreviewObject(const json::JsonRpcRequest& request,
                                  connectionId.type,
                                  connectionId.host,
                                  1000);
-   addObjectSpecifiers(objectSpecifier, &previewObject); 
+   addObjectSpecifiers(objectSpecifier, &previewObject);
    error = previewObject.call(&sexpResult, &rProtect);
 
    // send the response
@@ -510,7 +511,7 @@ void initEnvironment()
    const char * const kRStudioWinutils = "RSTUDIO_WINUTILS";
    std::string rstudioWinutils = core::system::getenv(kRStudioWinutils);
    if (rstudioWinutils.empty())
-      rstudioWinutils = session::options().winutilsPath().absolutePath();
+      rstudioWinutils = session::options().winutilsPath().getAbsolutePath();
    r::exec::RFunction sysSetenv("Sys.setenv");
    sysSetenv.addParam(kRStudioWinutils, rstudioWinutils);
 
@@ -526,8 +527,8 @@ Error handleConnectionsResourceRequest(const http::Request& request,
 {
    std::string path = http::util::pathAfterPrefix(
          request, "/" kConnectionsPath "/");
-   core::FilePath res = options().rResourcesPath().complete(kConnectionsPath)
-      .childPath(path);
+   core::FilePath res = options().rResourcesPath().completePath(kConnectionsPath)
+                                 .completeChildPath(path);
    pResponse->setCacheableFile(res, request);
    return Success();
 }
@@ -563,7 +564,7 @@ SEXP rs_embeddedViewer(SEXP urlSEXP)
 SEXP rs_connectionOdbcInstallPath()
 {
    r::sexp::Protect rProtect;
-   std::string path = module_context::userScratchPath().absolutePath();
+   std::string path = module_context::userScratchPath().getAbsolutePath();
    return r::sexp::create(path, &rProtect);
 }
 
@@ -605,12 +606,12 @@ Error installOdbcDriver(const json::JsonRpcRequest& request,
    // find the tools module
    FilePath rPath = session::options().coreRSourcePath();
    std::string toolsPath = core::string_utils::utf8ToSystem(
-      rPath.childPath("Tools.R").absolutePath());
+      rPath.completeChildPath("Tools.R").getAbsolutePath());
 
    // find connection installer module
    FilePath modulesPath = session::options().modulesRSourcePath();
    std::string scriptPath = core::string_utils::utf8ToSystem(
-      modulesPath.complete("SessionConnectionsInstaller.R").absolutePath());
+      modulesPath.completePath("SessionConnectionsInstaller.R").getAbsolutePath());
 
    // source the command
    std::string cmd;
@@ -657,7 +658,7 @@ Error installOdbcDriver(const json::JsonRpcRequest& request,
 
    // for windows we need to forward setInternet2
 #ifdef _WIN32
-   if (!r::session::utils::isR3_3() && userSettings().useInternet2())
+   if (!r::session::utils::isR3_3() && prefs::userPrefs().useInternet2())
       args.push_back("--internet2");
 #endif
 
@@ -671,7 +672,7 @@ Error installOdbcDriver(const json::JsonRpcRequest& request,
    // create and execute console process
    boost::shared_ptr<console_process::ConsoleProcess> pCP;
    pCP = console_process::ConsoleProcess::create(
-            string_utils::utf8ToSystem(rProgramPath.absolutePath()),
+            string_utils::utf8ToSystem(rProgramPath.getAbsolutePath()),
             args,
             options,
             pCPI);
@@ -715,7 +716,7 @@ Error initialize()
 
    using boost::bind;
    using namespace module_context;
-   ExecBlock initBlock ;
+   ExecBlock initBlock;
    initBlock.addFunctions()
       (bind(registerRpcMethod, "remove_connection", removeConnection))
       (bind(registerRpcMethod, "connection_disconnect", connectionDisconnect))

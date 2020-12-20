@@ -1,7 +1,7 @@
 /*
  * ConsoleClearButton.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,21 +23,19 @@ import com.google.inject.Inject;
 import org.rstudio.core.client.command.AppCommand;
 import org.rstudio.core.client.theme.res.ThemeStyles;
 import org.rstudio.core.client.widget.ToolbarButton;
-import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.workbench.commands.Commands;
 
 public class ConsoleClearButton extends Composite
 {
    @Inject
-   public ConsoleClearButton(final EventBus events, Commands commands)
+   public ConsoleClearButton(Commands commands)
    {
       // The SimplePanel wrapper is necessary for the toolbar button's "pushed"
       // effect to work.
       SimplePanel panel = new SimplePanel();
       panel.getElement().getStyle().setPosition(Position.RELATIVE);
 
-      commands_ = commands;
-      AppCommand clearCommand = commands_.consoleClear();
+      AppCommand clearCommand = commands.consoleClear();
       ImageResource icon = clearCommand.getImageResource();
       ToolbarButton button = new ToolbarButton(
             ToolbarButton.NoText, 
@@ -65,5 +63,4 @@ public class ConsoleClearButton extends Composite
    
    private final int width_;
    private final int height_;
-   private final Commands commands_;
 }

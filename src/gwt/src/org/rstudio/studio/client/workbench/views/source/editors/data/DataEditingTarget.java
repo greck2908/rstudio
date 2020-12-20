@@ -1,7 +1,7 @@
 /*
  * DataEditingTarget.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,17 +14,18 @@
  */
 package org.rstudio.studio.client.workbench.views.source.editors.data;
 
+import com.google.gwt.aria.client.Roles;
 import com.google.gwt.user.client.ui.Widget;
 import com.google.inject.Inject;
 
-import org.rstudio.core.client.Debug;
+import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.widget.SimplePanelWithProgress;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.common.SimpleRequestCallback;
 import org.rstudio.studio.client.common.filetypes.FileIcon;
+import org.rstudio.studio.client.server.ErrorLoggingServerRequestCallback;
 import org.rstudio.studio.client.server.ServerError;
-import org.rstudio.studio.client.server.ServerRequestCallback;
 import org.rstudio.studio.client.server.Void;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.views.source.editors.urlcontent.UrlContentEditingTarget;
@@ -41,7 +42,6 @@ public class DataEditingTarget extends UrlContentEditingTarget
    enum QueuedRefreshType
    {
       NoRefresh,
-      DataRefresh,
       StructureRefresh
    }
 
@@ -62,12 +62,19 @@ public class DataEditingTarget extends UrlContentEditingTarget
    {
       progressPanel_ = new SimplePanelWithProgress();
       progressPanel_.setSize("100%", "100%");
+      Roles.getTabpanelRole().set(progressPanel_.getElement());
+      setAccessibleName(null);
       reloadDisplay();
       return new Display()
       {
          public void print()
          {
             ((Display)progressPanel_.getWidget()).print();
+         }
+
+         public void setAccessibleName(String accessibleName)
+         {
+            DataEditingTarget.this.setAccessibleName(accessibleName);
          }
 
          public Widget asWidget()
@@ -80,42 +87,38 @@ public class DataEditingTarget extends UrlContentEditingTarget
    @Override
    public void onDataViewChanged(DataViewChangedEvent event)
    {
-      if (event.getData().getCacheKey() == getDataItem().getCacheKey())
+      if (event.getData().getCacheKey().equals(getDataItem().getCacheKey()))
       {
-         // figure out what kind of refresh we need--if we already have a full
-         // (structural) refresh queued, it trumps other refresh types
-         if (queuedRefresh_ != QueuedRefreshType.StructureRefresh)
-         {
-            queuedRefresh_ = event.getData().structureChanged() ? 
-                  QueuedRefreshType.StructureRefresh : 
-                  QueuedRefreshType.DataRefresh;
-         }
-
+         queuedRefresh_ = QueuedRefreshType.StructureRefresh;
          // perform the refresh immediately if the tab is active; otherwise,
          // leave it in the queue and it'll be run when the tab is activated
          if (isActive_)
          {
-            doQueuedRefresh(false);
+            doQueuedRefresh();
          }
       }
+   }
+
+   private void setAccessibleName(String accessibleName)
+   {
+      if (StringUtil.isNullOrEmpty(accessibleName))
+         accessibleName = "Untitled Data Browser";
+      Roles.getTabpanelRole().setAriaLabelProperty(progressPanel_.getElement(), accessibleName + 
+            " Data Browser");
    }
 
    @Override
    public void onActivate()
    {
       super.onActivate();
+      isActive_ = true;
       if (view_ != null)
       {
+         // the data change while the window wasn't active, so refresh it,
          if (queuedRefresh_ != QueuedRefreshType.NoRefresh)
-         {
-            // the data change while the window wasn't active, so refresh it,
-            // and recompute the size when finished
-            doQueuedRefresh(true);
-         }
+            doQueuedRefresh();
          else
-         {
             view_.onActivate();
-         }
       }
    }
 
@@ -134,12 +137,9 @@ public class DataEditingTarget extends UrlContentEditingTarget
       // have an associated content URL to clean up
    }
    
-   private void doQueuedRefresh(boolean onActivate)
+   private void doQueuedRefresh()
    {
-      if (queuedRefresh_ == QueuedRefreshType.DataRefresh)
-         view_.refreshData(false, onActivate);
-      else if (queuedRefresh_ == QueuedRefreshType.StructureRefresh)
-         view_.refreshData(true, onActivate);
+      view_.refreshData();
       queuedRefresh_ = QueuedRefreshType.NoRefresh;
    }
 
@@ -151,10 +151,11 @@ public class DataEditingTarget extends UrlContentEditingTarget
    private void reloadDisplay()
    {
       view_ = new DataEditingTargetWidget(
-            "Data Editing Target",
+            "Data Browser",
             commands_,
             events_,
-            getDataItem());
+            getDataItem(),
+            column_);
       view_.setSize("100%", "100%");
       progressPanel_.setWidget(view_);
    }
@@ -191,7 +192,13 @@ public class DataEditingTarget extends UrlContentEditingTarget
    @Override
    public void popoutDoc()
    {
-      events_.fireEvent(new PopoutDocEvent(getId(), null));
+      events_.fireEvent(new PopoutDocEvent(getId(), null, null));
+   }
+
+   @Override
+   public String getCurrentStatus()
+   {
+      return "Data Browser displayed";
    }
 
    protected String getCacheKey()
@@ -219,14 +226,7 @@ public class DataEditingTarget extends UrlContentEditingTarget
                {
                   server_.removeCachedData(
                         oldCacheKey,
-                        new ServerRequestCallback<Void>() {
-
-                           @Override
-                           public void onError(ServerError error)
-                           {
-                              Debug.logError(error);
-                           }
-                        });
+                        new ErrorLoggingServerRequestCallback<Void>());
 
                   data.fillProperties(doc_.getProperties());
                   reloadDisplay();

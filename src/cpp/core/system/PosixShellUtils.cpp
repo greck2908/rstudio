@@ -1,7 +1,7 @@
 /*
  * PosixShellUtils.cpp
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,13 +23,13 @@ namespace shell_utils {
 
 std::string escape(const std::string& arg)
 {
-   boost::regex pattern("[\\\\$`!\n\"]");
-   return "\"" + boost::regex_replace(arg, pattern, "\\\\$0") + "\"";
+   boost::regex pattern("'");
+   return "'" + boost::regex_replace(arg, pattern, R"('"'"')") + "'";
 }
 
 std::string escape(const core::FilePath &path)
 {
-   return escape(string_utils::utf8ToSystem(path.absolutePath()));
+   return escape(string_utils::utf8ToSystem(path.getAbsolutePath()));
 }
 
 std::string join(const std::string& command1, const std::string& command2)

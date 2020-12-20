@@ -1,7 +1,7 @@
 /*
  * RVersionsPosix.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -45,7 +45,7 @@ std::vector<FilePath> realPaths(const std::vector<FilePath>& paths)
    for (const FilePath& path : paths)
    {
       FilePath realPath;
-      Error error = core::system::realPath(path.absolutePath(), &realPath);
+      Error error = core::system::realPath(path.getAbsolutePath(), &realPath);
       if (!error)
          realPaths.push_back(realPath);
       else
@@ -71,12 +71,12 @@ void scanForRHomePaths(const core::FilePath& rootDir,
    if (rootDir.exists())
    {
       std::vector<FilePath> rDirs;
-      Error error = rootDir.children(&rDirs);
+      Error error = rootDir.getChildren(rDirs);
       if (error)
          LOG_ERROR(error);
       for (const FilePath& rDir : rDirs)
       {
-         if (rDir.childPath("bin/R").exists())
+         if (rDir.completeChildPath("bin/R").exists())
             pHomePaths->push_back(rDir);
       }
    }
@@ -108,7 +108,8 @@ std::vector<RVersion> enumerateRVersions(
                               std::vector<r_util::RVersion> rEntries,
                               bool scanForOtherVersions,
                               const FilePath& ldPathsScript,
-                              const std::string& ldLibraryPath)
+                              const std::string& ldLibraryPath,
+                              const FilePath& modulesBinaryPath)
 {
    std::vector<RVersion> rVersions;
 
@@ -141,9 +142,23 @@ std::vector<RVersion> enumerateRVersions(
    for (r_util::RVersion& rEntry : rEntries)
    {
       // compute R script path
-      FilePath rScriptPath = rEntry.homeDir().childPath("bin/R");
+      FilePath rScriptPath = rEntry.homeDir().completeChildPath("bin/R");
       if (!rScriptPath.exists())
-         continue;
+      {
+         if (rEntry.module().empty())
+         {
+            LOG_ERROR_MESSAGE("Invalid R version specified - path does not exist: " +
+                              rScriptPath.getAbsolutePath() + " - version will be skipped");
+            continue;
+         }
+         else
+         {
+            // if we are loading a module and no R path is defined, that's okay
+            // just mark the path as empty and the default R on the module path
+            // will be used instead
+            rScriptPath = FilePath();
+         }
+      }
 
       // get the prelaunch script to be executed before attempting to load R to read version info
       // if the prelaunch script is specific to users (starts with ~), don't attempt to use it
@@ -163,7 +178,9 @@ std::vector<RVersion> enumerateRVersions(
                              &rVersion,
                              &env,
                              &errMsg,
-                             prelaunchScript))
+                             prelaunchScript,
+                             rEntry.module(),
+                             modulesBinaryPath))
       {
          // merge the found environment with the existing user-overridden environment
          // we ensure that the user overrides overwrite whatever environment we established automatically
@@ -195,9 +212,14 @@ std::vector<RVersion> enumerateRVersions(
       }
       else
       {
-         LOG_ERROR_MESSAGE("Error scanning R version at " +
-                           rScriptPath.absolutePath() + ": " +
-                           errMsg);
+         std::string rVersion;
+
+         if (!rEntry.module().empty())
+            rVersion += " module " + rEntry.module();
+         if (!rScriptPath.getAbsolutePath().empty())
+            rVersion += " at " + rScriptPath.getAbsolutePath();
+
+         LOG_ERROR_MESSAGE("Error scanning R version" + rVersion + ": " + errMsg);
       }
    }
 
@@ -205,7 +227,7 @@ std::vector<RVersion> enumerateRVersions(
    for (const FilePath& rHomePath : rHomePaths)
    {
       // compute R script path
-      FilePath rScriptPath = rHomePath.childPath("bin/R");
+      FilePath rScriptPath = rHomePath.completeChildPath("bin/R");
       if (!rScriptPath.exists())
          continue;
 
@@ -225,7 +247,7 @@ std::vector<RVersion> enumerateRVersions(
       else
       {
          LOG_ERROR_MESSAGE("Error scanning R version at " +
-                           rScriptPath.absolutePath() + ": " +
+                              rScriptPath.getAbsolutePath() + ": " +
                            errMsg);
       }
    }
@@ -234,27 +256,27 @@ std::vector<RVersion> enumerateRVersions(
    // scan the R frameworks directory
    FilePath rFrameworkVersions(kRFrameworkVersions);
    std::vector<FilePath> versionPaths;
-   Error error = rFrameworkVersions.children(&versionPaths);
+   Error error = rFrameworkVersions.getChildren(versionPaths);
    if (error)
       LOG_ERROR(error);
    for (const FilePath& versionPath : versionPaths)
    {
-      if (!versionPath.isHidden() && (versionPath.filename() != "Current"))
+      if (!versionPath.isHidden() && (versionPath.getFilename() != "Current"))
       {
          using namespace rstudio::core::system;
          core::system::Options env;
-         FilePath rHomePath = versionPath.childPath("Resources");
-         FilePath rLibPath = rHomePath.childPath("lib");
-         core::system::setenv(&env, "R_HOME", rHomePath.absolutePath());
+         FilePath rHomePath = versionPath.completeChildPath("Resources");
+         FilePath rLibPath = rHomePath.completeChildPath("lib");
+         core::system::setenv(&env, "R_HOME", rHomePath.getAbsolutePath());
          core::system::setenv(&env,
                               "R_SHARE_DIR",
-                              rHomePath.childPath("share").absolutePath());
+                              rHomePath.completeChildPath("share").getAbsolutePath());
          core::system::setenv(&env,
                               "R_INCLUDE_DIR",
-                               rHomePath.childPath("include").absolutePath());
+                               rHomePath.completeChildPath("include").getAbsolutePath());
          core::system::setenv(&env,
                               "R_DOC_DIR",
-                               rHomePath.childPath("doc").absolutePath());
+                               rHomePath.completeChildPath("doc").getAbsolutePath());
          core::system::setenv(&env,
                               "DYLD_FALLBACK_LIBRARY_PATH",
                               r_util::rLibraryPath(rHomePath,
@@ -263,12 +285,12 @@ std::vector<RVersion> enumerateRVersions(
                                                    ldLibraryPath));
          core::system::setenv(&env, "R_ARCH", "/x86_64");
 
-         RVersion version(versionPath.filename(), env);
+         RVersion version(versionPath.getFilename(), env);
 
          // improve on the version by asking R for it's version
-         FilePath rBinaryPath = rHomePath.childPath("bin/exec/R");
+         FilePath rBinaryPath = rHomePath.completeChildPath("bin/exec/R");
          if (!rBinaryPath.exists())
-            rBinaryPath = rHomePath.childPath("bin/exec/x86_64/R");
+            rBinaryPath = rHomePath.completeChildPath("bin/exec/x86_64/R");
          if (rBinaryPath.exists())
          {
             std::string versionNumber = version.number();
@@ -311,7 +333,7 @@ bool isVersion(const RVersionNumber& number,
                const RVersion& item)
 {
    return number == RVersionNumber::parse(item.number()) &&
-          rHomeDir == item.homeDir().absolutePath();
+          rHomeDir == item.homeDir().getAbsolutePath();
 }
 
 bool isLabelVersion(const RVersionNumber& number,
@@ -413,10 +435,12 @@ json::Object rVersionToJson(const RVersion& version)
 {
    json::Object versionJson;
    versionJson["number"] = version.number();
-   versionJson["environment"] = json::toJsonObject(version.environment());
+   versionJson["environment"] = json::Object(version.environment());
    versionJson["label"] = version.label();
    versionJson["module"] = version.module();
    versionJson["prelaunchScript"] = version.prelaunchScript();
+   versionJson["repo"] = version.repo();
+   versionJson["library"] = version.library();
 
    return versionJson;
 }
@@ -429,22 +453,27 @@ Error rVersionFromJson(const json::Object& versionJson,
    std::string label;
    std::string module;
    std::string prelaunchScript;
+   std::string repo;
+   std::string library;
 
    Error error = json::readObject(versionJson,
-                                  "number", &number,
-                                  "environment", &environmentJson,
-                                  "label", &label,
-                                  "module", &module,
-                                  "prelaunchScript", &prelaunchScript);
+                                  "number", number,
+                                  "environment", environmentJson,
+                                  "label", label,
+                                  "module", module,
+                                  "prelaunchScript", prelaunchScript,
+                                  "repo", repo,
+                                  "library", library);
    if (error)
       return error;
 
-   *pVersion = RVersion(number,
-                        json::optionsFromJson(environmentJson));
+   *pVersion = RVersion(number, environmentJson.toStringPairList());
 
    pVersion->setLabel(label);
    pVersion->setModule(module);
    pVersion->setPrelaunchScript(prelaunchScript);
+   pVersion->setRepo(repo);
+   pVersion->setLibrary(library);
 
    return Success();
 }
@@ -468,7 +497,7 @@ Error rVersionsFromJson(const json::Array& versionsJson,
          return systemError(boost::system::errc::bad_message, ERROR_LOCATION);
 
       r_util::RVersion rVersion;
-      Error error = rVersionFromJson(versionJson.get_obj(), &rVersion);
+      Error error = rVersionFromJson(versionJson.getObject(), &rVersion);
       if (error)
           return error;
 
@@ -482,9 +511,7 @@ Error rVersionsFromJson(const json::Array& versionsJson,
 Error writeRVersionsToFile(const FilePath& filePath,
                            const std::vector<r_util::RVersion>& versions)
 {
-   std::ostringstream ostr;
-   json::writeFormatted(versionsToJson(versions), ostr);
-   return core::writeStringToFile(filePath, ostr.str());
+   return core::writeStringToFile(filePath, versionsToJson(versions).writeFormatted());
 }
 
 Error readRVersionsFromFile(const FilePath& filePath,
@@ -499,7 +526,7 @@ Error readRVersionsFromFile(const FilePath& filePath,
    // parse json
    using namespace json;
    json::Value jsonValue;
-   if (!parse(contents, &jsonValue) || !isType<json::Array>(jsonValue))
+   if (jsonValue.parse(contents) || !isType<json::Array>(jsonValue))
    {
       Error error = systemError(boost::system::errc::bad_message,
                                 ERROR_LOCATION);
@@ -507,7 +534,7 @@ Error readRVersionsFromFile(const FilePath& filePath,
       return error;
    }
 
-   return rVersionsFromJson(jsonValue.get_array(), pVersions);
+   return rVersionsFromJson(jsonValue.getArray(), pVersions);
 }
 
 Error validatedReadRVersionsFromFile(const FilePath& filePath,
@@ -528,7 +555,7 @@ Error validatedReadRVersionsFromFile(const FilePath& filePath,
       else
       {
          LOG_WARNING_MESSAGE("R version home directory not found: " +
-                             version.homeDir().absolutePath());
+                                version.homeDir().getAbsolutePath());
       }
    }
 

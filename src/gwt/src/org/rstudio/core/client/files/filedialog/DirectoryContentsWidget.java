@@ -1,7 +1,7 @@
 /*
  * DirectoryContentsWidget.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,6 +14,10 @@
  */
 package org.rstudio.core.client.files.filedialog;
 
+import com.google.gwt.aria.client.Id;
+import com.google.gwt.aria.client.Roles;
+import com.google.gwt.aria.client.SelectedValue;
+import com.google.gwt.dom.client.Element;
 import com.google.gwt.dom.client.TableElement;
 import com.google.gwt.dom.client.TableRowElement;
 import com.google.gwt.event.dom.client.*;
@@ -27,12 +31,12 @@ import com.google.gwt.user.client.ui.FlexTable;
 import com.google.gwt.user.client.ui.HTMLTable;
 import com.google.gwt.user.client.ui.impl.FocusImpl;
 
+import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.Point;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.dom.DomUtils;
 import org.rstudio.core.client.events.HasSelectionCommitHandlers;
 import org.rstudio.core.client.events.SelectionCommitEvent;
-import org.rstudio.core.client.events.SelectionCommitHandler;
 import org.rstudio.core.client.files.FileSystemContext;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.widget.CanFocus;
@@ -84,12 +88,16 @@ public class DirectoryContentsWidget
       table_.setCellPadding(2);
       table_.setSize("100%", "100%");
 
+      // presented to screen readers as a single-select listbox
+      Roles.getListboxRole().set(table_.getElement());
+      Roles.getListboxRole().setAriaLabelProperty(table_.getElement(), "Directory Contents");
+
       scrollPanel_ = new ScrollPanelWithClick(table_);
       scrollPanel_.setSize("100%", "100%");
 
       progressPanel_ = new SimplePanelWithProgress();
       progressPanel_.setWidget(null);
-      
+
       buffer_ = new StringBuilder();
       bufferTimer_ = new Timer()
       {
@@ -115,7 +123,7 @@ public class DirectoryContentsWidget
          {
             event.preventDefault();
             event.stopPropagation();
-            
+
             // IE10: focusing the the table element causes the scroll panel to
             // snap it to the top, scrolling the event target offscreen. Set
             // and restore the position after focus.
@@ -155,7 +163,7 @@ public class DirectoryContentsWidget
          {
             bufferTimer_.schedule(700);
             int keyCode = event.getNativeKeyCode();
-            
+
             if (keyCode >= 'A' && keyCode <= 'Z' ||
                 keyCode >= '0' && keyCode <= '9' ||
                 keyCode == '.' || keyCode == '_' || keyCode == '-')
@@ -163,12 +171,12 @@ public class DirectoryContentsWidget
                char ch = (char) keyCode;
                if (keyCode >= 'A' && keyCode <= 'Z' && !event.isShiftKeyDown())
                   ch = Character.toLowerCase(ch);
-               
+
                buffer_.append(ch);
                selectBufferMatch();
                return;
             }
-            
+
             switch (keyCode)
             {
                case KeyCodes.KEY_DOWN:
@@ -233,42 +241,42 @@ public class DirectoryContentsWidget
          }
       });
    }
-   
+
    private void commitSelection(FileSystemItem item)
    {
       buffer_.setLength(0);
       SelectionCommitEvent.fire(DirectoryContentsWidget.this, item);
    }
-   
+
    private void onBackspace()
    {
       if (!items_.containsKey(".."))
          return;
-      
+
       FileSystemItem item = items_.get("..");
       commitSelection(item);
    }
-   
+
    private interface StringTransformer
    {
       public String transform(String string);
    }
-   
+
    private static class IdentityStringTransformer implements StringTransformer
    {
       public String transform(String string) { return string; }
    }
-   
+
    private static class LowerCaseStringTransformer implements StringTransformer
    {
       public String transform(String string) { return string.toLowerCase(); }
    }
-   
+
    private boolean selectBufferMatchImpl(String buffer, StringTransformer transformer)
    {
       String string = transformer.transform(buffer);
       int i = 0;
-      
+
       for (Map.Entry<String, FileSystemItem> entry : items_.entrySet())
       {
          String fileName = transformer.transform(entry.getKey());
@@ -277,22 +285,22 @@ public class DirectoryContentsWidget
             setSelectedRow(i);
             return true;
          }
-         
+
          i++;
       }
-      
+
       return false;
    }
-   
+
    private void selectBufferMatch()
    {
       if (buffer_.length() == 0)
          return;
-      
+
       String buffer = buffer_.toString();
       if (selectBufferMatchImpl(buffer, new IdentityStringTransformer()))
          return;
-      
+
       if (selectBufferMatchImpl(buffer, new LowerCaseStringTransformer()))
          return;
    }
@@ -306,7 +314,7 @@ public class DirectoryContentsWidget
          return;
       }
 
-      int row = selectedRow_.intValue() + offset;
+      int row = selectedRow_ + offset;
       row = Math.max(0, Math.min(table_.getRowCount()-1, row));
       setSelectedRow(row);
    }
@@ -315,22 +323,24 @@ public class DirectoryContentsWidget
    {
       if (selectedRow_ != null)
       {
-         table_.getRowFormatter().removeStyleName(
-               selectedRow_.intValue(),
-               "gwt-MenuItem-selected");
+         table_.getRowFormatter().removeStyleName(selectedRow_, "gwt-MenuItem-selected");
+         Roles.getOptionRole().removeAriaSelectedState(
+               table_.getRowFormatter().getElement(selectedRow_));
+         Roles.getListboxRole().removeAriaActivedescendantProperty(table_.getElement());
          selectedRow_ = null;
          selectedValue_ = null;
       }
 
-      if (row != null
-          && row.intValue() >= 0
-          && row.intValue() < table_.getRowCount())
+      if (row != null && row >= 0 && row < table_.getRowCount())
       {
-         selectedRow_ = row.intValue();
-         table_.getRowFormatter().addStyleName(
-               selectedRow_,
-               "gwt-MenuItem-selected");
-         selectedValue_ = table_.getText(row.intValue(), COL_NAME);
+         selectedRow_ = row;
+         table_.getRowFormatter().addStyleName(selectedRow_, "gwt-MenuItem-selected");
+         Roles.getOptionRole().setAriaSelectedState(
+               table_.getRowFormatter().getElement(selectedRow_), SelectedValue.TRUE);
+         Roles.getListboxRole().setAriaActivedescendantProperty(
+               table_.getElement(),
+               Id.of(table_.getRowFormatter().getElement(selectedRow_)));
+         selectedValue_ = table_.getText(row, COL_NAME);
 
          TableRowElement rowEl = ((TableElement)table_.getElement().cast())
                .getRows().getItem(selectedRow_);
@@ -363,7 +373,9 @@ public class DirectoryContentsWidget
 
    public void clearContents()
    {
+      Roles.getListboxRole().removeAriaActivedescendantProperty(table_.getElement());
       table_.removeAllRows();
+      uniqueIdIndex_ = 0;
       items_.clear();
       selectedRow_ = null;
       selectedValue_ = null;
@@ -397,8 +409,11 @@ public class DirectoryContentsWidget
          customIcon = context_.getIcon(item);
 
       items_.put(customName, item);
-      
+
       int newRow = table_.insertRow(table_.getRowCount());
+      Element tr = table_.getRowFormatter().getElement(newRow);
+      Roles.getOptionRole().set(tr);
+      tr.setId(ElementIds.ID_PREFIX + "dirContents_" + uniqueIdIndex_++);
       table_.setWidget(
             newRow,
             COL_ICON,
@@ -417,7 +432,7 @@ public class DirectoryContentsWidget
          table_.setText(newRow,
                         COL_SIZE,
                         StringUtil.formatFileSize(item.getLength()));
-         
+
          table_.setText(newRow,
                         COL_TIMESTAMP,
                         StringUtil.formatDate(item.getLastModified()));
@@ -457,7 +472,7 @@ public class DirectoryContentsWidget
    }
 
    public HandlerRegistration addSelectionCommitHandler(
-         SelectionCommitHandler<FileSystemItem> handler)
+         SelectionCommitEvent.Handler<FileSystemItem> handler)
    {
       return addHandler(handler, SelectionCommitEvent.getType());
    }
@@ -490,16 +505,17 @@ public class DirectoryContentsWidget
       else
          focusImpl_.blur(table_.getElement());
    }
-   
+
    public void focus()
    {
       setFocus(true);
    }
-   
+
    private Map<String, FileSystemItem> items_ = new LinkedHashMap<>();
    private final DoubleClickState doubleClick_ = new DoubleClickState();
    private Integer selectedRow_;
    private String selectedValue_;
+   private int uniqueIdIndex_;
    private final FlexTableEx table_;
    private final ScrollPanelWithClick scrollPanel_;
    private final SimplePanelWithProgress progressPanel_;

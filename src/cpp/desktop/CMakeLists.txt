@@ -1,7 +1,7 @@
 #
 # CMakeLists.txt
 #
-# Copyright (C) 2009-19 by RStudio, Inc.
+# Copyright (C) 2020 by RStudio, PBC
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -34,12 +34,8 @@ if(NOT WIN32)
            set(QT_COMPILER "gcc")
          endif()
       endif()
-         
-      if(APPLE)
-         set(QT_CANDIDATES 5.12.1)   
-      else()
-         set(QT_CANDIDATES 5.12.1 5.10.1)
-      endif()
+
+      set(QT_CANDIDATES 5.12.8)
 
       # find the newest installed Qt version among the versions we build
       # against
@@ -72,7 +68,7 @@ if(NOT WIN32)
    endif()
 else()
    # Windows
-   set(QT_VERSION "5.12.1")
+   set(QT_VERSION "5.12.8")
    set(QT_VERSION_SUBDIR "${QT_VERSION}")   
    if(NOT QT_QMAKE_EXECUTABLE)
 
@@ -108,6 +104,7 @@ set(CMAKE_PREFIX_PATH "${QT_BIN_DIR}//..//lib//cmake")
 add_definitions(
    -DQT_NO_CAST_FROM_ASCII
    -DQT_NO_CAST_TO_ASCII
+   -DQT_DEPRECATED_WARNINGS
    -DQT_NO_SIGNALS_SLOTS_KEYWORDS)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
@@ -223,6 +220,7 @@ set(DESKTOP_SOURCE_FILES
   DesktopSlotBinders.cpp
   DesktopSubMenu.cpp
   DesktopSynctex.cpp
+  DesktopJobLauncherOverlay.cpp
   RemoteDesktopSessionLauncherOverlay.cpp
   3rdparty/qtsingleapplication/qtsingleapplication.cpp
   3rdparty/qtsingleapplication/qtlocalpeer.cpp
@@ -278,6 +276,7 @@ endif()
 include_directories(
   include
   ${CORE_SOURCE_DIR}/include
+  ${SHARED_CORE_SOURCE_DIR}/include
   ${OPENSSL_INCLUDE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
@@ -316,9 +315,6 @@ if(WIN32)
       add_subdirectory(synctex/rsinverse)
    endif()
 
-   set(
-      CMAKE_EXE_LINKER_FLAGS
-      "${CMAKE_EXE_LINKER_FLAGS} /subsystem:windows")
 endif(WIN32)
 
 
@@ -357,6 +353,14 @@ if(UNIX AND NOT APPLE)
 )
 endif()
 
+# configure launch settings (for Visual Studio on Windows)
+if(WIN32)
+   configure_file(
+      "${CMAKE_CURRENT_SOURCE_DIR}/launch.vs.json.in"
+      "${CMAKE_CURRENT_BINARY_DIR}/launch.vs.json"
+      @ONLY)
+endif()
+
 # define executable (Windows & Linux)
 if(NOT APPLE)
 
@@ -366,6 +370,10 @@ if(NOT APPLE)
       ${DESKTOP_RESOURCES_SOURCES}
       ${DESKTOP_UI_SOURCES}
    )
+
+   if(WIN32)
+      set_target_properties(rstudio PROPERTIES WIN32_EXECUTABLE YES)
+   endif()
 
    # These cause issues with macdeployqt due to missing dependencies; suspect we don't need
    # these on any platform.
@@ -549,8 +557,17 @@ if(RSTUDIO_BUNDLE_QT)
          "${CMAKE_CURRENT_BINARY_DIR}/install/LinuxInstallQt.sh")
 
    endif()
-          
+
 endif(RSTUDIO_BUNDLE_QT)
+
+# install HTML templates
+file(
+   COPY ${CMAKE_CURRENT_SOURCE_DIR}/html
+   DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/resources)
+
+install(
+   DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/resources/html
+   DESTINATION ${RSTUDIO_INSTALL_SUPPORTING}/resources)
 
 # install stylesheets
 if(NOT APPLE)

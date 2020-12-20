@@ -1,7 +1,7 @@
 /*
  * FindReplaceBar.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -60,7 +60,17 @@ public class FindReplaceBar extends Composite implements Display, RequiresResize
       String closeButton();
    }
    
-   public FindReplaceBar(boolean showReplace, final boolean defaultForward)
+   public FindReplaceBar(boolean showReplace, boolean defaultForward)
+   {
+      this(true, showReplace, true, true, defaultForward);
+   }
+   
+   
+   public FindReplaceBar(boolean showFindAll,
+                         boolean showReplace, 
+                         boolean showInSelection,
+                         boolean showWholeWord,
+                         final boolean defaultForward)
    {
       defaultForward_ = defaultForward;
       
@@ -86,6 +96,7 @@ public class FindReplaceBar extends Composite implements Display, RequiresResize
       txtReplace_.addStyleName(RES.styles().replaceTextBox());
       findReplacePanel.add(btnReplace_ = new SmallButton(cmds.replaceAndFind()));
       findReplacePanel.add(btnReplaceAll_ = new SmallButton("All"));
+      btnReplaceAll_.setTitle("Replace all occurrences");
       
       panel.add(findReplacePanel);
       
@@ -126,25 +137,7 @@ public class FindReplaceBar extends Composite implements Display, RequiresResize
       panel.add(optionsPanel);
       
       shelf.addLeftWidget(panel);
-      
-      // fixup tab indexes of controls
-      txtFind_.setTabIndex(100);
-      txtReplace_.setTabIndex(101);
-      chkInSelection_.setTabIndex(102);
-      chkCaseSensitive_.setTabIndex(103);
-      chkWholeWord_.setTabIndex(104);
-      chkRegEx_.setTabIndex(105);
-      chkWrapSearch_.setTabIndex(106);
-      
-      // remove SmallButton instances from tab order since (a) they aren't
-      // capable of showing a focused state; and (b) enter is already a
-      // keyboard shortcut for both find and replace
-      btnFindNext_.setTabIndex(-1);
-      btnFindPrev_.setTabIndex(-1);
-      btnSelectAll_.setTabIndex(-1);
-      btnReplace_.setTabIndex(-1);
-      btnReplaceAll_.setTabIndex(-1);
-     
+
       shelf.setRightVerticalAlignment(HasVerticalAlignment.ALIGN_TOP);
       shelf.addRightWidget(btnClose_ = new Button());
       btnClose_.setStyleName(RES.styles().closeButton());
@@ -203,11 +196,28 @@ public class FindReplaceBar extends Composite implements Display, RequiresResize
          }
       });
       
+      if (!showFindAll)
+      {
+         btnSelectAll_.setVisible(false);
+      }
+      
       if (!showReplace)
       {
          txtReplace_.setVisible(false);
          btnReplace_.setVisible(false);
          btnReplaceAll_.setVisible(false);
+      }
+      
+      if (!showInSelection)
+      {
+         inSelectionLabel.setVisible(false);
+         chkInSelection_.setVisible(false);
+      }
+      
+      if (!showWholeWord)
+      {
+         wholeWordLabel.setVisible(false);
+         chkWholeWord_.setVisible(false);
       }
 
       initWidget(shelf);
@@ -223,6 +233,12 @@ public class FindReplaceBar extends Composite implements Display, RequiresResize
    public void addFindKeyUpHandler(KeyUpHandler keyUpHandler)
    {
       txtFind_.addKeyUpHandler(keyUpHandler);
+   }
+   
+   public void addTextBoxFocusHandler(FocusHandler handler)
+   {
+      txtFind_.addFocusHandler(handler);
+      txtReplace_.addFocusHandler(handler);
    }
 
    public HasValue<String> getReplaceValue()

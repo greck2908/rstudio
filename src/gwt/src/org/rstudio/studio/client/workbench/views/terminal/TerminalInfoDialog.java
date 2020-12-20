@@ -1,7 +1,7 @@
 /*
  * TerminalInfoDialog.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,13 +21,13 @@ import org.rstudio.core.client.BrowseCap;
 import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.ResultCallback;
 import org.rstudio.core.client.StringUtil;
-import org.rstudio.core.client.theme.res.ThemeResources;
+import org.rstudio.core.client.theme.ThemeFonts;
 import org.rstudio.core.client.widget.ModalDialogBase;
 import org.rstudio.core.client.widget.ThemedButton;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.Desktop;
 import org.rstudio.studio.client.common.console.ConsoleProcessInfo;
-import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 
 import com.google.gwt.user.client.ui.TextArea;
 import com.google.gwt.user.client.ui.Widget;
@@ -43,11 +43,11 @@ public class TerminalInfoDialog extends ModalDialogBase
 
       setText("Terminal Diagnostics");
 
-      boolean localEchoEnabled = uiPrefs_.terminalLocalEcho().getValue() && 
+      boolean localEchoEnabled = userPrefs_.terminalLocalEcho().getValue() &&
             !BrowseCap.isWindowsDesktop();
-      
+
       final StringBuilder diagnostics = new StringBuilder();
-      
+
       diagnostics.append("Global Terminal Information\n---------------------------\n");
       diagnostics.append(globalInfo);
       if (session != null)
@@ -66,7 +66,8 @@ public class TerminalInfoDialog extends ModalDialogBase
          diagnostics.append("Handle:      '").append(cpi.getHandle()).append("'\n");
          diagnostics.append("Sequence:    '").append(cpi.getTerminalSequence()).append("'\n");
          diagnostics.append("Restarted:   '").append(cpi.getRestarted()).append("\n");
-         diagnostics.append("Busy:        '").append(cpi.getHasChildProcs()).append("'\n");
+         if (!BrowseCap.isWindowsDesktop())
+            diagnostics.append("Busy:        '").append(cpi.getHasChildProcs()).append("'\n");
          diagnostics.append("Exit Code:   '").append(cpi.getExitCode()).append("'\n");
          diagnostics.append("Full screen: 'client=").append(session.xtermAltBufferActive()).append("/server=").append(cpi.getAltBufferActive()).append("'\n");
          diagnostics.append("Zombie:      '").append(cpi.getZombie()).append("'\n");
@@ -74,8 +75,7 @@ public class TerminalInfoDialog extends ModalDialogBase
          diagnostics.append("Local-echo:  '").append(localEchoEnabled).append("'\n");
          diagnostics.append("Working Dir: '").append(cwd).append("'\n");
          diagnostics.append("Interactive: '").append(cpi.getInteractionModeName()).append("'\n");
-         diagnostics.append("WebSockets:  '").append(uiPrefs_.terminalUseWebsockets().getValue()).append("'\n");
-         diagnostics.append("Typing lag:  '").append(session.getSocket().getTypingLagMsg()).append("'\n");
+         diagnostics.append("WebSockets:  '").append(userPrefs_.terminalWebsockets().getValue()).append("'\n");
 
          diagnostics.append("\nSystem Information\n------------------\n");
          diagnostics.append("Desktop:    '").append(Desktop.isDesktop()).append("'\n");
@@ -94,13 +94,13 @@ public class TerminalInfoDialog extends ModalDialogBase
             diagnostics.append(session.getSocket().getLocalEchoDiagnostics());
       }
       textArea_ = new TextArea();
-      textArea_.addStyleName(ThemeResources.INSTANCE.themeStyles().fixedWidthFont());
+      textArea_.addStyleName(ThemeFonts.getFixedWidthClass());
       textArea_.setSize("600px", "400px");
       textArea_.setReadOnly(true);
       textArea_.setText(diagnostics.toString());
 
       addOkButton(new ThemedButton("Close", event -> closeDialog()));
-      
+
       if (session != null)
       {
          appendBufferButton_ = new ThemedButton("Append Buffer", event -> {
@@ -115,10 +115,6 @@ public class TerminalInfoDialog extends ModalDialogBase
                   textArea_.setText(diagnostics.toString());
                   textArea_.setCursorPos(diagnostics.toString().length());
                   textArea_.getElement().setScrollTop(textArea_.getElement().getScrollHeight());
-
-                  diagnostics.append("\n\nTerminal Buffer (Client)\n---------------\n");
-                  diagnostics.append(AnsiCode.prettyPrint(session.getLocalBuffer()));
-                  textArea_.setText(diagnostics.toString());
                }
 
                @Override
@@ -134,21 +130,20 @@ public class TerminalInfoDialog extends ModalDialogBase
    }
 
    @Inject
-   private void initialize(UIPrefs uiPrefs)
+   private void initialize(UserPrefs uiPrefs)
    {
-      uiPrefs_ = uiPrefs;
-   } 
+      userPrefs_ = uiPrefs;
+   }
 
-   
    @Override
    protected Widget createMainWidget()
    {
       return textArea_;
    }
-   
+
    private TextArea textArea_;
    private ThemedButton appendBufferButton_;
 
    // Injected ---- 
-   private UIPrefs uiPrefs_;
+   private UserPrefs userPrefs_;
 }

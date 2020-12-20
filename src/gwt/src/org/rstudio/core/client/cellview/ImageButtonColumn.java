@@ -1,7 +1,7 @@
 /*
  * ImageButtonColumn.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,7 +21,6 @@ import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.widget.OperationWithInput;
 
 import com.google.gwt.cell.client.AbstractCell;
-import com.google.gwt.cell.client.FieldUpdater;
 import com.google.gwt.cell.client.ValueUpdater;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.dom.client.Element;
@@ -34,28 +33,28 @@ import com.google.gwt.user.cellview.client.Column;
 
 public class ImageButtonColumn<T> extends Column<T, T>
 {
-   public static interface TitleProvider<U>
+   public interface TitleProvider<U>
    {
-      public String get(U object);
+      String get(U object);
    }
-   
-   public static interface RenderTemplates extends SafeHtmlTemplates
+
+   public interface RenderTemplates extends SafeHtmlTemplates
    {
       @Template("<span title=\"{1}\" style=\"cursor: pointer;\">{0}</span>")
       SafeHtml render(SafeHtml image, String title);
    }
-   
+
    private static class ImageButtonCell<U> extends AbstractCell<U>
    {
       public ImageButtonCell(final ImageResource2x image,
                              final TitleProvider<U> titleProvider)
       {
          super(CLICK, KEYDOWN);
-         
+
          image_ = image;
          titleProvider_ = titleProvider;
       }
-      
+
       @Override
       public void render(Context context,
                          U value,
@@ -66,7 +65,7 @@ public class ImageButtonColumn<T> extends Column<T, T>
             sb.append(TEMPLATES.render(image_.getSafeHtml(titleProvider_.get(value)), titleProvider_.get(value)));
          }
       }
-      
+
       @Override
       public void onBrowserEvent(Context context,
                                  Element parent,
@@ -75,20 +74,20 @@ public class ImageButtonColumn<T> extends Column<T, T>
                                  ValueUpdater<U> valueUpdater)
       {
          super.onBrowserEvent(context, parent, value, event, valueUpdater);
-         
+
          if (CLICK.equals(event.getType()))
          {
             EventTarget eventTarget = event.getEventTarget();
             if (!Element.is(eventTarget))
                return;
-            
+
             if (parent.getFirstChildElement().isOrHasChild(Element.as(eventTarget))) {
                // Ignore clicks that occur outside of the main element.
                onEnterKeyDown(context, parent, value, event, valueUpdater);
             }
          }
       }
-      
+
       @Override
       protected void onEnterKeyDown(Context context,
                                     Element Parent,
@@ -99,38 +98,28 @@ public class ImageButtonColumn<T> extends Column<T, T>
          if (valueUpdater != null)
             valueUpdater.update(value);
       }
-      
+
       private final ImageResource2x image_;
       private final TitleProvider<U> titleProvider_;
    }
-   
+
    public ImageButtonColumn(final ImageResource2x image,
                             final OperationWithInput<T> onClick,
                             final TitleProvider<T> titleProvider)
    {
-      super(new ImageButtonCell<T>(image, titleProvider));
+      super(new ImageButtonCell<>(image, titleProvider));
 
-      setFieldUpdater(new FieldUpdater<T, T>() {
-         public void update(int index, T object, T value)
-         {
-            if (value != null)
-               onClick.execute(object);
-         }
+      setFieldUpdater((index, object, value) -> {
+         if (value != null)
+            onClick.execute(object);
       });
    }
-   
+
    public ImageButtonColumn(final ImageResource2x image,
                             final OperationWithInput<T> onClick,
                             final String title)
    {
-      this(image, onClick, new TitleProvider<T>()
-      {
-         @Override
-         public String get(T object)
-         {
-            return title;
-         }
-      });
+      this(image, onClick, object -> title);
    }
 
    @Override
@@ -141,11 +130,11 @@ public class ImageButtonColumn<T> extends Column<T, T>
       else
          return null;
    }
-   
+
    protected boolean showButton(T object)
    {
       return true;
    }
-   
+
    private static final RenderTemplates TEMPLATES = GWT.create(RenderTemplates.class);
 }

@@ -1,7 +1,7 @@
 /*
  * SessionPdfLatex.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,8 +24,8 @@
 #include <core/FileSerializer.hpp>
 
 #include <session/projects/SessionProjects.hpp>
+#include <session/prefs/UserPrefs.hpp>
 
-#include <session/SessionUserSettings.hpp>
 #include <session/SessionModuleContext.hpp>
 
 #include "SessionTexUtils.hpp"
@@ -60,7 +60,7 @@ public:
       std::transform(types_.begin(),
                      types_.end(),
                      std::back_inserter(typesJson),
-                     json::toJsonString);
+                     json::toJsonValue<std::string>);
       return typesJson;
    }
 
@@ -140,7 +140,7 @@ bool validateLatexProgram(const std::string& program,
 
    // try to find on the path
    *pTexProgramPath = module_context::findProgram(programName);
-   if (pTexProgramPath->empty())
+   if (pTexProgramPath->isEmpty())
    {
       *pUserErrMsg = "Unabled to find specified LaTeX program '" +
                      program + "' on the system path";
@@ -328,7 +328,7 @@ bool latexProgramForFile(const core::tex::TexMagicComments& magicComments,
    {
       std::string defaultProgram = projects::projectContext().hasProject() ?
                 projects::projectContext().config().defaultLatexProgram :
-                userSettings().defaultLatexProgram();
+                prefs::userPrefs().defaultLatexProgram();
 
       if (!validateLatexProgramType(defaultProgram, pUserErrMsg))
       {
@@ -358,9 +358,9 @@ core::Error texToPdf(const core::FilePath& texProgramPath,
                      core::system::ProcessResult* pResult)
 {
    // input file paths
-   FilePath baseFilePath = texFilePath.parent().complete(texFilePath.stem());
-   FilePath idxFilePath(baseFilePath.absolutePath() + ".idx");
-   FilePath logFilePath(baseFilePath.absolutePath() + ".log");
+   FilePath baseFilePath = texFilePath.getParent().completePath(texFilePath.getStem());
+   FilePath idxFilePath(baseFilePath.getAbsolutePath() + ".idx");
+   FilePath logFilePath(baseFilePath.getAbsolutePath() + ".log");
 
    // bibtex and makeindex program paths
    FilePath bibtexProgramPath = programPath("bibtex", "BIBTEX");
@@ -368,12 +368,12 @@ core::Error texToPdf(const core::FilePath& texProgramPath,
 
    // args and process options for running bibtex and makeindex
    core::shell_utils::ShellArgs bibtexArgs;
-   bibtexArgs << string_utils::utf8ToSystem(baseFilePath.filename());
+   bibtexArgs << string_utils::utf8ToSystem(baseFilePath.getFilename());
    core::shell_utils::ShellArgs makeindexArgs;
-   makeindexArgs << string_utils::utf8ToSystem(idxFilePath.filename());
+   makeindexArgs << string_utils::utf8ToSystem(idxFilePath.getFilename());
    core::system::ProcessOptions procOptions;
    procOptions.environment = utils::rTexInputsEnvVars();
-   procOptions.workingDir = texFilePath.parent();
+   procOptions.workingDir = texFilePath.getParent();
 
    // run the initial compile
    Error error = utils::runTexCompile(texProgramPath,
@@ -392,11 +392,11 @@ core::Error texToPdf(const core::FilePath& texProgramPath,
    for (int i=0; i<10; i++)
    {
       // run bibtex if necessary
-      if (misses > 0 && !bibtexProgramPath.empty())
+      if (misses > 0 && !bibtexProgramPath.isEmpty())
       {
          core::system::ProcessResult result;
          Error error = core::system::runProgram(
-               string_utils::utf8ToSystem(bibtexProgramPath.absolutePath()),
+               string_utils::utf8ToSystem(bibtexProgramPath.getAbsolutePath()),
                bibtexArgs,
                "",
                procOptions,
@@ -409,10 +409,10 @@ core::Error texToPdf(const core::FilePath& texProgramPath,
       previousMisses = misses;
 
       // run makeindex if necessary
-      if (idxFilePath.exists() && !makeindexProgramPath.empty())
+      if (idxFilePath.exists() && !makeindexProgramPath.isEmpty())
       {
          Error error = core::system::runProgram(
-               string_utils::utf8ToSystem(makeindexProgramPath.absolutePath()),
+               string_utils::utf8ToSystem(makeindexProgramPath.getAbsolutePath()),
                makeindexArgs,
                "",
                procOptions,

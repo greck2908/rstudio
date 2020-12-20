@@ -1,7 +1,7 @@
 /*
- * ShowAddinsDialog.java
+ * BrowseAddinsDialog.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -45,12 +45,16 @@ import org.rstudio.core.client.js.JsUtil;
 import org.rstudio.core.client.theme.RStudioDataGridResources;
 import org.rstudio.core.client.theme.RStudioDataGridStyle;
 import org.rstudio.core.client.widget.FilterWidget;
+import org.rstudio.core.client.widget.FormLabel;
 import org.rstudio.core.client.widget.ModalDialog;
 import org.rstudio.core.client.widget.ModifyKeyboardShortcutsWidget;
 import org.rstudio.core.client.widget.OperationWithInput;
 import org.rstudio.core.client.widget.RStudioDataGrid;
 import org.rstudio.core.client.widget.ThemedButton;
 import org.rstudio.studio.client.RStudioGinjector;
+import org.rstudio.studio.client.application.AriaLiveService;
+import org.rstudio.studio.client.application.events.AriaLiveStatusEvent.Severity;
+import org.rstudio.studio.client.application.events.AriaLiveStatusEvent.Timing;
 import org.rstudio.studio.client.common.HelpLink;
 import org.rstudio.studio.client.workbench.addins.Addins.AddinExecutor;
 import org.rstudio.studio.client.workbench.addins.Addins.RAddin;
@@ -71,7 +75,7 @@ public class BrowseAddinsDialog extends ModalDialog<Command>
       
       setOkButtonCaption("Execute");
       
-      filterWidget_ = new FilterWidget("Filter by addin name")
+      filterWidget_ = new FilterWidget()
       {
          @Override
          public void filter(String query)
@@ -117,14 +121,14 @@ public class BrowseAddinsDialog extends ModalDialog<Command>
       
       addColumns();
       
-      dataProvider_ = new ListDataProvider<RAddin>();
+      dataProvider_ = new ListDataProvider<>();
       dataProvider_.addDataDisplay(table_);
       
-      originalData_ = new ArrayList<RAddin>();
+      originalData_ = new ArrayList<>();
       
       // sync to current addins
       addins_ = addinsCommandManager_.getRAddins();
-      List<RAddin> data = new ArrayList<RAddin>();
+      List<RAddin> data = new ArrayList<>();
       for (String key : JsUtil.asIterable(addins_.keys()))
          data.add(addins_.get(key));
       dataProvider_.setList(data);
@@ -142,6 +146,9 @@ public class BrowseAddinsDialog extends ModalDialog<Command>
       }));
       
       FlowPanel headerPanel = new FlowPanel();
+      FormLabel filterLabel = new FormLabel(true, "Filter addins:", filterWidget_.getInputElement());
+      filterLabel.addStyleName(RES.dataGridStyle().filterLabel());
+      headerPanel.add(filterLabel);
       headerPanel.add(filterWidget_);
       headerPanel.add(helpLink_);
       
@@ -162,9 +169,10 @@ public class BrowseAddinsDialog extends ModalDialog<Command>
    }
    
    @Inject
-   private void initialize(AddinsCommandManager addinsCommandManager)
+   private void initialize(AddinsCommandManager addinsCommandManager, AriaLiveService ariaLive)
    {
       addinsCommandManager_ = addinsCommandManager;
+      ariaLive_ = ariaLive;
    }
    
    private void addColumns()
@@ -283,6 +291,9 @@ public class BrowseAddinsDialog extends ModalDialog<Command>
          }
       });
       dataProvider_.setList(data);
+      ariaLive_.announce(AriaLiveService.FILTERED_LIST,
+            "Found " + data.size() + " addins matching " + StringUtil.spacedString(query),
+            Timing.DEBOUNCE, Severity.STATUS);
    }
    
    @Override
@@ -358,7 +369,8 @@ public class BrowseAddinsDialog extends ModalDialog<Command>
    
    // Injected ----
    private AddinsCommandManager addinsCommandManager_;
-   
+   private AriaLiveService ariaLive_;
+
    // Resources, etc ----
    public interface Resources extends RStudioDataGridResources
    {
@@ -368,6 +380,7 @@ public class BrowseAddinsDialog extends ModalDialog<Command>
    
    public interface Styles extends RStudioDataGridStyle
    {
+      String filterLabel();
    }
    
    private static final Resources RES = GWT.create(Resources.class);

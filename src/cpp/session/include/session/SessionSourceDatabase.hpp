@@ -1,7 +1,7 @@
 /*
  * SessionSourceDatabase.hpp
  *
- * Copyright (C) 2009-18 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,10 +23,21 @@
 #include <boost/shared_ptr.hpp>
 
 #include <core/BoostSignals.hpp>
-#include <core/FilePath.hpp>
-#include <core/json/Json.hpp>
+#include <shared_core/FilePath.hpp>
+#include <shared_core/json/Json.hpp>
 
 #include <r/RSexp.hpp>
+
+#define kSourceDocumentTypeCpp       "cpp"
+#define kSourceDocumentTypeJS        "js"
+#define kSourceDocumentTypePython    "python"
+#define kSourceDocumentTypeRHTML     "r_html"
+#define kSourceDocumentTypeRMarkdown "r_markdown"
+#define kSourceDocumentTypeRSource   "r_source"
+#define kSourceDocumentTypeSQL       "sql"
+#define kSourceDocumentTypeShell     "sh"
+#define kSourceDocumentTypeSweave    "sweave"
+
 
 namespace rstudio {
 namespace core {
@@ -127,35 +138,35 @@ public:
       type_ = type;
    }
    
-   bool isRMarkdownDocument() const { return type_ == SourceDocumentTypeRMarkdown; }
+   bool isRMarkdownDocument() const { return type_ == kSourceDocumentTypeRMarkdown; }
    
    // is this an R, or potentially R-containing, source file?
    // TODO: Export these types as an 'enum' and provide converters.
    bool canContainRCode()
    {
       return type_.size() > 0 && (
-               type_ == SourceDocumentTypeSweave ||
-               type_ == SourceDocumentTypeRSource ||
-               type_ == SourceDocumentTypeRMarkdown ||
-               type_ == SourceDocumentTypeRHTML ||
-               type_ == SourceDocumentTypeCpp);
+               type_ == kSourceDocumentTypeSweave ||
+               type_ == kSourceDocumentTypeRSource ||
+               type_ == kSourceDocumentTypeRMarkdown ||
+               type_ == kSourceDocumentTypeRHTML ||
+               type_ == kSourceDocumentTypeCpp);
    }
    
    // is this a straight R source file?
    bool isRFile()
    {
-      return type_.size() > 0 && type_ == SourceDocumentTypeRSource;
+      return type_.size() > 0 && type_ == kSourceDocumentTypeRSource;
    }
 
    core::Error readFromJson(core::json::Object* pDocJson);
    void writeToJson(core::json::Object* pDocJson, bool includeContents = true) const;
 
-   core::Error writeToFile(const core::FilePath& filePath, bool writeContents = true) const;
+   core::Error writeToFile(const core::FilePath& filePath, bool writeContents = true, bool retryWrite = false) const;
 
    SEXP toRObject(r::sexp::Protect* pProtect, bool includeContents = true) const;
 
 private:
-   void editProperty(const core::json::Member& property);
+   void editProperty(const core::json::Object::Member& property);
 
 private:
    std::string id_;
@@ -174,16 +185,6 @@ private:
    std::string collabServer_;
    std::string sourceWindow_;
    core::json::Object properties_;
-   
-public:
-   
-   static const char * const SourceDocumentTypeSweave;
-   static const char * const SourceDocumentTypeRSource;
-   static const char * const SourceDocumentTypeRMarkdown;
-   static const char * const SourceDocumentTypeRHTML;
-   static const char * const SourceDocumentTypeCpp;
-   static const char * const SourceDocumentTypeJS;
-   static const char * const SourceDocumentTypeSQL;
 
 };
 
@@ -200,7 +201,7 @@ core::Error getDurableProperties(const std::string& path,
                                  core::json::Object* pProperties);
 core::Error list(std::vector<boost::shared_ptr<SourceDocument> >* pDocs);
 core::Error list(std::vector<core::FilePath>* pPaths);
-core::Error put(boost::shared_ptr<SourceDocument> pDoc, bool writeContents = true);
+core::Error put(boost::shared_ptr<SourceDocument> pDoc, bool writeContents = true, bool retryRewrite = false);
 core::Error remove(const std::string& id);
 core::Error removeAll();
 core::Error getPath(const std::string& id, std::string* pPath);

@@ -1,7 +1,7 @@
 /*
  * DataImport.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,6 +21,7 @@ import org.rstudio.core.client.dom.DomMetrics;
 import org.rstudio.core.client.dom.DomUtils;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.widget.GridViewerFrame;
+import org.rstudio.core.client.widget.ImageButton;
 import org.rstudio.core.client.widget.Operation;
 import org.rstudio.core.client.widget.OperationWithInput;
 import org.rstudio.core.client.widget.ProgressIndicator;
@@ -29,6 +30,7 @@ import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.common.HelpLink;
 import org.rstudio.studio.client.common.reditor.EditorLanguage;
+import org.rstudio.studio.client.server.ErrorLoggingServerRequestCallback;
 import org.rstudio.studio.client.server.ServerError;
 import org.rstudio.studio.client.server.ServerRequestCallback;
 import org.rstudio.studio.client.server.Void;
@@ -43,8 +45,6 @@ import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.JavaScriptObject;
 import com.google.gwt.core.client.Scheduler;
 import com.google.gwt.core.client.Scheduler.ScheduledCommand;
-import com.google.gwt.event.dom.client.ClickEvent;
-import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.event.logical.shared.ValueChangeEvent;
 import com.google.gwt.event.logical.shared.ValueChangeHandler;
 import com.google.gwt.uibinder.client.UiBinder;
@@ -52,8 +52,6 @@ import com.google.gwt.uibinder.client.UiFactory;
 import com.google.gwt.uibinder.client.UiField;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.HTMLPanel;
-import com.google.gwt.user.client.ui.Image;
-import com.google.gwt.user.client.ui.PushButton;
 import com.google.gwt.user.client.ui.Widget;
 import com.google.inject.Inject;
 
@@ -104,7 +102,7 @@ public class DataImport extends Composite
       dataImportResources_ = GWT.create(DataImportResources.class);
       dataImportMode_ = dataImportMode;
       
-      gridViewer_ = new GridViewerFrame("Data Import Grid Viewer");
+      gridViewer_ = new GridViewerFrame("Data Preview");
       copyButton_ = makeCopyButton();
 
       progressIndicator_ = new ProgressIndicatorDelay(progressIndicator);
@@ -179,16 +177,6 @@ public class DataImport extends Composite
          return new DataImportOptionsUiSav(mode);
       case XLS:
          return new DataImportOptionsUiXls();
-      case XML:
-         return new DataImportOptionsUiXml();
-      case JSON:
-         return new DataImportOptionsUiJson();
-      case ODBC:
-         return new DataImportOptionsUiOdbc();
-      case JDBC:
-         return new DataImportOptionsUiJdbc();
-      case Mongo:
-         return new DataImportOptionsUiMongo();
       }
       
       return null;
@@ -262,18 +250,16 @@ public class DataImport extends Composite
       return dataImportFileChooser;
    }
    
-   PushButton makeCopyButton()
+   ImageButton makeCopyButton()
    {
-      return new PushButton(new Image(new ImageResource2x(
+      ImageButton btn = new ImageButton("Copy Code Preview", new ImageResource2x(
          dataImportResources_.copyImage(),
-         dataImportResources_.copyImage2x())), new ClickHandler()
+         dataImportResources_.copyImage2x()));
+      btn.addClickHandler(clickEvent ->
       {
-         @Override
-         public void onClick(ClickEvent arg0)
-         {
-            DomUtils.copyCodeToClipboard(codePreview_);
-         }
+         DomUtils.copyCodeToClipboard(codePreview_);
       });
+      return btn;
    }
    
    void resetColumnDefinitions()
@@ -294,7 +280,7 @@ public class DataImport extends Composite
    AceEditorWidget codeArea_;
    
    @UiField(provided=true)
-   PushButton copyButton_;
+   ImageButton copyButton_;
    
    private void promptForParseString(
       String title,
@@ -508,14 +494,9 @@ public class DataImport extends Composite
    {
       if (localFiles_ != null)
       {
-         server_.previewDataImportClean(getOptions(), new ServerRequestCallback<Void>()
-         {
-            @Override
-            public void onError(ServerError error)
-            {
-               Debug.logError(error);
-            }
-         });
+         server_.previewDataImportClean(
+               getOptions(),
+               new ErrorLoggingServerRequestCallback<Void>());
       }
       
       localFiles_ = null;
@@ -651,6 +632,7 @@ public class DataImport extends Composite
       codeArea_.getEditor().getSession().setUseWrapMode(true);
       codeArea_.getEditor().getSession().setWrapLimitRange(20, 120);
       codeArea_.getEditor().getRenderer().setShowGutter(false);
+      codeArea_.getEditor().setReadOnly(true);
    }
    
    private void assembleDataImport(final Operation onComplete)

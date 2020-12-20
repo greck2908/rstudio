@@ -1,7 +1,7 @@
 /*
  * LocalStreamSocketUtils.hpp
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,10 +18,9 @@
 
 #include <boost/asio/local/stream_protocol.hpp>
 
-#include <core/Error.hpp>
-#include <core/FilePath.hpp>
+#include <shared_core/Error.hpp>
+#include <shared_core/FilePath.hpp>
 #include <core/system/System.hpp>
-#include <core/system/FileMode.hpp>
 
 #include <core/http/SocketAcceptorService.hpp>
 
@@ -37,9 +36,7 @@ inline Error initializeStreamDir(const FilePath& streamDir)
       if (error)
          return error;
       
-      return changeFileMode(streamDir,
-                            system::EveryoneReadWriteExecuteMode,
-                            true);
+      return streamDir.changeFileMode(FileMode::ALL_READ_WRITE_EXECUTE, true);
    }
    else
    {
@@ -50,45 +47,45 @@ inline Error initializeStreamDir(const FilePath& streamDir)
 inline Error initLocalStreamAcceptor(
    SocketAcceptorService<boost::asio::local::stream_protocol>& acceptorService,
    const core::FilePath& localStreamPath,
-   core::system::FileMode fileMode)
+   core::FileMode fileMode)
 {
    // initialize endpoint
    using boost::asio::local::stream_protocol;
-   stream_protocol::endpoint endpoint(localStreamPath.absolutePath());
+   stream_protocol::endpoint endpoint(localStreamPath.getAbsolutePath());
    
    // get acceptor
    stream_protocol::acceptor& acceptor = acceptorService.acceptor();
    
    // open
    boost::system::error_code ec;
-   acceptor.open(endpoint.protocol(), ec) ;
+   acceptor.open(endpoint.protocol(), ec);
    if (ec)
    {
-      Error error(ec, ERROR_LOCATION) ;
+      Error error(ec, ERROR_LOCATION);
       error.addProperty("stream", localStreamPath);
       return error;
    }
    
    // bind
-   acceptor.bind(endpoint, ec) ;
+   acceptor.bind(endpoint, ec);
    if (ec)
    {
-      Error error(ec, ERROR_LOCATION) ;
+      Error error(ec, ERROR_LOCATION);
       error.addProperty("stream", localStreamPath);
       return error;
    }
    
    // chmod on the stream file
-   Error error = changeFileMode(localStreamPath, fileMode);
+   Error error = localStreamPath.changeFileMode(fileMode);
    if (error)
       return error;
    
    // listen
-   acceptor.listen(boost::asio::socket_base::max_connections, ec) ;
+   acceptor.listen(boost::asio::socket_base::max_connections, ec);
    if (ec)
-      return Error(ec, ERROR_LOCATION) ;
+      return Error(ec, ERROR_LOCATION);
    
-   return Success() ;
+   return Success();
 }
 
 } // namespace http

@@ -1,7 +1,7 @@
 /*
  * SessionTerminalShell.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,9 +19,11 @@
 #include <core/system/System.hpp>
 #include <core/StringUtils.hpp>
 
-#include <session/SessionUserSettings.hpp>
 #include <session/SessionModuleContext.hpp>
 #include "SessionGit.hpp"
+#include <session/prefs/UserPrefs.hpp>
+#include <shared_core/FilePath.hpp>
+#include <core/FileUtils.hpp>
 
 namespace rstudio {
 namespace session {
@@ -38,6 +40,36 @@ void addShell(const core::FilePath& expectedPath,
 {
    if (!checkPathExists || expectedPath.exists())
       pShells->push_back(TerminalShell(type, title, expectedPath, args));
+}
+
+void scanPosixShells(std::vector<TerminalShell>* pShells)
+{
+   bool foundZsh = false;
+   core::FilePath shellsFile("/etc/shells");
+   if (shellsFile.exists())
+   {
+      std::string shells = core::file_utils::readFile(shellsFile);
+      std::vector<std::string> lines;
+      boost::algorithm::split(lines, shells, boost::algorithm::is_any_of("\n"));
+      for (const std::string& line : lines)
+      {
+         std::string trimmedLine = core::string_utils::trimWhitespace(line);
+
+         // skip comments and empty lines
+         if (trimmedLine.empty() || (trimmedLine.size() > 0 && trimmedLine.at(0) == '#'))
+            continue;
+
+         if (!foundZsh && boost::algorithm::ends_with(trimmedLine, "/zsh"))
+         {
+            foundZsh = true;
+            std::vector<std::string> args;
+            args.emplace_back("-l"); // act like a login shell
+            args.emplace_back("-g"); // don't add commands with leading space to history
+            addShell(core::FilePath(trimmedLine), TerminalShell::ShellType::PosixZsh,
+                     "Zsh", args, pShells);
+         }
+      }
+   }
 }
 
 void scanAvailableShells(std::vector<TerminalShell>* pShells)
@@ -93,6 +125,11 @@ void scanAvailableShells(std::vector<TerminalShell>* pShells)
       }
    }
 
+   // Additional Posix Shells
+#ifndef _WIN32
+   scanPosixShells(pShells);
+#endif
+
    // Add user-selectable shell command option
    TerminalShell customShell;
    if (AvailableTerminalShells::getCustomShell(&customShell))
@@ -108,7 +145,7 @@ void scanAvailableShells(std::vector<TerminalShell>* pShells)
 core::json::Object TerminalShell::toJson() const
 {
    core::json::Object resultJson;
-   resultJson["type"] = static_cast<int>(type);
+   resultJson["type"] = getShellId(type);
    resultJson["name"] = name;
    return resultJson;
 }
@@ -138,6 +175,8 @@ std::string TerminalShell::getShellName(ShellType type)
       return "Custom";
    case ShellType::NoShell:
       return "User command";
+   case ShellType::PosixZsh:
+      return "Zsh";
    }
    return "Unknown";
 }
@@ -147,29 +186,33 @@ std::string TerminalShell::getShellName(ShellType type)
 TerminalShell::ShellType TerminalShell::shellTypeFromString(const std::string& str)
 {
    std::string typeStr = core::string_utils::toLower(str);
-   if (typeStr == "win-cmd")
+   if (typeStr == kWindowsTerminalShellWinCmd)
    {
       return TerminalShell::ShellType::Cmd64;
    }
-   else if (typeStr == "win-ps")
+   else if (typeStr == kWindowsTerminalShellWinPs)
    {
       return TerminalShell::ShellType::PS64;
    }
-   else if (typeStr == "ps-core")
+   else if (typeStr == kWindowsTerminalShellPsCore)
    {
       return TerminalShell::ShellType::PSCore;
    }
-   else if (typeStr == "win-git-bash")
+   else if (typeStr == kWindowsTerminalShellWinGitBash)
    {
       return TerminalShell::ShellType::GitBash;
    }
-   else if (typeStr == "win-wsl-bash")
+   else if (typeStr == kWindowsTerminalShellWinWslBash)
    {
       return TerminalShell::ShellType::WSLBash;
    }
-   else if (typeStr == "custom")
+   else if (typeStr == kWindowsTerminalShellCustom)
    {
       return TerminalShell::ShellType::CustomShell;
+   }
+   else if (typeStr == kPosixTerminalShellZsh)
+   {
+      return TerminalShell::ShellType::PosixZsh;
    }
    else // implicitly includes "default"
    {
@@ -177,6 +220,35 @@ TerminalShell::ShellType TerminalShell::shellTypeFromString(const std::string& s
    }
 }
 
+std::string TerminalShell::getShellId(ShellType type)
+{
+   switch(type)
+   {
+      case TerminalShell::ShellType::Default:
+         return kWindowsTerminalShellDefault;
+      case TerminalShell::ShellType::Cmd32:
+      case TerminalShell::ShellType::Cmd64:
+         return kWindowsTerminalShellWinCmd;
+      case TerminalShell::ShellType::PS32:
+      case TerminalShell::ShellType::PS64:
+         return kWindowsTerminalShellWinPs;
+      case TerminalShell::ShellType::PSCore:
+         return kWindowsTerminalShellPsCore;
+      case TerminalShell::ShellType::GitBash:
+         return kWindowsTerminalShellWinGitBash;
+      case TerminalShell::ShellType::WSLBash:
+         return kWindowsTerminalShellWinWslBash;
+      case TerminalShell::ShellType::CustomShell:
+         return kWindowsTerminalShellCustom;
+      case TerminalShell::ShellType::PosixBash:
+         return kPosixTerminalShellBash;
+      case TerminalShell::ShellType::NoShell:
+         return kPosixTerminalShellNone;
+      case TerminalShell::ShellType::PosixZsh:
+         return kPosixTerminalShellZsh;
+   }
+   return kWindowsTerminalShellDefault;
+}
 AvailableTerminalShells::AvailableTerminalShells()
 {
    scanAvailableShells(&shells_);
@@ -195,7 +267,7 @@ bool AvailableTerminalShells::getInfo(TerminalShell::ShellType type,
 {
    if (type == TerminalShell::ShellType::Default)
    {
-      type = userSettings().defaultTerminalShellValue();
+      type = prefs::userPrefs().defaultTerminalShellValue();
       if (type == TerminalShell::ShellType::Default)
       {
          // Preference never set; pick first one available
@@ -219,10 +291,18 @@ bool AvailableTerminalShells::getInfo(TerminalShell::ShellType type,
 core::FilePath getGitBashShell()
 {
    core::FilePath gitExePath = modules::git::detectedGitExePath();
-   if (!gitExePath.empty())
+   if (!gitExePath.isEmpty())
    {
-      core::FilePath gitBashPath =
-            gitExePath.parent().parent().complete("usr/bin/bash.exe");
+      // Prefer git-for-windows bash wrapper; it does some setup before it invokes MSYS2's
+      // usr/bin/bash.exe; not using this wrapper causes problems if other Cygwin-based
+      // Posix environments are on path (such as those in RTools4)
+      core::FilePath gitBashPath = gitExePath.getParent().completePath("bash.exe");
+      if (gitBashPath.exists())
+         return gitBashPath;
+
+      // fall back to old detection behavior in case there's an older version that only
+      // has this installation pattern
+      gitBashPath = gitExePath.getParent().getParent().completePath("usr/bin/bash.exe");
       if (gitBashPath.exists())
          return gitBashPath;
       else
@@ -252,13 +332,14 @@ bool AvailableTerminalShells::getCustomShell(TerminalShell* pShellInfo)
 {
    pShellInfo->name = "Custom";
    pShellInfo->type = TerminalShell::ShellType::CustomShell;
-   pShellInfo->path = module_context::resolveAliasedPath(userSettings().customShellCommand().absolutePath());
+   pShellInfo->path = module_context::resolveAliasedPath(
+         prefs::userPrefs().customShellCommand());
 
    // arguments are space separated, currently no way to represent a literal space
    std::vector<std::string> args;
-   if (!userSettings().customShellOptions().empty())
+   if (!prefs::userPrefs().customShellOptions().empty())
    {
-      args = core::algorithm::split(userSettings().customShellOptions(), " ");
+      args = core::algorithm::split(prefs::userPrefs().customShellOptions(), " ");
    }
    pShellInfo->args = args;
    return true;

@@ -1,7 +1,7 @@
 /*
  * SessionConsoleProcessInfo.hpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,7 @@
 #include <boost/circular_buffer.hpp>
 #include <boost/enable_shared_from_this.hpp>
 
-#include <core/FilePath.hpp>
+#include <shared_core/FilePath.hpp>
 #include <core/json/JsonRpc.hpp>
 #include <core/system/Process.hpp>
 #include <core/system/Types.hpp>
@@ -53,6 +53,7 @@ enum AutoCloseMode
    DefaultAutoClose = 0, // obey user preference
    AlwaysAutoClose = 1, // always auto-close
    NeverAutoClose = 2, // never auto-close
+   CleanExitAutoClose = 3, // auto-close only if shell returned zero exit code
 };
 
 enum SerializationMode
@@ -203,6 +204,8 @@ public:
    static void saveConsoleProcesses(const std::string& metadata);
    static void loadConsoleEnvironment(const std::string& handle, core::system::Options* pEnv);
 
+   static AutoCloseMode closeModeFromPref(std::string prefValue);
+
 private:
    std::string caption_;
    std::string title_;
@@ -214,7 +217,11 @@ private:
    bool showOnOutput_ = false;
    boost::circular_buffer<char> outputBuffer_ {kOutputBufferSize};
    boost::optional<int> exitCode_;
+#ifdef _WIN32
+   bool childProcs_ = false; // child process detection not supported on Windows
+#else
    bool childProcs_ = true;
+#endif
    bool altBufferActive_ = false;
    TerminalShell::ShellType shellType_ = TerminalShell::ShellType::Default;
    ChannelMode channelMode_ = Rpc;

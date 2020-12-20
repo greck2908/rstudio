@@ -1,7 +1,7 @@
 /*
  * ContentItem.java
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -25,9 +25,9 @@ public class ContentItem extends JavaScriptObject
    public static final native ContentItem create(String title,
                                                  String contentUrl) /*-{
       var contentItem = new Object();
-      contentItem.title = title ;
-      contentItem.contentUrl = contentUrl ;
-      return contentItem ;
+      contentItem.title = title;
+      contentItem.contentUrl = contentUrl;
+      return contentItem;
    }-*/;
    
    

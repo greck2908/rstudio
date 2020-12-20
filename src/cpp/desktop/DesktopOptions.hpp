@@ -1,7 +1,7 @@
 /*
  * DesktopOptions.hpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,14 +20,16 @@
 
 #include <QDir>
 #include <QMainWindow>
+#include <QNetworkCookie>
 #include <QSettings>
 #include <QStringList>
 
-#include <core/FilePath.hpp>
+#include <shared_core/FilePath.hpp>
 
 #define kRunDiagnosticsOption    "--run-diagnostics"
 #define kSessionServerOption     "--session-server"
 #define kSessionServerUrlOption  "--session-url"
+#define kTempCookiesOption       "--use-temp-cookies"
 
 #if defined(__APPLE__)
 #define FORMAT QSettings::NativeFormat
@@ -118,22 +120,21 @@ public:
 
    bool runDiagnostics() { return runDiagnostics_; }
 
-   std::string sessionServer() { return sessionServer_; }
-   std::string sessionUrl() { return sessionUrl_; }
-
    QString lastRemoteSessionUrl(const QString& serverUrl);
    void setLastRemoteSessionUrl(const QString& serverUrl, const QString& sessionUrl);
 
+   QList<QNetworkCookie> authCookies() const;
+   QList<QNetworkCookie> tempAuthCookies() const;
+   void setAuthCookies(const QList<QNetworkCookie>& cookies);
+   void setTempAuthCookies(const QList<QNetworkCookie>& cookies);
+
 private:
-   Options() : settings_(FORMAT, QSettings::UserScope,
-                         QString::fromUtf8("RStudio"),
-                         QString::fromUtf8("desktop")),
-               runDiagnostics_(false)
-   {
-   }
+   Options();
    friend Options& options();
 
    void setFont(QString key, QString font);
+   QStringList cookiesToList(const QList<QNetworkCookie>& cookies) const;
+   QList<QNetworkCookie> cookiesFromList(const QStringList& cookieStrs) const;
 
    QSettings settings_;
    core::FilePath scriptsPath_;
@@ -143,8 +144,6 @@ private:
    mutable QString portNumber_;
    mutable std::string localPeer_;
    bool runDiagnostics_;
-   std::string sessionServer_;
-   std::string sessionUrl_;
 };
 
 } // namespace desktop

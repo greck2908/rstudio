@@ -1,7 +1,7 @@
 /*
  * ExportPlotResources.java
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -29,7 +29,7 @@ public interface ExportPlotResources extends ClientBundle
       String fileNameLabel();
       String fileNameTextBox();
       String directoryButton();
-      String directoryLabel();
+      String directoryTextBox();
       
       String imagePreview();
       String imageOptionLabel();
@@ -51,7 +51,7 @@ public interface ExportPlotResources extends ClientBundle
       String savePdfMainWidget();
       String savePdfSizeListBox();
       String savePdfSizeLabel();
-      String savePdfDirectoryLabel();
+      String savePdfDirectoryTextBox();
       String savePdfFileNameLabel();
       String savePdfFileNameTextBox();
       String savePdfViewAfterCheckbox();
@@ -67,6 +67,6 @@ public interface ExportPlotResources extends ClientBundle
    ImageResource rightMouse2x();
    
    public static ExportPlotResources INSTANCE = 
-      (ExportPlotResources)GWT.create(ExportPlotResources.class) ;
+      (ExportPlotResources)GWT.create(ExportPlotResources.class);
   
 }

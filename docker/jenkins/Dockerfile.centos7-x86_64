@@ -1,5 +1,7 @@
 FROM centos:7
 
+ENV OPERATING_SYSTEM=centos_7
+
 RUN set -x \
     && yum install epel-release -y
 
@@ -14,6 +16,7 @@ RUN yum install -y \
     gcc \
     gcc-c++ \
     git \
+    gdb \
     gpg \
     gtk3 \
     java-1.8.0-openjdk \
@@ -23,6 +26,7 @@ RUN yum install -y \
     libcap-devel \ 
     libffi \
     libuuid-devel \
+    libxml2-devel \
     libXcursor-devel \
     libXrandr-devel \
     libXScrnSaver-devel \
@@ -30,6 +34,8 @@ RUN yum install -y \
     make \
     mariadb-libs \
     openssl-devel \
+    p7zip \
+    p7zip-plugins \
     pam-devel \
     pango-devel \
     patchelf \
@@ -37,6 +43,7 @@ RUN yum install -y \
     R \
     rpmdevtools \
     rpm-sign \
+    sqlite-devel \
     sudo \
     wget \
     xml-commons-apis \
@@ -53,10 +60,10 @@ RUN yum install -y \
     devtoolset-3-gcc-c++
 
 # update environment to use new compiler
-ENV PATH="/opt/rh/devtoolset-3/root/usr/bin:${PATH}"
-ENV CC="/opt/rh/devtoolset-3/root/usr/bin/gcc"
-ENV CXX="/opt/rh/devtoolset-3/root/usr/bin/c++"
-ENV CPP="/opt/rh/devtoolset-3/root/usr/bin/cpp"
+ENV PATH="/opt/rh/devtoolset-7/root/usr/bin:${PATH}"
+ENV CC="/opt/rh/devtoolset-7/root/usr/bin/gcc"
+ENV CXX="/opt/rh/devtoolset-7/root/usr/bin/c++"
+ENV CPP="/opt/rh/devtoolset-7/root/usr/bin/cpp"
 
 # sudo defaults to requiretty on centos7
 RUN sed -i  's/Defaults    requiretty/Defaults !requiretty/' /etc/sudoers
@@ -66,29 +73,36 @@ RUN sed -i  's/Defaults    requiretty/Defaults !requiretty/' /etc/sudoers
 COPY dependencies/common/install-boost /tmp/
 RUN bash /tmp/install-boost || bash /tmp/install-boost
 
-# install cmake
+# install cmake; do this with the system compiler by temporarily clearing CC/CXX since cmake
+# can't find the devtoolset compiler in /opt/rh on this platform 
 COPY package/linux/install-dependencies /tmp/
-RUN bash /tmp/install-dependencies
+RUN scl enable llvm-toolset-7 "/bin/bash /tmp/install-dependencies"
 
 # install crashpad and its dependencies
 COPY dependencies/common/install-crashpad /tmp/
-RUN scl enable llvm-toolset-7 "/bin/bash /tmp/install-crashpad"
+RUN scl enable llvm-toolset-7 "/bin/bash /tmp/install-crashpad centos7"
 
 # set github login from build argument if defined
 ARG GITHUB_LOGIN
 ENV RSTUDIO_GITHUB_LOGIN=$GITHUB_LOGIN
 
-# install common dependencies
+# copy common dependency installation scripts
 RUN mkdir -p /opt/rstudio-tools/dependencies/common
-COPY dependencies/common/* /opt/rstudio-tools/dependencies/common/
+COPY dependencies/common/ /opt/rstudio-tools/dependencies/common/
+
+# copy panmirror project setup (so install-common can install needed deps)
+RUN mkdir -p /opt/rstudio-tools/panmirror
+COPY src/gwt/panmirror/src/editor/yarn.lock /opt/rstudio-tools/panmirror/
+COPY src/gwt/panmirror/src/editor/package.json /opt/rstudio-tools/panmirror/
+
+# install common dependencies
 RUN cd /opt/rstudio-tools/dependencies/common && scl enable llvm-toolset-7 "/bin/bash ./install-common"
 
 # install Qt SDK
-COPY dependencies/linux/install-qt-sdk /tmp/
-RUN mkdir -p /opt/RStudio-QtSDK && \
-    export QT_SDK_DIR=/opt/RStudio-QtSDK/Qt5.12.1 && \
-    export QT_QPA_PLATFORM=minimal && \
-    /tmp/install-qt-sdk
+COPY dependencies/common/install-qt.sh /tmp/
+COPY dependencies/linux/install-qt-linux /tmp/
+RUN export QT_VERSION=5.12.8 && \
+    cd /tmp && /bin/bash ./install-qt-linux
 
 # remove any previous users with conflicting IDs
 ARG JENKINS_GID=999

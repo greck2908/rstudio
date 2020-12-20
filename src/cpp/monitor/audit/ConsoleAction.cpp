@@ -1,7 +1,7 @@
 /*
  * ConsoleAction.cpp
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,9 +15,10 @@
 
 #include <monitor/audit/ConsoleAction.hpp>
 
-#include <core/SafeConvert.hpp>
-
+#include <core/Log.hpp>
 #include <core/json/JsonRpc.hpp>
+
+#include <shared_core/SafeConvert.hpp>
 
 using namespace rstudio::core;
 
@@ -68,13 +69,13 @@ ConsoleAction consoleActionFromJson(const json::Object& actionJson)
 {
    ConsoleAction action;
    Error error = json::readObject(actionJson,
-                                  "session_id", &action.sessionId,
-                                  "project", &action.project,
-                                  "pid", &action.pid,
-                                  "username", &action.username,
-                                  "timestamp", &action.timestamp,
-                                  "type", &action.type,
-                                  "data", &action.data);
+                                  "session_id", action.sessionId,
+                                  "project", action.project,
+                                  "pid", action.pid,
+                                  "username", action.username,
+                                  "timestamp", action.timestamp,
+                                  "type", action.type,
+                                  "data", action.data);
    if (error)
       LOG_ERROR(error);
 

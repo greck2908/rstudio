@@ -1,7 +1,7 @@
 /*
  * Job.cpp
  *
- * Copyright (C) 2009-18 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -140,7 +140,7 @@ int Job::max() const
 
 JobState Job::state() const
 {
-    return state_; 
+    return state_;
 }
 
 JobType Job::type() const
@@ -208,7 +208,11 @@ json::Object Job::toJson() const
       error = r::sexp::getNames(actions_.get(), &names);
       if (!error)
       {
-         std::copy(names.begin(), names.end(), std::back_inserter(actions));
+         std::transform(
+            names.begin(),
+            names.end(),
+            std::back_inserter(actions),
+            [](const std::string& val) { return json::Value(val); });
       }
    }
 
@@ -225,24 +229,24 @@ Error Job::fromJson(const json::Object& src, boost::shared_ptr<Job> *pJobOut)
    int type = static_cast<int>(JobTypeSession);
    boost::int64_t recorded = 0, started = 0, completed = 0;
    Error error = json::readObject(src,
-      kJobId,        &pJob->id_,
-      kJobName,      &pJob->name_,
-      kJobStatus,    &pJob->status_,
-      kJobProgress,  &pJob->progress_,
-      kJobMax,       &pJob->max_,
-      kJobRecorded,  &recorded,
-      kJobStarted,   &started,
-      kJobCompleted, &completed,
-      kJobState,     &state,
-      kJobType,      &type,
-      kJobShow,      &pJob->show_,
-      kJobTags,      &pJob->tags_);
+      kJobId,        pJob->id_,
+      kJobName,      pJob->name_,
+      kJobStatus,    pJob->status_,
+      kJobProgress,  pJob->progress_,
+      kJobMax,       pJob->max_,
+      kJobRecorded,  recorded,
+      kJobStarted,   started,
+      kJobCompleted, completed,
+      kJobState,     state,
+      kJobType,      type,
+      kJobShow,      pJob->show_,
+      kJobTags,      pJob->tags_);
    if (error)
       return error;
    
    error = json::readObject(src,
-      kJobSaveOutput, &pJob->saveOutput_,
-      kJobCluster, &pJob->cluster_);
+      kJobSaveOutput, pJob->saveOutput_,
+      kJobCluster, pJob->cluster_);
    if (error)
       return error;
 
@@ -351,12 +355,12 @@ bool Job::saveOutput() const
 
 FilePath Job::jobCacheFolder()
 {
-   return module_context::sessionScratchPath().complete("jobs");
+   return module_context::sessionScratchPath().completePath("jobs");
 }
 
 FilePath Job::outputCacheFile()
 {
-   return jobCacheFolder().complete(id_ + "-output.json");
+   return jobCacheFolder().completePath(id_ + "-output.json");
 }
 
 void Job::addOutput(const std::string& output, bool asError)
@@ -390,9 +394,9 @@ void Job::addOutput(const std::string& output, bool asError)
    FilePath outputFile = outputCacheFile();
 
    // create parent folder if necessary
-   if (!outputFile.parent().exists())
+   if (!outputFile.getParent().exists())
    {
-      error = outputFile.parent().ensureDirectory();
+      error = outputFile.getParent().ensureDirectory();
       if (error)
       {
          LOG_ERROR(error);
@@ -401,8 +405,8 @@ void Job::addOutput(const std::string& output, bool asError)
    }
 
    // open output file for writing
-   boost::shared_ptr<std::ostream> file;
-   error = outputFile.open_w(&file, false /* don't truncate */);
+   std::shared_ptr<std::ostream> file;
+   error = outputFile.openForWrite(file, false /* don't truncate */);
    if (error)
    {
       LOG_ERROR(error);
@@ -413,7 +417,7 @@ void Job::addOutput(const std::string& output, bool asError)
    json::Array contents;
    contents.push_back(type);
    contents.push_back(output);
-   json::write(contents, *file);
+   contents.write(*file);
 
    // append a newline (the file is newline-delimited JSON)
    *file << std::endl;
@@ -424,8 +428,8 @@ json::Array Job::output(int position)
    // read the lines from the file
    json::Array output;
    FilePath outputFile = outputCacheFile();
-   boost::shared_ptr<std::istream> pIfs;
-   Error error = outputFile.open_r(&pIfs);
+   std::shared_ptr<std::istream> pIfs;
+   Error error = outputFile.openForRead(pIfs);
    if (error)
    {
       // path not found is expected if the job hasn't produced any output yet
@@ -450,7 +454,7 @@ json::Array Job::output(int position)
          std::getline(*pIfs, content);
          if (++line > position)
          {
-            if (json::parse(content, &val))
+            if (!val.parse(content))
             {
                output.push_back(val);
             }
@@ -462,7 +466,7 @@ json::Array Job::output(int position)
       error = systemError(boost::system::errc::io_error, 
                                 ERROR_LOCATION);
       error.addProperty("what", e.what());
-      error.addProperty("path", outputFile.absolutePath());
+      error.addProperty("path", outputFile.getAbsolutePath());
       LOG_ERROR(error);
    }
 

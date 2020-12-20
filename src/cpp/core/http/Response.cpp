@@ -1,7 +1,7 @@
 /*
  * Response.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,6 +22,7 @@
 #include <boost/format.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/trim.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/asio/buffer.hpp>
 
@@ -46,13 +47,13 @@ namespace {
 #define kDeflateWindow 15
 #define kDefaultMemoryUsage 8
 
-boost::shared_ptr<StreamBuffer> makePaddingBuffer(size_t numPadding)
+std::shared_ptr<StreamBuffer> makePaddingBuffer(size_t numPadding)
 {
    // create a padding buffer
    char* buffer = new char[numPadding];
    std::fill_n(buffer, numPadding, '0');
 
-   return boost::make_shared<StreamBuffer>(buffer, numPadding);
+   return std::make_shared<StreamBuffer>(buffer, numPadding);
 }
 
 class FileStreamResponse : public StreamResponse
@@ -76,10 +77,10 @@ public:
 
    Error initialize()
    {
-      return file_.open_r(&fileStream_);
+      return file_.openForRead(fileStream_);
    }
 
-   boost::shared_ptr<StreamBuffer> nextBuffer()
+   std::shared_ptr<StreamBuffer> nextBuffer()
    {
       // create buffer to hold the file data
       char* buffer = new char[bufferSize_];
@@ -103,17 +104,17 @@ public:
          else
          {
             // no data read and no need for pad - return empty buffer
-            return boost::shared_ptr<StreamBuffer>();
+            return std::shared_ptr<StreamBuffer>();
          }
       }
 
       // return buffer representing the data with how much we actually read
-      return boost::make_shared<StreamBuffer>(buffer, read);
+      return std::make_shared<StreamBuffer>(buffer, read);
    }
 
 private:
    FilePath file_;
-   boost::shared_ptr<std::istream> fileStream_;
+   std::shared_ptr<std::istream> fileStream_;
    std::streamsize bufferSize_;
    bool padding_;
 
@@ -175,10 +176,10 @@ public:
       return Success();
    }
 
-   boost::shared_ptr<StreamBuffer> nextBuffer()
+   std::shared_ptr<StreamBuffer> nextBuffer()
    {
       if (finished_)
-         return boost::shared_ptr<StreamBuffer>();
+         return std::shared_ptr<StreamBuffer>();
 
       uint64_t written = 0;
       int flush = Z_NO_FLUSH;
@@ -193,7 +194,7 @@ public:
       {
          // check to see if the last file buffer was fully consumed by zlib
          // if not, we need to keep using it
-         boost::shared_ptr<StreamBuffer> fileBuffer;
+         std::shared_ptr<StreamBuffer> fileBuffer;
          if (fileBuffer_)
          {
             fileBuffer = fileBuffer_;
@@ -226,11 +227,11 @@ public:
          res = deflate(zStream_.get(), flush);
          if (res == Z_STREAM_ERROR)
          {
-            LOG_ERROR_MESSAGE("Could not compress file " + fileStream_->file_.absolutePath() +
+            LOG_ERROR_MESSAGE("Could not compress file " + fileStream_->file_.getAbsolutePath() +
                               " - zlib stream error");
             delete [] buffer;
 
-            return boost::shared_ptr<StreamBuffer>();
+            return std::shared_ptr<StreamBuffer>();
          }
 
          written = bufferSize_ - zStream_->avail_out;
@@ -249,7 +250,7 @@ public:
       if (res == Z_STREAM_END)
          finished_ = true;
 
-      return boost::make_shared<StreamBuffer>(buffer, written);
+      return std::make_shared<StreamBuffer>(buffer, written);
    }
 
 private:
@@ -258,7 +259,7 @@ private:
    CompressionType compressionType_;
 
    boost::shared_ptr<struct z_stream_s> zStream_;
-   boost::shared_ptr<StreamBuffer> fileBuffer_;
+   std::shared_ptr<StreamBuffer> fileBuffer_;
    bool finished_;
 };
 #endif
@@ -270,15 +271,15 @@ Response::Response()
 {
 }   
    
-const std::string& Response::statusMessage() const    
+const std::string& Response::statusMessage() const
 { 
-   ensureStatusMessage();  
-   return statusMessage_; 
+   ensureStatusMessage();
+   return statusMessage_;
 } 
 
 void Response::setStatusMessage(const std::string& statusMessage) 
 {
-   statusMessage_ = statusMessage ;
+   statusMessage_ = statusMessage;
 }
    
 std::string Response::contentEncoding() const
@@ -310,7 +311,7 @@ void Response::setCacheForeverHeaders(bool publicAccessiblity)
    std::string accessibility = publicAccessiblity ? "public" : "private";
    std::string cacheControl(accessibility + ", max-age=" + 
                             safe_convert::numberToString(durationSeconds));
-   setHeader("Cache-Control", cacheControl);   
+   setHeader("Cache-Control", cacheControl);
 }
 
 void Response::setCacheForeverHeaders()
@@ -367,33 +368,72 @@ void Response::setFrameOptionHeaders(const std::string& options)
       }
    }
 
-   if (!option.empty())
+   // multiple space-separated domains not supported by X-Frame-Options, so if 
+   // there's a space, don't set the header (modern browsers will use the
+   // previously-set Content-Security-Policy)
+   if (!option.empty() &&
+         boost::algorithm::trim_copy(options).find_first_of(' ') == std::string::npos)
       setHeader("X-Frame-Options", option);
 }
 
 // mark this request's user agent compatibility
 void Response::setBrowserCompatible(const Request& request)
 {
-   if (boost::algorithm::contains(request.userAgent(), "chromeframe"))
-      setHeader("X-UA-Compatible", "chrome=1");
-   else if (boost::algorithm::contains(request.userAgent(), "Trident"))
+   if (boost::algorithm::contains(request.userAgent(), "Trident"))
       setHeader("X-UA-Compatible", "IE=edge");
 }
 
 void Response::addCookie(const Cookie& cookie) 
 {
-	addHeader("Set-Cookie", cookie.cookieHeaderValue()) ;
+   addHeader("Set-Cookie", cookie.cookieHeaderValue());
+
+   // some browsers may swallow a cookie with SameSite=None
+   // so create an additional legacy cookie without SameSite
+   // which would be swalllowed by a standard-conforming browser
+   if (cookie.sameSite() == Cookie::SameSite::None)
+   {
+      Cookie legacyCookie = cookie;
+      legacyCookie.setName(legacyCookie.name() + kLegacyCookieSuffix);
+      legacyCookie.setSameSite(Cookie::SameSite::Undefined);
+      addHeader("Set-Cookie", legacyCookie.cookieHeaderValue());
+   }
 }
 
- Headers Response::getCookies() const
+ Headers Response::getCookies(const std::vector<std::string>& names /*= {}*/) const
  {
     http::Headers headers;
     for (const http::Header& header : headers_)
     {
        if (header.name == "Set-Cookie")
-          headers.push_back(header);
+       {
+          if (names.empty())
+          {
+            headers.push_back(header);
+          }
+          else
+          {
+             for (const std::string& name : names)
+             {
+               if (boost::algorithm::starts_with(header.value, name))
+                  headers.push_back(header);
+               else if (boost::algorithm::starts_with(header.value, name + kLegacyCookieSuffix))
+                  headers.push_back(header);
+             }
+          }
+       }
     }
     return headers;
+ }
+
+ void Response::clearCookies()
+ {
+    for (auto iter = headers_.begin(); iter != headers_.end();)
+    {
+       if (iter->name == "Set-Cookie")
+          iter = headers_.erase(iter);
+       else
+          ++iter;
+    }
  }
 
 Error Response::setBody(const std::string& content)
@@ -440,7 +480,7 @@ void Response::setRangeableFile(const FilePath& filePath,
       return;
    }
 
-   setRangeableFile(contents, filePath.mimeContentType(), request);
+   setRangeableFile(contents, filePath.getMimeContentType(), request);
 }
 
 void Response::setRangeableFile(const std::string& contents,
@@ -539,7 +579,7 @@ void Response::setNotFoundError(const std::string& uri,
    
 void Response::setError(const Error& error)
 {
-   setError(status::InternalServerError, error.code().message());
+   setError(status::InternalServerError, error.getMessage());
 }
 
 namespace {
@@ -560,8 +600,10 @@ std::string safeLocation(const std::string& location)
 void Response::setMovedPermanently(const http::Request& request,
                                    const std::string& location)
 {
-   std::string uri = URL::complete(request.absoluteUri(),
-                                   safeLocation(location));
+   std::string path = URL(location).protocol() != ""
+      ? location
+      : request.rootPath() + '/' + safeLocation(location);
+   std::string uri = URL::complete(request.baseUri(), path);
    setError(http::status::MovedPermanently, uri);
    setHeader("Location", uri);
 }
@@ -569,17 +611,19 @@ void Response::setMovedPermanently(const http::Request& request,
 void Response::setMovedTemporarily(const http::Request& request,
                                    const std::string& location)
 {
-   std::string uri = URL::complete(request.absoluteUri(),
-                                   safeLocation(location));
+   std::string path = URL(location).protocol() != ""
+      ? location
+      : request.rootPath() + '/' + safeLocation(location);
+   std::string uri = URL::complete(request.baseUri(), path);
    setError(http::status::MovedTemporarily, uri);
    setHeader("Location", uri);
 }
    
 void Response::resetMembers() 
 {
-	statusCode_ = status::Ok ;
-	statusCodeStr_.clear() ;
-	statusMessage_.clear() ;
+   statusCode_ = status::Ok;
+   statusCodeStr_.clear();
+   statusMessage_.clear();
 }
    
 void Response::removeCachingHeaders()
@@ -599,62 +643,62 @@ std::string Response::eTagForContent(const std::string& content)
 void Response::appendFirstLineBuffers(
       std::vector<boost::asio::const_buffer>& buffers) const 
 {
-	// create status code string (needs to be a member so memory is still valid
+   // create status code string (needs to be a member so memory is still valid
    // for use of buffers)
-	std::ostringstream statusCodeStream ;
-	statusCodeStream << statusCode_ ;
-	statusCodeStr_ = statusCodeStream.str() ;
+   std::ostringstream statusCodeStream;
+   statusCodeStream << statusCode_;
+   statusCodeStr_ = statusCodeStream.str();
 
-	// status line 
-	appendHttpVersionBuffers(buffers) ;
-	appendSpaceBuffer(buffers) ;
-	buffers.push_back(boost::asio::buffer(statusCodeStr_)) ;
-	appendSpaceBuffer(buffers) ;
-	ensureStatusMessage() ;
-	buffers.push_back(boost::asio::buffer(statusMessage_)) ;
+   // status line 
+   appendHttpVersionBuffers(buffers);
+   appendSpaceBuffer(buffers);
+   buffers.push_back(boost::asio::buffer(statusCodeStr_));
+   appendSpaceBuffer(buffers);
+   ensureStatusMessage();
+   buffers.push_back(boost::asio::buffer(statusMessage_));
 }
 
 namespace status {
 namespace Message {
    const char * const SwitchingProtocols = "SwitchingProtocols";
-	const char * const Ok = "OK" ;
+   const char * const Ok = "OK";
    const char * const Created = "Created";
    const char * const PartialContent = "Partial Content";
-	const char * const MovedPermanently = "Moved Permanently" ;
-	const char * const MovedTemporarily = "Moved Temporarily" ;
+   const char * const MovedPermanently = "Moved Permanently";
+   const char * const MovedTemporarily = "Moved Temporarily";
    const char * const TooManyRedirects = "Too Many Redirects";
-	const char * const SeeOther = "See Other" ;
-	const char * const NotModified = "Not Modified" ;
-	const char * const BadRequest = "Bad Request" ;
-	const char * const Unauthorized = "Unauthorized" ;
-	const char * const Forbidden = "Forbidden" ;
-	const char * const NotFound = "Not Found" ;
-	const char * const MethodNotAllowed = "Method Not Allowed" ;
+   const char * const SeeOther = "See Other";
+   const char * const NotModified = "Not Modified";
+   const char * const BadRequest = "Bad Request";
+   const char * const Unauthorized = "Unauthorized";
+   const char * const Forbidden = "Forbidden";
+   const char * const NotFound = "Not Found";
+   const char * const MethodNotAllowed = "Method Not Allowed";
    const char * const RangeNotSatisfiable = "Range Not Satisfyable";
-	const char * const InternalServerError = "Internal Server Error" ;
-	const char * const NotImplemented = "Not Implemented" ;
-	const char * const BadGateway = "Bad Gateway" ;
-	const char * const ServiceUnavailable = "Service Unavailable" ;
-	const char * const GatewayTimeout = "Gateway Timeout" ;
+   const char * const InternalServerError = "Internal Server Error";
+   const char * const NotImplemented = "Not Implemented";
+   const char * const BadGateway = "Bad Gateway";
+   const char * const ServiceUnavailable = "Service Unavailable";
+   const char * const GatewayTimeout = "Gateway Timeout";
 } // namespace Message
 } // namespace status
 
 
 void Response::ensureStatusMessage() const 
 {
-	if ( statusMessage_.empty() )
-	{
-		using namespace status ;
+   if ( statusMessage_.empty() )
+   {
+      using namespace status;
 
-		switch(statusCode_)
-		{
+      switch(statusCode_)
+      {
          case SwitchingProtocols:
             statusMessage_ = status::Message::SwitchingProtocols;
             break;
 
-			case Ok:
-				statusMessage_ = status::Message::Ok ;
-				break;
+         case Ok:
+            statusMessage_ = status::Message::Ok;
+            break;
 
          case Created:
             statusMessage_ = status::Message::Created;
@@ -665,92 +709,92 @@ void Response::ensureStatusMessage() const
             break;
 
          case MovedPermanently:
-				statusMessage_ = status::Message::MovedPermanently ;
-				break;
-
-			case MovedTemporarily:
-				statusMessage_ = status::Message::MovedTemporarily ;
-				break;
-
-         case TooManyRedirects:
-            statusMessage_ = status::Message::TooManyRedirects ;
+            statusMessage_ = status::Message::MovedPermanently;
             break;
 
-			case SeeOther:
-				statusMessage_ = status::Message::SeeOther ;
-				break;
+         case MovedTemporarily:
+            statusMessage_ = status::Message::MovedTemporarily;
+            break;
 
-			case NotModified:
-				statusMessage_ = status::Message::NotModified ;
-				break;
+         case TooManyRedirects:
+            statusMessage_ = status::Message::TooManyRedirects;
+            break;
 
-			case BadRequest:
-				statusMessage_ = status::Message::BadRequest ;
-				break;
+         case SeeOther:
+            statusMessage_ = status::Message::SeeOther;
+            break;
 
-			case Unauthorized:
-				statusMessage_ = status::Message::Unauthorized ;
-				break;
+         case NotModified:
+            statusMessage_ = status::Message::NotModified;
+            break;
 
-			case Forbidden:
-				statusMessage_ = status::Message::Forbidden ;
-				break;
+         case BadRequest:
+            statusMessage_ = status::Message::BadRequest;
+            break;
 
-			case NotFound:
-				statusMessage_ = status::Message::NotFound ;
-				break;
+         case Unauthorized:
+            statusMessage_ = status::Message::Unauthorized;
+            break;
 
-			case MethodNotAllowed:
-				statusMessage_ = status::Message::MethodNotAllowed ;
-				break;
+         case Forbidden:
+            statusMessage_ = status::Message::Forbidden;
+            break;
+
+         case NotFound:
+            statusMessage_ = status::Message::NotFound;
+            break;
+
+         case MethodNotAllowed:
+            statusMessage_ = status::Message::MethodNotAllowed;
+            break;
 
          case RangeNotSatisfiable:
             statusMessage_ = status::Message::RangeNotSatisfiable;
             break;
 
-			case InternalServerError:
-				statusMessage_ = status::Message::InternalServerError ;
-				break;
+         case InternalServerError:
+            statusMessage_ = status::Message::InternalServerError;
+            break;
 
-			case NotImplemented:
-				statusMessage_ = status::Message::NotImplemented ;
-				break;
+         case NotImplemented:
+            statusMessage_ = status::Message::NotImplemented;
+            break;
 
-			case BadGateway:
-				statusMessage_ = status::Message::BadGateway ;
-				break;
+         case BadGateway:
+            statusMessage_ = status::Message::BadGateway;
+            break;
 
-			case ServiceUnavailable:
-				statusMessage_ = status::Message::ServiceUnavailable ;
-				break;
+         case ServiceUnavailable:
+            statusMessage_ = status::Message::ServiceUnavailable;
+            break;
 
-			case GatewayTimeout:
-				statusMessage_ = status::Message::GatewayTimeout ;
-				break;
-		}
-	}
+         case GatewayTimeout:
+            statusMessage_ = status::Message::GatewayTimeout;
+            break;
+      }
+   }
 }
 
 
 std::ostream& operator << (std::ostream& stream, const Response& r)
 {
-	// output status line
-	stream << "HTTP/" << r.httpVersionMajor() << "." << r.httpVersionMinor() 
+   // output status line
+   stream << "HTTP/" << r.httpVersionMajor() << "." << r.httpVersionMinor() 
           << " " << r.statusCode() << " " << r.statusMessage() 
-          << std::endl ;
+          << std::endl;
 
-	// output headers and body
-	const Message& m = r ;
-	stream << m ;
+   // output headers and body
+   const Message& m = r;
+   stream << m;
 
-	return stream ;
+   return stream;
 }
 
 void Response::setStreamFile(const FilePath& filePath,
                              const Request& request,
                              std::streamsize buffSize)
 {
-   std::string contentType = filePath.mimeContentType("application/octet-stream");
+   std::string contentType = filePath.getMimeContentType("application/octet-stream");
    setContentType(contentType);
 
    // if content type indicates compression, do not compress it again
@@ -802,7 +846,7 @@ void Response::setStreamFile(const FilePath& filePath,
 
    Error error = streamResponse_->initialize();
    if (error)
-      setError(status::InternalServerError, error.code().message());
+      setError(status::InternalServerError, error.getMessage());
 }
 
 } // namespacc http

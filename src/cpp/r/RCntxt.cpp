@@ -1,7 +1,7 @@
 /*
  * RCntxt.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,7 +22,7 @@
 
 #include <boost/make_shared.hpp>
 
-#include <core/Error.hpp>
+#include <shared_core/Error.hpp>
 
 using namespace rstudio::core;
 
@@ -39,6 +39,9 @@ RCntxt::RCntxt(void *rawCntxt)
 {
    if (rawCntxt == nullptr)
       return;
+   else if (contextVersion() == RVersion40)
+      pCntxt_ = boost::make_shared<RIntCntxt<RCNTXT_40> >(
+                                   static_cast<RCNTXT_40*>(rawCntxt));
    else if (contextVersion() == RVersion34)
       pCntxt_ = boost::make_shared<RIntCntxt<RCNTXT_34> >(
                                    static_cast<RCNTXT_34*>(rawCntxt));
@@ -74,11 +77,36 @@ bool RCntxt::isErrorHandler() const
 
 bool RCntxt::hasSourceRefs() const
 {
-   SEXP refs = sourceRefs();
+   SEXP refs = callFunSourceRefs();
    return refs && TYPEOF(refs) != NILSXP;
 }
 
-SEXP RCntxt::sourceRefs() const
+SEXP RCntxt::contextSourceRefs() const
+{
+   // retrieve the source reference tagged on the context
+   SEXP ref = srcref();
+   
+   // if this is a byte-code context, we need to do some
+   // extra work to resolve the "real" source reference (if any)
+   if (isByteCodeSrcRef(ref))
+   {
+      r::sexp::Protect protect;
+   
+      // attempt to resolve context
+      Error error = r::exec::RFunction(".rs.resolveContextSourceRefs")
+            .addParam(callfun())
+            .call(&ref, &protect);
+      
+      // errors are somewhat expected here, so don't log them and
+      // instead just set the source references to NULL
+      if (error)
+         ref = R_NilValue;
+   }
+   
+   return ref;
+}
+
+SEXP RCntxt::callFunSourceRefs() const
 {
    return r::sexp::getAttrib(originalFunctionCall(), "srcref");
 }
@@ -111,16 +139,7 @@ SEXP RCntxt::originalFunctionCall() const
 
 Error RCntxt::fileName(std::string* pFileName) const
 {
-   // skip over bytecode srcrefs
-   RCntxt context = *this;
-   SEXP ref = context.srcref();
-   while (ref && isByteCodeSrcRef(ref))
-   {
-      context = context.nextcontext();
-      if (context.isNull())
-         break;
-      ref = context.srcref();
-   }
+   SEXP ref = contextSourceRefs();
    
    if (ref && TYPEOF(ref) != NILSXP)
    {
@@ -198,6 +217,11 @@ int RCntxt::callflag() const
 SEXP RCntxt::call() const
 {
    return pCntxt_ ? pCntxt_->call() : R_NilValue;
+}
+
+int RCntxt::evaldepth() const
+{
+   return pCntxt_ ? pCntxt_->evaldepth() : 0;
 }
 
 SEXP RCntxt::srcref() const

@@ -1,7 +1,7 @@
 /*
  * NewDirectoryPage.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,6 +14,9 @@
  */
 package org.rstudio.studio.client.projects.ui.newproject;
 
+import com.google.gwt.aria.client.Roles;
+import org.rstudio.core.client.ElementIds;
+import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.dom.DomUtils;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.resources.ImageResource2x;
@@ -29,8 +32,9 @@ import org.rstudio.studio.client.projects.model.NewProjectInput;
 import org.rstudio.studio.client.projects.model.NewProjectResult;
 import org.rstudio.studio.client.projects.model.NewShinyAppOptions;
 import org.rstudio.studio.client.projects.model.ProjectTemplateOptions;
+import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.SessionInfo;
-import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 
 import com.google.gwt.dom.client.Style.Unit;
 import com.google.gwt.event.logical.shared.ValueChangeEvent;
@@ -64,8 +68,10 @@ public class NewDirectoryPage extends NewProjectWizardPage
    }
 
    @Inject
-   private void initialize(DependencyManager dependencyManager)
+   private void initialize(Session session,
+                           DependencyManager dependencyManager)
    {
+      session_ = session;
       dependencyManager_ = dependencyManager;
    }
 
@@ -86,6 +92,7 @@ public class NewDirectoryPage extends NewProjectWizardPage
       txtProjectName_ = new TextBox();
       txtProjectName_.setWidth("100%");
       DomUtils.disableSpellcheck(txtProjectName_);
+      Roles.getTextboxRole().setAriaRequiredProperty(txtProjectName_.getElement(), true);
 
       // create the dir name label
       dirNameLabel_ = new FormLabel(getDirNameLabel(), txtProjectName_);
@@ -102,11 +109,13 @@ public class NewDirectoryPage extends NewProjectWizardPage
       
       // project dir
       newProjectParent_ = new DirectoryChooserTextBox(
-            "Create project as subdirectory of:", txtProjectName_);
+            "Create project as subdirectory of:",
+            ElementIds.TextBoxButtonId.PROJECT_PARENT,
+            txtProjectName_);
       addWidget(newProjectParent_);
       
       // if git is available then add git init
-      UIPrefs uiPrefs = RStudioGinjector.INSTANCE.getUIPrefs();
+      UserPrefs userState = RStudioGinjector.INSTANCE.getUserPrefs();
       SessionInfo sessionInfo = 
          RStudioGinjector.INSTANCE.getSession().getSessionInfo();
       
@@ -118,7 +127,7 @@ public class NewDirectoryPage extends NewProjectWizardPage
       chkGitInit_.addStyleName(styles.wizardCheckbox());
       if (sessionInfo.isVcsAvailable(VCSConstants.GIT_ID))
       {  
-         chkGitInit_.setValue(uiPrefs.newProjGitInit().getValue());
+         chkGitInit_.setValue(userState.newProjGitInit().getValue());
          chkGitInit_.getElement().getStyle().setMarginRight(7, Unit.PX);
          if (optionsPanel != null)
          {
@@ -198,8 +207,12 @@ public class NewDirectoryPage extends NewProjectWizardPage
    protected void initialize(NewProjectInput input)
    {
       super.initialize(input);
-          
-      newProjectParent_.setText(input.getDefaultNewProjectLocation().getPath());
+      
+      String path = input.getDefaultNewProjectLocation().getPath();
+      if (StringUtil.isNullOrEmpty(path))
+         path = session_.getSessionInfo().getDefaultProjectDir();
+      
+      newProjectParent_.setText(path);
    }
 
 
@@ -271,6 +284,7 @@ public class NewDirectoryPage extends NewProjectWizardPage
    private DirectoryChooserTextBox newProjectParent_;
    
    // Injected ----
+   private Session session_;
    private DependencyManager dependencyManager_;
 
 }

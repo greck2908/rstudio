@@ -1,7 +1,7 @@
 /*
  * SatelliteApplicationView.java
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,7 @@ import com.google.gwt.user.client.ui.Widget;
 
 public interface SatelliteApplicationView
 {
-   Widget getWidget() ;
+   Widget getWidget();
    
    void show(JavaScriptObject params);
    void reactivate(JavaScriptObject params);

@@ -9,24 +9,30 @@ set UNZIP_ARGS=-q
 
 set BASEURL=https://s3.amazonaws.com/rstudio-buildtools/
 set GIN_FILE=gin-2.1.2.zip
-set GWT_FILE=gwt-2.8.2.zip
 set JUNIT_FILE=junit-4.9b3.jar
 set GNUDIFF_FILE=gnudiff.zip
 set GNUGREP_FILE=gnugrep-2.5.4.zip
 set MSYS_SSH_FILE=msys-ssh-1000-18.zip
-set SUMATRA_PDF_FILE=SumatraPDF-3.1.1.zip
+set SUMATRA_PDF_FILE=SumatraPDF-3.1.2-64.zip
 set WINUTILS_FILE=winutils-1.0.zip
 set WINPTY_FILES=winpty-0.4.3-msys2-2.7.0.zip
-set OPENSSL_FILES=openssl-1.1.1b.zip
+set OPENSSL_FILES=openssl-1.1.1d.zip
 set BOOST_FILES=boost-1.69.0-win-msvc141.zip
 
-set PANDOC_VERSION=2.7.2
-set PANDOC_NAME=pandoc-%PANDOC_VERSION%-windows-x86_64
-set PANDOC_FILE=%PANDOC_NAME%.zip
+set PANDOC_VERSION=2.11.2
+set PANDOC_NAME=pandoc-%PANDOC_VERSION%
+set PANDOC_FILE=%PANDOC_NAME%-windows-x86_64.zip
 
 set LIBCLANG_VERSION=5.0.2
 set LIBCLANG_NAME=libclang-windows-%LIBCLANG_VERSION%
 set LIBCLANG_FILE=%LIBCLANG_NAME%.zip
+
+set NODE_VERSION=10.19.0
+set NODE_ROOT=node
+set NODE_SUBDIR=%NODE_ROOT%\%NODE_VERSION%
+set NODE_BASE_URL=https://nodejs.org/dist/v%NODE_VERSION%/
+set NODE_ARCHIVE_DIR=node-v%NODE_VERSION%-win-x64
+set NODE_ARCHIVE_FILE=%NODE_ARCHIVE_DIR%.zip
 
 if not exist gnudiff (
   wget %WGET_ARGS% "%BASEURL%%GNUDIFF_FILE%"
@@ -52,11 +58,11 @@ if not exist msys-ssh-1000-18 (
   del "%MSYS_SSH_FILE%"
 )
 
-if not exist sumatra\3.1.1 (
-  wget %WGET_ARGS% "%BASEURL%%SUMATRA_PDF_FILE%"
-  mkdir sumatra\3.1.1
+if not exist sumatra\3.1.2 (
+  wget %WGET_ARGS% "%BASEURL%sumatrapdf/%SUMATRA_PDF_FILE%"
+  mkdir sumatra\3.1.2
   echo Unzipping %SUMATRA_PDF_FILE%
-  unzip %UNZIP_ARGS% "%SUMATRA_PDF_FILE%" -d sumatra\3.1.1
+  unzip %UNZIP_ARGS% "%SUMATRA_PDF_FILE%" -d sumatra\3.1.2
   del "%SUMATRA_PDF_FILE%"
 )
 
@@ -102,34 +108,6 @@ if not exist breakpad-tools-windows (
   del breakpad-tools-windows.zip
 )
 
-if not exist ..\..\src\gwt\lib (
-  mkdir ..\..\src\gwt\lib
-)
-pushd ..\..\src\gwt\lib
-
-if not exist gin\2.1.2 (
-  wget %WGET_ARGS% "%BASEURL%%GIN_FILE%"
-  mkdir gin\2.1.2
-  echo Unzipping %GIN_FILE%
-  unzip %UNZIP_ARGS% "%GIN_FILE%" -d gin\2.1.2
-  del "%GIN_FILE%"
-)
-
-if not exist gwt\2.8.2 (
-  wget %WGET_ARGS% "%BASEURL%%GWT_FILE%"
-  echo Unzipping %GWT_FILE%
-  unzip %UNZIP_ARGS% "%GWT_FILE%"
-  mkdir gwt
-  move gwt-2.8.2 gwt\2.8.2
-  del "%GWT_FILE%"
-)
-
-if not exist %JUNIT_FILE% (
-  wget %WGET_ARGS% "%BASEURL%%JUNIT_FILE%"
-)
-
-popd
-
 pushd ..\common
 set CORE_DICTIONARIES=core-dictionaries.zip
 if not exist "dictionaries\en_US.dic" (
@@ -142,11 +120,11 @@ if not exist "dictionaries\en_US.dic" (
   )
 )
 
-set MATHJAX=mathjax-26.zip
-if not exist "mathjax-26" (
+set MATHJAX=mathjax-27.zip
+if not exist "mathjax-27" (
   wget %WGET_ARGS% "https://s3.amazonaws.com/rstudio-buildtools/%MATHJAX%"
   if exist "%MATHJAX%" (
-     mkdir mathjax-26
+     mkdir mathjax-27
      echo Unzipping %MATHJAX%
      unzip %UNZIP_ARGS% "%MATHJAX%"
      del "%MATHJAX%"
@@ -170,14 +148,32 @@ if not exist libclang\%LIBCLANG_VERSION% (
   del %LIBCLANG_FILE%
 )
 
+if not exist %NODE_SUBDIR% (
+  wget %WGET_ARGS% %NODE_BASE_URL%%NODE_ARCHIVE_FILE%
+  echo Unzipping node %NODE_VERSION%
+  mkdir %NODE_ROOT%
+  unzip %UNZIP_ARGS% %NODE_ARCHIVE_FILE%
+  move %NODE_ARCHIVE_DIR% %NODE_SUBDIR%
+  del %NODE_ARCHIVE_FILE%
+)
+
+set YARN_DIR=%NODE_SUBDIR%\node_modules\yarn\bin
+if not exist %YARN_DIR%\yarn (
+  echo "Installing yarn"
+  call %NODE_SUBDIR%\npm install --global yarn
+)
+
+set PATH=%CD%\%NODE_SUBDIR%;%CD%\%YARN_DIR%;%PATH%
+pushd ..\..\src\gwt\panmirror\src\editor
+call yarn install
+popd
+
+
 call install-packages.cmd
 
 popd
 
-if not defined RSTUDIO_SKIP_QT (
-  call install-qt-sdk-win.cmd
-)
-
 regsvr32 /s "C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\DIA SDK\bin\msdia140.dll"
 
 call install-crashpad.cmd
+call install-soci.cmd

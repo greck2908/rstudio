@@ -1,7 +1,7 @@
 /*
  * ExportPlotSizeEditor.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -105,7 +105,7 @@ public class ExportPlotSizeEditor extends Composite
       }
       else
       {
-         optionsPanel = topPanel ;
+         optionsPanel = topPanel;
          optionsPanel.setStylePrimaryName(
                                  resources.styles().horizontalSizeOptions());
          widthAndHeightPanel = topPanel;
@@ -179,8 +179,7 @@ public class ExportPlotSizeEditor extends Composite
   
       // lock ratio check box
       keepRatioCheckBox_ = new CheckBox();
-      keepRatioCheckBox_.setStylePrimaryName(
-                           resources.styles().maintainAspectRatioCheckBox());
+      keepRatioCheckBox_.addStyleName(resources.styles().maintainAspectRatioCheckBox());
       keepRatioCheckBox_.setValue(keepRatio);
       keepRatioCheckBox_.setText("Maintain aspect ratio");
       optionsPanel.add(keepRatioCheckBox_);
@@ -295,7 +294,7 @@ public class ExportPlotSizeEditor extends Composite
       initialWidth = constrainWidth(initialWidth);
       initialHeight = constrainHeight(initialHeight);
             
-      // initialie text boxes
+      // initialize text boxes
       setWidthTextBox(initialWidth);
       setHeightTextBox(initialHeight);
  
@@ -495,6 +494,15 @@ public class ExportPlotSizeEditor extends Composite
       panel.setHorizontalAlignment(HasHorizontalAlignment.ALIGN_LEFT);
    }
    
+   @Override
+   protected void onAttach()
+   {
+      super.onAttach();
+      
+      // ensure image preview is updated after dialog is shown
+      updatePreview();
+   }
+   
    private static final int IMAGE_INSET = 6;
    
    private final Observer observer_;
@@ -508,7 +516,7 @@ public class ExportPlotSizeEditor extends Composite
    private final Focusable initialFocusWidget_;
      
    private int lastWidth_;
-   private int lastHeight_ ;
+   private int lastHeight_;
   
    private boolean settingDimenensionInProgress_ = false;
    

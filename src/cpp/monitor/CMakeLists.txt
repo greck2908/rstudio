@@ -1,7 +1,7 @@
 #
 # CMakeLists.txt
 #
-# Copyright (C) 2009-19 by RStudio, Inc.
+# Copyright (C) 2020 by RStudio, PBC
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -35,11 +35,13 @@ include_directories(
    ${EXT_SOURCE_DIR}
    ${CORE_SOURCE_DIR}/include
    ${SERVER_CORE_SOURCE_DIR}/include
+   ${SHARED_CORE_SOURCE_DIR}/include
 )
 
 # define library
 add_library(rstudio-monitor STATIC ${MONITOR_SOURCE_FILES}
                                    ${MONITOR_HEADER_FILES})
+define_source_file_names(rstudio-monitor)
 
 # link dependencies
 target_link_libraries(rstudio-monitor

@@ -1,7 +1,7 @@
 /*
  * PopupPositioner.java
  *
- * Copyright (C) 2009-12 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,13 +22,13 @@ import org.rstudio.core.client.Rectangle;
 
 public class PopupPositioner implements PositionCallback
 {
-   private Rectangle cursorBounds_ ;
-   private CompletionPopupDisplay popup_ ;
+   private Rectangle cursorBounds_;
+   private CompletionPopupDisplay popup_;
    
    public PopupPositioner(Rectangle cursorBounds, CompletionPopupDisplay popup)
    {
-      this.cursorBounds_ = cursorBounds ;
-      popup_ = popup ;
+      this.cursorBounds_ = cursorBounds;
+      popup_ = popup;
    }
 
    public void setPosition(int popupWidth, int popupHeight)

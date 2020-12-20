@@ -1,7 +1,7 @@
 /*
  * RTokenizer.hpp
  *
- * Copyright (C) 2009-17 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -210,6 +210,8 @@ public:
    RToken nextToken();
 
 private:
+   Error matchRawStringLiteral(RToken* pToken);
+   
    RToken matchWhitespace();
    RToken matchStringLiteral();
    RToken matchNumber();
@@ -453,7 +455,8 @@ inline bool isValidAsUnaryOperator(const RToken& rToken)
 inline bool canStartExpression(const RToken& rToken)
 {
    return isValidAsUnaryOperator(rToken) ||
-          isValidAsIdentifier(rToken);
+          isValidAsIdentifier(rToken) ||
+          rToken.isType(RToken::LPAREN);
 }
 
 inline bool isExtractionOperator(const RToken& rToken)

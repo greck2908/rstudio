@@ -1,7 +1,7 @@
 /*
  * JobsPaneWidgets.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,6 +22,7 @@ import org.rstudio.core.client.widget.Toolbar;
 import org.rstudio.core.client.widget.ToolbarButton;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.workbench.commands.Commands;
+import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 import org.rstudio.studio.client.workbench.views.jobs.events.JobSelectionEvent;
 import org.rstudio.studio.client.workbench.views.jobs.model.Job;
 import org.rstudio.studio.client.workbench.views.jobs.model.JobConstants;
@@ -34,13 +35,15 @@ public class JobsPaneWidgets implements JobsPaneOperations
    @Inject
    public JobsPaneWidgets(Commands commands,
                           EventBus events,
+                          UserPrefs userPrefs,
                           JobsList list)
    {
       commands_ = commands;
       events_ = events;
+      userPrefs_ = userPrefs;
       list_ = list;
 
-      toolbar_ = new Toolbar();
+      toolbar_ = new Toolbar("Jobs Tab");
       
       allJobs_ = new ToolbarButton(
             ToolbarButton.NoText,
@@ -49,7 +52,7 @@ public class JobsPaneWidgets implements JobsPaneOperations
       {
          // deselect current job
          events_.fireEvent(new JobSelectionEvent(current_,
-               JobConstants.JOB_TYPE_SESSION, false, true));
+               JobConstants.JOB_TYPE_SESSION, false, !userPrefs_.reducedMotion().getValue()));
       });
       
       installMainToolbar();
@@ -83,7 +86,7 @@ public class JobsPaneWidgets implements JobsPaneOperations
             toolbar_.removeLeftWidget(progress_);
          
          // show progress
-         progress_ = new JobProgress();
+         progress_ = new JobProgress(events_);
          toolbar_.addLeftWidget(progress_);
          progress_.showJob(job);
       }
@@ -93,7 +96,7 @@ public class JobsPaneWidgets implements JobsPaneOperations
    public void installMainToolbar()
    {
       toolbar_.removeAllWidgets();
-      toolbar_.addLeftWidget(commands_.startJob().createToolbarButton());
+      toolbar_.addLeftWidget(startButton_ = commands_.startJob().createToolbarButton());
       toolbar_.addLeftSeparator();
       toolbar_.addLeftWidget(commands_.clearJobs().createToolbarButton());
       progress_ = null;
@@ -141,7 +144,7 @@ public class JobsPaneWidgets implements JobsPaneOperations
    {
       if (progress_ == null)
       {
-         progress_ = new JobProgress();
+         progress_ = new JobProgress(events_);
          toolbar_.addLeftWidget(progress_);
       }
       progress_.showJob(job);
@@ -217,19 +220,27 @@ public class JobsPaneWidgets implements JobsPaneOperations
    {
       return panel_;
    }
-   
+
+   @Override
+   public void focus()
+   {
+      startButton_.setFocus(true);
+   }
+
    // widgets
    private JobOutputPanel output_;
    private SlidingLayoutPanel panel_;
    private final Toolbar toolbar_;
    private final ToolbarButton allJobs_;
    private JobProgress progress_;
-   
+   private ToolbarButton startButton_;
+
    // internal state
    private String current_;
    
    // injected
    private final Commands commands_;
    private final EventBus events_;
+   private final UserPrefs userPrefs_;
    private final JobsList list_;
 }

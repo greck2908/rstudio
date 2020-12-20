@@ -1,7 +1,7 @@
 /*
  * ServerSessionProxyOverlay.cpp
  *
- * Copyright (C) 2018 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,7 @@
 
 #include <server/ServerSessionProxy.hpp>
 
-using namespace rstudio::core ;
+using namespace rstudio::core;
 
 namespace rstudio {
 namespace server {
@@ -31,7 +31,8 @@ bool proxyRequest(
       const boost::shared_ptr<http::Request>& pRequest,
       const r_util::SessionContext& context,
       boost::shared_ptr<http::AsyncConnection> ptrConnection,
-      const http::ErrorHandler& errorHandler)
+      const http::ErrorHandler& errorHandler,
+      const ClientHandler& clientHandler = ClientHandler())
 {
    // not proxying the request
    return false;
@@ -55,7 +56,13 @@ void proxyJupyterRequest(const r_util::SessionContext& context,
 {
 }
 
-Error runVerifyInstallationSession(core::system::user::User& user,
+void proxyVSCodeRequest(const r_util::SessionContext& context,
+                        boost::shared_ptr<core::http::AsyncConnection> ptrConnection,
+                        const http::ErrorHandler& errorHandler)
+{
+}
+
+Error runVerifyInstallationSession(core::system::User& user,
                                    bool* pHandled)
 {
    *pHandled = false;

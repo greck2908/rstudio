@@ -1,7 +1,7 @@
 /*
  * Connection.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -48,9 +48,9 @@ std::string iconData(const std::string& iconGroup,
             boost::regex("\\s"), "") + ".png";
 
       // the package did not supply an icon; see if there's one baked in
-      FilePath path = options().rResourcesPath().childPath("connections")
-         .childPath(iconGroup)
-         .childPath(iconFilename);
+      FilePath path = options().rResourcesPath().completeChildPath("connections")
+                               .completeChildPath(iconGroup)
+                               .completeChildPath(iconFilename);
       if (path.exists())
          return std::string("connections/") + iconGroup + "/" + iconFilename;
 
@@ -66,7 +66,7 @@ std::string iconData(const std::string& iconGroup,
    std::string iconData;
 
    // ensure that the icon file exists and is a small GIF, JPG, or PNG image
-   if (icon.exists() && icon.size() < kMaxIconSize &&
+   if (icon.exists() && icon.getSize() < kMaxIconSize &&
        (icon.hasExtensionLowerCase(".gif") ||
         icon.hasExtensionLowerCase(".png") ||
         icon.hasExtensionLowerCase(".jpg") ||
@@ -77,7 +77,7 @@ std::string iconData(const std::string& iconGroup,
          LOG_ERROR(error);
       else
       {
-         iconData = "data:" + icon.mimeContentType("image/png") + 
+         iconData = "data:" + icon.getMimeContentType("image/png") +
                     ";base64," + iconData;
       }
    }
@@ -145,25 +145,25 @@ Error actionFromJson(const json::Object& actionJson,
                      ConnectionAction* pAction)
 {
    return json::readObject(actionJson,
-         "name", &(pAction->name),
-         "icon_path", &(pAction->icon));
+         "name", pAction->name,
+         "icon_path", pAction->icon);
 }
 
 Error objectTypeFromJson(const json::Object& objectTypeJson,
                          ConnectionObjectType* pObjectType)
 {
    return json::readObject(objectTypeJson,
-         "name", &(pObjectType->name),
-         "contains", &(pObjectType->contains),
-         "icon_path", &(pObjectType->icon));
+         "name", pObjectType->name,
+         "contains", pObjectType->contains,
+         "icon_path", pObjectType->icon);
 }
 
 Error connectionIdFromJson(const json::Object& connectionIdJson,
                            ConnectionId* pConnectionId)
 {
    return json::readObject(connectionIdJson,
-         "type", &(pConnectionId->type),
-         "host", &(pConnectionId->host));
+         "type", pConnectionId->type,
+         "host", pConnectionId->host);
 }
 
 Error connectionFromJson(const json::Object& connectionJson,
@@ -171,7 +171,7 @@ Error connectionFromJson(const json::Object& connectionJson,
 {
    // read id fields
    json::Object idJson;
-   Error error = json::readObject(connectionJson, "id", &idJson);
+   Error error = json::readObject(connectionJson, "id", idJson);
    if (error)
       return error;
    error = connectionIdFromJson(idJson, &(pConnection->id));
@@ -181,20 +181,20 @@ Error connectionFromJson(const json::Object& connectionJson,
    json::Array objectTypes;
    error = json::readObject(
             connectionJson,
-            "connect_code", &(pConnection->connectCode),
-            "display_name", &(pConnection->displayName),
-            "actions", &actions,
-            "object_types", &objectTypes,
-            "icon_path", &(pConnection->icon),
-            "last_used", &(pConnection->lastUsed));
+            "connect_code", pConnection->connectCode,
+            "display_name", pConnection->displayName,
+            "actions", actions,
+            "object_types", objectTypes,
+            "icon_path", pConnection->icon,
+            "last_used", pConnection->lastUsed);
 
    // read each action
    for (const json::Value& action : actions)
    {
-      if (action.type() != json::ObjectType)
+      if (action.getType() != json::Type::OBJECT)
          continue;
       ConnectionAction act;
-      error = actionFromJson(action.get_obj(), &act);
+      error = actionFromJson(action.getObject(), &act);
       if (error)
       {
          // be fault-tolerant here (we can still use the connection even if the
@@ -208,10 +208,10 @@ Error connectionFromJson(const json::Object& connectionJson,
    // read each object type
    for (const json::Value& objectType : objectTypes)
    {
-      if (objectType.type() != json::ObjectType)
+      if (objectType.getType() != json::Type::OBJECT)
          continue;
       ConnectionObjectType type;
-      error = objectTypeFromJson(objectType.get_obj(), &type);
+      error = objectTypeFromJson(objectType.getObject(), &type);
       if (error)
       {
          LOG_ERROR(error);
@@ -226,7 +226,7 @@ bool hasConnectionId(const ConnectionId& id,
                      const core::json::Object& connectionJson)
 {
    json::Object idJson;
-   Error error = json::readObject(connectionJson, "id", &idJson);
+   Error error = json::readObject(connectionJson, "id", idJson);
    if (error)
    {
       LOG_ERROR(error);
@@ -234,7 +234,7 @@ bool hasConnectionId(const ConnectionId& id,
    }
 
    std::string type, host;
-   error = json::readObject(idJson, "type", &type, "host", &host);
+   error = json::readObject(idJson, "type", type, "host", host);
    if (error)
    {
       LOG_ERROR(error);

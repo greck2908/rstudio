@@ -1,7 +1,7 @@
 /*
  * RErrorCategory.hpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -50,12 +50,12 @@ struct is_error_code_enum<rstudio::r::errc::errc_t>
 
 
 
-#include <core/Error.hpp>
+#include <shared_core/Error.hpp>
 
 namespace rstudio {
 namespace r {
 
-const boost::system::error_category& rCategory() ;
+const boost::system::error_category& rCategory();
 
 namespace errc {
 

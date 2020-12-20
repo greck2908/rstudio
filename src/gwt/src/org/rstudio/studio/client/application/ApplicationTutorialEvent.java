@@ -1,7 +1,7 @@
 /*
  * ApplicationTutorialEvent.java
  *
- * Copyright (C) 2009-18 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -33,11 +33,11 @@ public class ApplicationTutorialEvent extends CrossWindowEvent<Handler>
    }
 
    // Supported values for Data.message
-   
+
    // API request failed
    // {"message": "error": "api": "<APINAME>", "result": "<API-SPECIFIC>", "callerID": "caller-supplied"}
    public static final String API_ERROR = "error";
-   
+
    // API request succeeded
    // {"message": "success": "api": "<APINAME>", "callerID": "caller-supplied"}
    public static final String API_SUCCESS = "success";
@@ -45,7 +45,15 @@ public class ApplicationTutorialEvent extends CrossWindowEvent<Handler>
    // Some type of file save operation was initiated. Doesn't guarantee it was successful.
    // {"message": "fileSave"}
    public static final String FILE_SAVE = "fileSave";
-   
+
+   // The RPC connection between IDE and the RSession has been disconnected.
+   // {"message": "sessionDisconnect"}
+   public static final String SESSION_DISCONNECT = "sessionDisconnect";
+
+   // The RSession has suspended.
+   // {"message": "sessionSuspend"}
+   public static final String SESSION_SUSPEND = "sessionSuspend";
+
    @JsType(isNative = true, namespace = JsPackage.GLOBAL, name = "Object")
    public static class Data
    {
@@ -99,13 +107,13 @@ public class ApplicationTutorialEvent extends CrossWindowEvent<Handler>
    {
       handler.onApplicationTutorialEvent(this);
    }
-   
+
    public Data getData()
    {
       return data_;
    }
-  
+
    private final Data data_;
 
-   public static final Type<Handler> TYPE = new Type<Handler>(); 
+   public static final Type<Handler> TYPE = new Type<>();
 }

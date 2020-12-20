@@ -1,7 +1,7 @@
 /*
  * DesktopApplicationHeader.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -25,9 +25,12 @@ import org.rstudio.core.client.command.impl.DesktopMenuCallback;
 import org.rstudio.core.client.dom.DomUtils;
 import org.rstudio.core.client.dom.WindowEx;
 import org.rstudio.core.client.js.JsObject;
+import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.theme.res.ThemeResources;
 import org.rstudio.core.client.theme.res.ThemeStyles;
 import org.rstudio.core.client.widget.Operation;
+import org.rstudio.core.client.widget.ToolbarButton;
+import org.rstudio.core.client.widget.ToolbarLabel;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.ApplicationQuit;
 import org.rstudio.studio.client.application.ApplicationQuit.QuitContext;
@@ -36,6 +39,7 @@ import org.rstudio.studio.client.application.DesktopHooks;
 import org.rstudio.studio.client.application.DesktopInfo;
 import org.rstudio.studio.client.application.IgnoredUpdates;
 import org.rstudio.studio.client.application.events.EventBus;
+import org.rstudio.studio.client.application.events.LogoutRequestedEvent;
 import org.rstudio.studio.client.application.model.ApplicationServerOperations;
 import org.rstudio.studio.client.application.model.UpdateCheckResult;
 import org.rstudio.studio.client.application.ui.ApplicationHeader;
@@ -49,12 +53,11 @@ import org.rstudio.studio.client.server.ServerRequestCallback;
 import org.rstudio.studio.client.workbench.codesearch.CodeSearch;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.events.SessionInitEvent;
-import org.rstudio.studio.client.workbench.events.SessionInitHandler;
 import org.rstudio.studio.client.workbench.model.ClientState;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.SessionInfo;
 import org.rstudio.studio.client.workbench.model.helper.JSObjectStateValue;
-import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 import org.rstudio.studio.client.workbench.views.console.events.SendToConsoleEvent;
 import org.rstudio.studio.client.workbench.views.files.events.ShowFolderEvent;
 import org.rstudio.studio.client.workbench.views.files.events.ShowFolderHandler;
@@ -69,6 +72,8 @@ import com.google.gwt.dom.client.Element;
 import com.google.gwt.user.client.Timer;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.Widget;
+import com.google.gwt.resources.client.ClientBundle;
+import com.google.gwt.resources.client.ImageResource;
 import com.google.inject.Inject;
 import com.google.inject.Provider;
 
@@ -84,10 +89,10 @@ public class DesktopApplicationHeader implements ApplicationHeader,
    public void initialize(final Commands commands,
                           EventBus events,
                           final Session session,
-                          ApplicationServerOperations server, 
+                          ApplicationServerOperations server,
                           Provider<DesktopHooks> pDesktopHooks,
                           Provider<CodeSearch> pCodeSearch,
-                          Provider<UIPrefs> pUIPrefs,
+                          Provider<UserPrefs> pUIPrefs,
                           ErrorManager errorManager,
                           GlobalDisplay globalDisplay,
                           ApplicationQuit appQuit)
@@ -106,77 +111,83 @@ public class DesktopApplicationHeader implements ApplicationHeader,
 
       pDesktopHooks.get();
 
-      commands.uploadFile().remove();
-      commands.exportFiles().remove();
+      if (!Desktop.isRemoteDesktop())
+      {
+         commands.uploadFile().remove();
+         commands.exportFiles().remove();
+      }
       commands.updateCredentials().remove();
-   
+
       commands.checkForUpdates().setVisible(true);
       commands.showLogFiles().setVisible(true);
       commands.diagnosticsReport().setVisible(true);
       commands.showFolder().setVisible(true);
 
-      events.addHandler(SessionInitEvent.TYPE, new SessionInitHandler() {
-         public void onSessionInit(SessionInitEvent sie)
-         {
-            final SessionInfo sessionInfo = session.getSessionInfo();
-            
-            isFlatTheme_ = RStudioThemes.isFlat(pUIPrefs_.get()); 
-            toolbar_.completeInitialization(sessionInfo);
+      events.addHandler(SessionInitEvent.TYPE, (SessionInitEvent sie) ->
+      {
+         final SessionInfo sessionInfo = session.getSessionInfo();
 
-            if (Desktop.isRemoteDesktop())
+         isFlatTheme_ = RStudioThemes.isFlat(pUIPrefs_.get());
+
+         if (Desktop.isRemoteDesktop())
+            addSignoutToolbar();
+
+         overlay_.addConnectionStatusToolbar(DesktopApplicationHeader.this);
+
+         toolbar_.completeInitialization(sessionInfo);
+
+         if (Desktop.isRemoteDesktop())
+         {
+            overlay_.addRVersionsToolbar(DesktopApplicationHeader.this);
+            overlay_.addSessionsToolbar(DesktopApplicationHeader.this);
+            addQuitSessionButton(commands);
+         }
+
+         new JSObjectStateValue(
+               "updates",
+               "ignoredUpdates",
+               ClientState.PERSISTENT,
+               session_.getSessionInfo().getClientState(),
+               false)
+         {
+            @Override
+            protected void onInit(JsObject value)
             {
-               overlay_.addRVersionsToolbar(DesktopApplicationHeader.this);
-               overlay_.addSessionsToolbar(DesktopApplicationHeader.this);
+               if (value != null)
+                  ignoredUpdates_ = value.cast();
             }
 
-            overlay_.addConnectionStatusToolbar(DesktopApplicationHeader.this);
-
-            new JSObjectStateValue(
-                  "updates",
-                  "ignoredUpdates",
-                  ClientState.PERSISTENT,
-                  session_.getSessionInfo().getClientState(),
-                  false)
+            @Override
+            protected JsObject getValue()
             {
-               @Override
-               protected void onInit(JsObject value)
-               {
-                  if (value != null)
-                     ignoredUpdates_ = value.cast();
-               }
-         
-               @Override
-               protected JsObject getValue()
-               {
-                  ignoredUpdatesDirty_ = false;
-                  return ignoredUpdates_.cast();
-               }
-               
-               @Override
-               protected boolean hasChanged()
-               {
-                  return ignoredUpdatesDirty_;
-               }
-            };
+               ignoredUpdatesDirty_ = false;
+               return ignoredUpdates_.cast();
+            }
 
-            Scheduler.get().scheduleFinally(new ScheduledCommand()
+            @Override
+            protected boolean hasChanged()
             {
-               public void execute()
+               return ignoredUpdatesDirty_;
+            }
+         };
+
+         Scheduler.get().scheduleFinally(new ScheduledCommand()
+         {
+            public void execute()
+            {
+               Desktop.getFrame().onWorkbenchInitialized(
+                     StringUtil.notNull(sessionInfo.getScratchDir()));
+
+               if (sessionInfo.getDisableCheckForUpdates())
+                  commands.checkForUpdates().remove();
+
+               if (!sessionInfo.getDisableCheckForUpdates() &&
+                   pUIPrefs_.get().checkForUpdates().getValue())
                {
-                  Desktop.getFrame().onWorkbenchInitialized(
-                        StringUtil.notNull(sessionInfo.getScratchDir()));
-                  
-                  if (sessionInfo.getDisableCheckForUpdates())
-                     commands.checkForUpdates().remove();
-                  
-                  if (!sessionInfo.getDisableCheckForUpdates() &&
-                      pUIPrefs_.get().checkForUpdates().getValue())
-                  {
-                     checkForUpdates(false);
-                  }
+                  checkForUpdates(false);
                }
-            });
-         }
+            }
+         });
       });
 
       events.addHandler(ShowFolderEvent.TYPE, new ShowFolderHandler()
@@ -186,23 +197,32 @@ public class DesktopApplicationHeader implements ApplicationHeader,
             Desktop.getFrame().showFolder(StringUtil.notNull(event.getPath().getPath()));
          }
       });
-      
+
       toolbar_ = new GlobalToolbar(commands, pCodeSearch);
-      ThemeStyles styles = ThemeResources.INSTANCE.themeStyles(); 
+      ThemeStyles styles = ThemeResources.INSTANCE.themeStyles();
       toolbar_.getWrapper().addStyleName(styles.desktopGlobalToolbarWrapper());
       toolbar_.addStyleName(styles.desktopGlobalToolbar());
    }
-   
+
+   @Override
    public void showToolbar(boolean showToolbar)
    {
       toolbar_.setVisible(showToolbar);
    }
-   
+
+   @Override
    public boolean isToolbarVisible()
    {
       return toolbar_.isVisible();
    }
-   
+
+   @Override
+   public void focusToolbar()
+   {
+      toolbar_.setFocus();
+   }
+
+   @Override
    public void focusGoToFunction()
    {
       toolbar_.focusGoToFunction();
@@ -212,7 +232,50 @@ public class DesktopApplicationHeader implements ApplicationHeader,
    {
       eventBus_.fireEvent(new EditEvent(true, type));
    }
-   
+
+   private void addSignoutToolbar()
+   {
+
+      if (session_.getSessionInfo().getShowIdentity() && session_.getSessionInfo().getAllowFullUI())
+      {
+         String userIdentity = session_.getSessionInfo().getUserIdentity();
+         ToolbarLabel usernameLabel = new ToolbarLabel();
+         usernameLabel.setTitle(userIdentity);
+         userIdentity = userIdentity.split("@")[0];
+         usernameLabel.setText(userIdentity);
+
+         addRightCommand(usernameLabel);
+
+         ToolbarButton signOutButton = new ToolbarButton(
+               ToolbarButton.NoText,
+               "Sign out",
+               new ImageResource2x(RESOURCES.signOut2x()),
+               event -> eventBus_.fireEvent(new LogoutRequestedEvent()));
+
+
+         addRightCommand(signOutButton);
+         addRightCommandSeparator();
+      }
+   }
+
+   private void addQuitSessionButton(Commands commands)
+   {
+      if (session_.getSessionInfo().getAllowFullUI())
+      {
+         addRightCommandSeparator();
+         addRightCommand(commands.quitSession().createToolbarButton());
+      }
+
+   }
+
+   interface Resources extends ClientBundle
+   {
+      @Source("signOut_2x.png")
+      ImageResource signOut2x();
+   }
+
+   private static final DesktopApplicationHeader.Resources RESOURCES =  (DesktopApplicationHeader.Resources) GWT.create(DesktopApplicationHeader.Resources.class);
+
    @Handler
    void onUndoDummy()
    {
@@ -249,17 +312,24 @@ public class DesktopApplicationHeader implements ApplicationHeader,
    }
 
    @Handler
+   void onPasteWithIndentDummy()
+   {
+      fireEditEvent(EditEvent.TYPE_PASTE_WITH_INDENT);
+      Desktop.getFrame().clipboardPaste();
+   }
+
+   @Handler
    void onShowLogFiles()
    {
       Desktop.getFrame().showFolder(StringUtil.notNull(session_.getSessionInfo().getLogDir()));
    }
-   
+
    @Handler
    void onDiagnosticsReport()
    {
       eventBus_.fireEvent(
          new SendToConsoleEvent("rstudioDiagnosticsReport()", true));
-      
+
       new Timer() {
          @Override
          public void run()
@@ -267,9 +337,9 @@ public class DesktopApplicationHeader implements ApplicationHeader,
             Desktop.getFrame().showFolder("~/rstudio-diagnostics");
          }
       }.schedule(1000);
-      
+
    }
-   
+
    @Handler
    void onOpenDeveloperConsole()
    {
@@ -288,13 +358,13 @@ public class DesktopApplicationHeader implements ApplicationHeader,
                Window.getClientHeight() - 20);
       }
    }
-   
+
    @Handler
    void onShowGpuDiagnostics()
    {
       globalDisplay_.openMinimalWindow("chrome://gpu", 500, 400);
    }
-   
+
    @Handler
    void onReloadUi()
    {
@@ -322,7 +392,7 @@ public class DesktopApplicationHeader implements ApplicationHeader,
 
    private void checkForUpdates(final boolean manual)
    {
-      server_.checkForUpdates(manual, 
+      server_.checkForUpdates(manual,
             new ServerRequestCallback<UpdateCheckResult>()
       {
          @Override
@@ -330,18 +400,18 @@ public class DesktopApplicationHeader implements ApplicationHeader,
          {
             respondToUpdateCheck(result, manual);
          }
-         
+
          @Override
          public void onError(ServerError error)
          {
-            globalDisplay_.showErrorMessage("Error Checking for Updates", 
+            globalDisplay_.showErrorMessage("Error Checking for Updates",
                   "An error occurred while checking for updates: "
                   + error.getMessage());
          }
       });
    }
 
-   private void respondToUpdateCheck(final UpdateCheckResult result, 
+   private void respondToUpdateCheck(final UpdateCheckResult result,
                                      boolean manual)
    {
       boolean ignoredUpdate = false;
@@ -362,7 +432,7 @@ public class DesktopApplicationHeader implements ApplicationHeader,
          ArrayList<String> buttonLabels = new ArrayList<>();
          ArrayList<String> elementIds = new ArrayList<>();
          ArrayList<Operation> buttonOperations = new ArrayList<>();
-         
+
          buttonLabels.add("Quit and Download...");
          elementIds.add(ElementIds.DIALOG_YES_BUTTON);
          buttonOperations.add(new Operation() {
@@ -377,7 +447,7 @@ public class DesktopApplicationHeader implements ApplicationHeader,
                      Desktop.getFrame().browseUrl(StringUtil.notNull(result.getUpdateUrl()));
                      appQuit_.performQuit(null, saveChanges);
                   }
-               }); 
+               });
             }
          });
 
@@ -407,21 +477,21 @@ public class DesktopApplicationHeader implements ApplicationHeader,
             });
          }
 
-         globalDisplay_.showGenericDialog(GlobalDisplay.MSG_QUESTION, 
-               "Update Available", 
-               result.getUpdateMessage(), 
+         globalDisplay_.showGenericDialog(GlobalDisplay.MSG_QUESTION,
+               "Update Available",
+               result.getUpdateMessage(),
                buttonLabels,
                elementIds,
                buttonOperations, 0);
       }
-      else if (manual) 
+      else if (manual)
       {
-         globalDisplay_.showMessage(GlobalDisplay.MSG_INFO, 
-                              "No Update Available", 
+         globalDisplay_.showMessage(GlobalDisplay.MSG_INFO,
+                              "No Update Available",
                               "You're using the newest version of RStudio.");
       }
    }
-   
+
    public static boolean isSelectionEmpty()
    {
       Element activeElement = DomUtils.getActiveElement();
@@ -431,7 +501,7 @@ public class DesktopApplicationHeader implements ApplicationHeader,
          Selection selection = editor.getSession().getSelection();
          return selection.isEmpty();
       }
-      
+
       // NOTE: we currently use this for managing copy + paste
       // behaviors, but copy + paste seems to do the right thing
       // regardless of whether the user has highlighted some text
@@ -440,7 +510,7 @@ public class DesktopApplicationHeader implements ApplicationHeader,
       // has focus)
       return false;
    }
-   
+
    @SuppressWarnings("unused")
    private static boolean isFocusInAceInstance()
    {
@@ -532,11 +602,11 @@ public class DesktopApplicationHeader implements ApplicationHeader,
    private EventBus eventBus_;
    private GlobalToolbar toolbar_;
    private GlobalDisplay globalDisplay_;
-   Provider<UIPrefs> pUIPrefs_;
+   Provider<UserPrefs> pUIPrefs_;
    private ApplicationServerOperations server_;
    private IgnoredUpdates ignoredUpdates_;
    private boolean ignoredUpdatesDirty_ = false;
-   private ApplicationQuit appQuit_; 
+   private ApplicationQuit appQuit_;
    private Boolean isFlatTheme_ = false;
    private WebApplicationHeaderOverlay overlay_;
 }

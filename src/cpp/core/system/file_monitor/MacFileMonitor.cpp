@@ -1,7 +1,7 @@
 /*
  * MacFileMonitor.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,7 +22,7 @@
 #include <boost/bind.hpp>
 
 #include <core/Log.hpp>
-#include <core/Error.hpp>
+#include <shared_core/Error.hpp>
 #include <core/FileInfo.hpp>
 #include <core/Thread.hpp>
 
@@ -46,7 +46,7 @@ public:
    {
       const char* cpath = path.c_str();
       auto f = [&]() { return ::open(cpath, O_DIRECTORY); };
-      Error error = posixCall<int>(f, ERROR_LOCATION, &fd_);
+      Error error = posix::posixCall<int>(f, ERROR_LOCATION, &fd_);
       if (error)
          LOG_ERROR(error);
    }
@@ -65,7 +65,7 @@ public:
       // read the path associated with the descriptor
       char path[PATH_MAX];
       auto f = [&]() { return ::fcntl(fd_, F_GETPATH, path); };
-      Error error = posixCall<int>(f, ERROR_LOCATION);
+      Error error = posix::posixCall<int>(f, ERROR_LOCATION);
       if (error)
          return FilePath();
 
@@ -87,7 +87,7 @@ class FileEventContext : boost::noncopyable
 public:
    FileEventContext(const FilePath& rootPath)
       : rootPath(rootPath),
-        rootHandle(rootPath.absolutePathNative()),
+        rootHandle(rootPath.getAbsolutePathNative()),
         streamRef(nullptr),
         recursive(false)
    {
@@ -132,11 +132,15 @@ void fileEventCallback(ConstFSEventStreamRef streamRef,
    // against this by also double-checking whether the original path
    // monitored and the path reported by the file handle match up
    //
+   // We check for filesystem equivalence (not path equivalence) since macOS 
+   // Catalina can issue a RootChanged event for conversion to/from a 
+   // canonicalized /System/Volumes/Data path.
+   //
    // https://github.com/rstudio/rstudio/issues/4755
-   if (pContext->rootPath != pContext->rootHandle.currentPath())
+   if (!pContext->rootPath.isEquivalentTo(pContext->rootHandle.currentPath()))
    {
       // propagate error to client
-      Error error = fileNotFoundError(pContext->rootPath.absolutePath(),
+      Error error = fileNotFoundError(pContext->rootPath.getAbsolutePath(),
                                       ERROR_LOCATION);
       pContext->callbacks.onMonitoringError(error);
 
@@ -156,7 +160,7 @@ void fileEventCallback(ConstFSEventStreamRef streamRef,
 
       // if we aren't in recursive mode then ignore this if it isn't for
       // the root directory
-      if (!pContext->recursive && (path != pContext->rootPath.absolutePath()))
+      if (!pContext->recursive && (path != pContext->rootPath.getAbsolutePath()))
          continue;
 
       // get FileInfo for this directory
@@ -177,7 +181,7 @@ void fileEventCallback(ConstFSEventStreamRef streamRef,
                                              &(pContext->fileTree),
                                              pContext->callbacks.onFilesChanged);
          if (error &&
-            (error.code() != boost::system::errc::no_such_file_or_directory))
+            (error != systemError(boost::system::errc::no_such_file_or_directory, ErrorLocation())))
          {
             LOG_ERROR(error);
          }
@@ -231,7 +235,7 @@ Handle registerMonitor(const FilePath& filePath,
    // allocate file path
    CFStringRef filePathRef = ::CFStringCreateWithCString(
                                        kCFAllocatorDefault,
-                                       filePath.absolutePath().c_str(),
+                                       filePath.getAbsolutePath().c_str(),
                                        kCFStringEncodingUTF8);
    if (filePathRef == nullptr)
    {

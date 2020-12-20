@@ -1,7 +1,7 @@
 #
 # CMakeLists.txt
 #
-# Copyright (C) 2009-19 by RStudio, Inc.
+# Copyright (C) 2020 by RStudio, PBC
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -60,6 +60,7 @@ include_directories(
 add_library(rstudio-core-hunspell STATIC
    ${CORE_HUNSPELL_SOURCE_FILES}
    ${CORE_HUNSPELL_HEADER_FILES})
+define_source_file_names(rstudio-core-hunspell)
 
 # link dependencies
 target_link_libraries(rstudio-core-hunspell

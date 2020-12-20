@@ -1,7 +1,7 @@
 /*
  * ROptions.cpp
  *
- * Copyright (C) 2009-17 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,13 +19,13 @@
 #include <boost/format.hpp>
 
 #include <core/Log.hpp>
-#include <core/FilePath.hpp>
-#include <core/SafeConvert.hpp>
+#include <shared_core/FilePath.hpp>
+#include <shared_core/SafeConvert.hpp>
 #include <core/system/Environment.hpp>
 
 #include <r/RExec.hpp>
 
-using namespace rstudio::core ;
+using namespace rstudio::core;
 
 namespace rstudio {
 namespace r {
@@ -40,15 +40,15 @@ int s_buildWidth = -1;
 
 Error saveOptions(const FilePath& filePath)
 {
-   return exec::RFunction(".rs.saveOptions", filePath.absolutePath()).call();
+   return exec::RFunction(".rs.saveOptions", filePath.getAbsolutePath()).call();
 }
    
 Error restoreOptions(const FilePath& filePath)
 {
-   return exec::RFunction(".rs.restoreOptions", filePath.absolutePath()).call();
+   return exec::RFunction(".rs.restoreOptions", filePath.getAbsolutePath()).call();
 }
    
-const int kDefaultWidth = 80;   
+const int kDefaultWidth = 80;
    
 void setOptionWidth(int width)
 {

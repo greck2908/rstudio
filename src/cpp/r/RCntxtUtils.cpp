@@ -1,7 +1,7 @@
 /*
  * RCntxtUtils.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -34,7 +34,9 @@ RCntxtVersion contextVersion()
    if (s_rCntxtVersion == RVersionUnknown)
    {
       // use current R version to divine the memory layout 
-      if (r::util::hasRequiredVersion("3.4"))
+      if (r::util::hasRequiredVersion("4.0"))
+         s_rCntxtVersion = RVersion40;
+      else if (r::util::hasRequiredVersion("3.4"))
          s_rCntxtVersion = RVersion34;
       else if (r::util::hasRequiredVersion("3.3"))
          s_rCntxtVersion = RVersion33;
@@ -46,7 +48,7 @@ RCntxtVersion contextVersion()
 
 RCntxt globalContext()
 {
-   return RCntxt(getGlobalContext());
+   return RCntxt(R_GlobalContext);
 }
 
 RCntxt firstFunctionContext()

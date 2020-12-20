@@ -1,7 +1,7 @@
 /*
  * ImagePreviewer.java
  *
- * Copyright (C) 2009-16 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -28,8 +28,7 @@ import org.rstudio.core.client.layout.FadeOutAnimation;
 import org.rstudio.core.client.regex.Pattern;
 import org.rstudio.studio.client.common.FilePathUtils;
 import org.rstudio.studio.client.rmarkdown.model.RmdChunkOptions;
-import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
-import org.rstudio.studio.client.workbench.prefs.model.UIPrefsAccessor;
+import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.LineWidget;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Position;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Range;
@@ -64,7 +63,7 @@ import com.google.gwt.user.client.ui.SimplePanel;
 public class ImagePreviewer
 {
    public ImagePreviewer(DocDisplay display, DocUpdateSentinel sentinel, 
-         UIPrefs prefs)
+         UserPrefs prefs)
    {
       display_ = display;
       prefs_ = prefs;
@@ -98,7 +97,7 @@ public class ImagePreviewer
    }
 
    public static void onPreviewLink(DocDisplay display, 
-         DocUpdateSentinel sentinel, UIPrefs prefs, Position position)
+         DocUpdateSentinel sentinel, UserPrefs prefs, Position position)
    {
       Token token = display.getTokenAt(position);
       if (token == null)
@@ -498,11 +497,18 @@ public class ImagePreviewer
           href.endsWith(".jpg")  ||
           href.endsWith(".jpeg") ||
           href.endsWith(".gif")  ||
-          href.endsWith(".svg");
+          href.endsWith(".svg")  ||
+          href.endsWith(".webp");
+   }
+   
+   public static String imgSrcPathFromHref(DocUpdateSentinel sentinel, String href)
+   {
+      String docPath = sentinel.getPath();
+      String docDir = FilePathUtils.dirFromFile(docPath);
+      return imgSrcPathFromHref(docDir, href);
    }
 
-   private static String imgSrcPathFromHref(DocUpdateSentinel sentinel, 
-                                            String href)
+   public static String imgSrcPathFromHref(String docDir, String href)
    {
       // return paths that have a custom / external protocol as-is
       Pattern reProtocol = Pattern.create("^\\w+://");
@@ -513,8 +519,7 @@ public class ImagePreviewer
       String absPath = href;
       if (FilePathUtils.pathIsRelative(href))
       {
-         String docPath = sentinel.getPath();
-         absPath = FilePathUtils.dirFromFile(docPath) + "/" + absPath;
+         absPath = docDir + "/" + absPath;
       }
       
       return "file_show?path=" + StringUtil.encodeURIComponent(absPath) + 
@@ -523,7 +528,7 @@ public class ImagePreviewer
    
    private static void onPreviewImage(DocDisplay display, 
                                       DocUpdateSentinel sentinel,
-                                      UIPrefs prefs,
+                                      UserPrefs prefs,
                                       String href,
                                       String attributes,
                                       Position position,
@@ -536,12 +541,12 @@ public class ImagePreviewer
       if (el != null)
          return;
       
-      String pref = prefs.showLatexPreviewOnCursorIdle().getValue();
+      String pref = prefs.latexPreviewOnCursorIdle().getValue();
       
       // skip if disabled entirely
       if (!sentinel.getBoolProperty(
             TextEditingTargetNotebook.CONTENT_PREVIEW_ENABLED, 
-            pref != UIPrefsAccessor.LATEX_PREVIEW_SHOW_NEVER))
+            pref != UserPrefs.LATEX_PREVIEW_ON_CURSOR_IDLE_NEVER))
          return;
       
       // display stand-alone links as line widgets (if enabled)
@@ -549,13 +554,17 @@ public class ImagePreviewer
       if (isStandaloneMarkdownLink(line) && 
           sentinel.getBoolProperty(
             TextEditingTargetNotebook.CONTENT_PREVIEW_INLINE, 
-            prefs.showLatexPreviewOnCursorIdle().getValue() == 
-                UIPrefsAccessor.LATEX_PREVIEW_SHOW_ALWAYS))
+            prefs.latexPreviewOnCursorIdle().getValue() == 
+                UserPrefs.LATEX_PREVIEW_ON_CURSOR_IDLE_ALWAYS))
       {
          onPreviewImageLineWidget(display, sentinel,
                href, attributes, position, tokenRange);
          return;
       }
+      
+      // don't show preview if we are in visual mode
+      if (sentinel.getBoolProperty(TextEditingTarget.RMD_VISUAL_MODE, false))
+         return;
       
       // construct image el, place in popup, and show
       ImagePreviewPopup panel = new ImagePreviewPopup(display, tokenRange, 
@@ -570,9 +579,9 @@ public class ImagePreviewer
    
    private final DocDisplay display_;
    private final DocUpdateSentinel sentinel_;
-   private final UIPrefs prefs_;
+   private final UserPrefs prefs_;
 
-   private static final String LINE_WIDGET_TYPE = "image-preview" ;
+   private static final String LINE_WIDGET_TYPE = "image-preview";
    private static int IMAGE_ID = 0;
    
    interface Styles extends CssResource

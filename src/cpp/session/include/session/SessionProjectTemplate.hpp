@@ -1,7 +1,7 @@
 /*
  * SessionProjectTemplate.hpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,7 @@
 #include <core/Base64.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/StringUtils.hpp>
-#include <core/json/Json.hpp>
+#include <shared_core/json/Json.hpp>
 #include <core/json/JsonRpc.hpp>
 #include <core/text/CsvParser.hpp>
 

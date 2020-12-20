@@ -1,7 +1,7 @@
 /*
  * SessionClang.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -27,7 +27,7 @@
 #include <r/ROptions.hpp>
 
 #include <session/SessionModuleContext.hpp>
-#include <session/SessionUserSettings.hpp>
+#include <session/prefs/UserPrefs.hpp>
 
 #include <core/libclang/LibClang.hpp>
 
@@ -39,7 +39,7 @@
 #include "RSourceIndex.hpp"
 #include "RCompilationDatabase.hpp"
 
-using namespace rstudio::core ;
+using namespace rstudio::core;
 using namespace rstudio::core::libclang;
 
 namespace rstudio {
@@ -61,7 +61,7 @@ std::string embeddedLibClangPath()
 #else
    std::string libclang = "libclang.so";
 #endif
-   return options().libclangPath().childPath(libclang).absolutePath();
+   return options().libclangPath().completeChildPath(libclang).getAbsolutePath();
 }
 
 std::vector<std::string> embeddedLibClangCompileArgs(const LibraryVersion& version,
@@ -74,11 +74,11 @@ std::vector<std::string> embeddedLibClangCompileArgs(const LibraryVersion& versi
 
    // add compiler headers
    std::string headersVersion = "5.0.2";
-   compileArgs.push_back("-I" + headersPath.childPath(headersVersion).absolutePath());
+   compileArgs.push_back("-I" + headersPath.completeChildPath(headersVersion).getAbsolutePath());
 
    // add libc++ for embedded clang 3.5
    if (isCppFile)
-      compileArgs.push_back("-I" + headersPath.childPath("libc++/5.0.2").absolutePath());
+      compileArgs.push_back("-I" + headersPath.completeChildPath("libc++/5.0.2").getAbsolutePath());
 
    return compileArgs;
 }
@@ -99,7 +99,7 @@ void onSourceDocUpdated(boost::shared_ptr<source_database::SourceDocument> pDoc)
 
    // resolve to a full path
    FilePath docPath = module_context::resolveAliasedPath(pDoc->path());
-   std::string filename = docPath.absolutePath();
+   std::string filename = docPath.getAbsolutePath();
 
    // verify that it's a C/C++ file
    if (!SourceIndex::isSourceFile(filename))
@@ -138,8 +138,8 @@ void onSourceDocUpdated(boost::shared_ptr<source_database::SourceDocument> pDoc)
 void onSourceDocRemoved(const std::string& id, const std::string& path)
 {
    // resolve source database path
-   std::string resolvedPath = 
-      module_context::resolveAliasedPath(path).absolutePath();
+   std::string resolvedPath =
+      module_context::resolveAliasedPath(path).getAbsolutePath();
 
    // remove from unsaved files
    rSourceIndex().unsavedFiles().remove(resolvedPath);
@@ -198,7 +198,7 @@ SEXP rs_isLibClangAvailable()
 SEXP rs_setClangDiagnostics(SEXP levelSEXP)
 {
    int level = r::sexp::asInteger(levelSEXP);
-   userSettings().setClangVerbose(level);
+   prefs::userPrefs().setClangVerbose(level);
    return R_NilValue;
 }
 
@@ -215,7 +215,7 @@ Error initialize()
    RS_REGISTER_CALL_METHOD(rs_isLibClangAvailable);
    RS_REGISTER_CALL_METHOD(rs_setClangDiagnostics);
 
-   ExecBlock initBlock ;
+   ExecBlock initBlock;
    using boost::bind;
    using namespace module_context;
    initBlock.addFunctions()

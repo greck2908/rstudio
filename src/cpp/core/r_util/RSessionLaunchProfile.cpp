@@ -1,7 +1,7 @@
 /*
  * RSessionLaunchProfile.cpp
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,9 +15,12 @@
 
 #include <core/r_util/RSessionLaunchProfile.hpp>
 
-#include <core/SafeConvert.hpp>
+#include <shared_core/SafeConvert.hpp>
 
 #include <core/system/PosixSched.hpp>
+#include <shared_core/system/Crypto.hpp>
+
+#include <core/Algorithm.hpp>
 
 #include <core/json/JsonRpc.hpp>
 
@@ -40,9 +43,9 @@ Error contextFromJson(const json::Object& contextJson, SessionContext* pContext)
 {
    std::string project, id;
    Error error = json::readObject(contextJson,
-                           "username", &(pContext->username),
-                           "project", &project,
-                           "id", &id);
+                           "username", pContext->username,
+                           "project", project,
+                           "id", id);
    if (error)
       return error;
 
@@ -62,7 +65,7 @@ Error cpuAffinityFromJson(const json::Array& affinityJson,
       if (!json::isType<bool>(val))
          return Error(json::errc::ParamTypeMismatch, ERROR_LOCATION);
 
-      pAffinity->push_back(val.get_bool());
+      pAffinity->push_back(val.getBool());
    }
 
    return Success();
@@ -88,10 +91,12 @@ json::Object sessionLaunchProfileToJson(const SessionLaunchProfile& profile)
    json::Object profileJson;
    profileJson["context"] = contextAsJson(profile.context);
    profileJson["password"] = profile.password;
+   if (!profile.encryptionKey.empty())
+      profileJson["encryptionKey"] = profile.encryptionKey;
    profileJson["executablePath"] = profile.executablePath;
    json::Object configJson;
-   configJson["args"] = json::toJsonArray(profile.config.args);
-   configJson["environment"] = json::toJsonObject(profile.config.environment);
+   configJson["args"] = json::Array(profile.config.args);
+   configJson["environment"] = json::Object(profile.config.environment);
    configJson["stdInput"] = profile.config.stdInput;
    configJson["stdStreamBehavior"] = profile.config.stdStreamBehavior;
    configJson["priority"] = profile.config.limits.priority;
@@ -106,21 +111,26 @@ json::Object sessionLaunchProfileToJson(const SessionLaunchProfile& profile)
    return profileJson;
 }
 
-SessionLaunchProfile sessionLaunchProfileFromJson(
-                                           const json::Object& jsonProfile)
+SessionLaunchProfile sessionLaunchProfileFromJson(const json::Object& jsonProfile)
 {
    SessionLaunchProfile profile;
 
    // read top level fields
    json::Object configJson, contextJson;
    Error error = json::readObject(jsonProfile,
-                                  "context", &contextJson,
-                                  "password", &profile.password,
-                                  "executablePath", &profile.executablePath,
-                                  "config", &configJson);
+                                  "context", contextJson,
+                                  "password", profile.password,
+                                  "executablePath", profile.executablePath,
+                                  "config", configJson);
    if (error)
       LOG_ERROR(error);
 
+   std::string statusMessage;
+   error = json::getOptionalParam(jsonProfile, "encryptionKey", std::string(), &profile.encryptionKey);
+   if (error)
+   {
+      LOG_ERROR(error);
+   }
 
    // read context object
    error = contextFromJson(contextJson, &(profile.context));
@@ -136,17 +146,17 @@ SessionLaunchProfile sessionLaunchProfileFromJson(
    double memoryLimitBytes, stackLimitBytes, userProcessesLimit,
           cpuLimit, niceLimit, filesLimit;
    error = json::readObject(configJson,
-                           "args", &argsJson,
-                           "environment", &envJson,
-                           "stdInput", &stdInput,
-                           "stdStreamBehavior", &stdStreamBehavior,
-                           "priority", &priority,
-                           "memoryLimitBytes", &memoryLimitBytes,
-                           "stackLimitBytes", &stackLimitBytes,
-                           "userProcessesLimit", &userProcessesLimit,
-                           "cpuLimit", &cpuLimit,
-                           "niceLimit", &niceLimit,
-                           "filesLimit", &filesLimit);
+                           "args", argsJson,
+                           "environment", envJson,
+                           "stdInput", stdInput,
+                           "stdStreamBehavior", stdStreamBehavior,
+                           "priority", priority,
+                           "memoryLimitBytes", memoryLimitBytes,
+                           "stackLimitBytes", stackLimitBytes,
+                           "userProcessesLimit", userProcessesLimit,
+                           "cpuLimit", cpuLimit,
+                           "niceLimit", niceLimit,
+                           "filesLimit", filesLimit);
    if (error)
       LOG_ERROR(error);
 
@@ -154,7 +164,7 @@ SessionLaunchProfile sessionLaunchProfileFromJson(
    core::system::CpuAffinity cpuAffinity;
    json::Array cpuAffinityJson;
    error = json::readObject(configJson,
-                            "cpuAffinity", &cpuAffinityJson);
+                            "cpuAffinity", cpuAffinityJson);
    if (error)
       LOG_ERROR(error);
    error = cpuAffinityFromJson(cpuAffinityJson, &cpuAffinity);
@@ -165,8 +175,8 @@ SessionLaunchProfile sessionLaunchProfileFromJson(
    }
 
    // populate config
-   profile.config.args = json::optionsFromJson(argsJson);
-   profile.config.environment = json::optionsFromJson(envJson);
+   profile.config.args = argsJson.toStringPairList();
+   profile.config.environment = envJson.toStringPairList();
    profile.config.stdInput = stdInput;
    profile.config.stdStreamBehavior =
             static_cast<core::system::StdStreamBehavior>(stdStreamBehavior);
@@ -182,8 +192,6 @@ SessionLaunchProfile sessionLaunchProfileFromJson(
    // return profile
    return profile;
 }
-
-
 
 } // namespace r_util
 } // namespace core 

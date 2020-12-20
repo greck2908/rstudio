@@ -1,7 +1,7 @@
 /*
  * RStudioUnitTestSuite.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,6 +16,8 @@ package org.rstudio.studio.client;
 
 import org.rstudio.core.client.AnsiCodeTests;
 import org.rstudio.core.client.ConsoleOutputWriterTests;
+import org.rstudio.core.client.ElementIdsTests;
+import org.rstudio.core.client.SafeHtmlUtilTests;
 import org.rstudio.core.client.StringUtilTests;
 import org.rstudio.core.client.URIUtilsTests;
 import org.rstudio.core.client.VirtualConsoleTests;
@@ -24,9 +26,11 @@ import org.rstudio.studio.client.application.model.SessionScopeTests;
 import org.rstudio.studio.client.common.r.RTokenizerTests;
 import org.rstudio.studio.client.workbench.views.jobs.model.JobManagerTests;
 import org.rstudio.studio.client.workbench.views.jobs.view.JobsListTests;
-import org.rstudio.studio.client.workbench.views.source.editors.text.assist.RChunkHeaderParserTests;
+// Disabled in v1.3 due to failures. See #4249.
+// import org.rstudio.studio.client.workbench.views.source.editors.text.assist.RChunkHeaderParserTests;
 import org.rstudio.studio.client.workbench.views.terminal.TerminalLocalEchoTests;
 import org.rstudio.studio.client.workbench.views.terminal.TerminalSessionSocketTests;
+import org.rstudio.studio.client.workbench.views.source.editors.text.rmd.ChunkContextUiTests;
 
 import com.google.gwt.junit.tools.GWTTestSuite;
 
@@ -51,9 +55,10 @@ public class RStudioUnitTestSuite extends GWTTestSuite
       // suite.addTestSuite(RChunkHeaderParserTests.class);
       suite.addTestSuite(SessionScopeTests.class);
       suite.addTestSuite(JobsListTests.class);
-      
-      // Pro-only tests
-      
+      suite.addTestSuite(ElementIdsTests.class);
+      suite.addTestSuite(ChunkContextUiTests.class);
+      suite.addTestSuite(SafeHtmlUtilTests.class);
+
       return suite;
    }
 }

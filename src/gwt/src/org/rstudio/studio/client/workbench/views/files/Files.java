@@ -1,7 +1,7 @@
 /*
  * Files.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -26,9 +26,11 @@ import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.cellview.ColumnSortInfo;
 import org.rstudio.core.client.command.CommandBinder;
 import org.rstudio.core.client.command.Handler;
+import org.rstudio.core.client.dom.DomUtils;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.js.JsObject;
 import org.rstudio.core.client.widget.*;
+import org.rstudio.studio.client.application.Desktop;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.ConsoleDispatcher;
 import org.rstudio.studio.client.common.GlobalDisplay;
@@ -37,6 +39,8 @@ import org.rstudio.studio.client.common.filetypes.FileTypeRegistry;
 import org.rstudio.studio.client.common.filetypes.events.OpenFileInBrowserEvent;
 import org.rstudio.studio.client.common.filetypes.events.OpenFileInBrowserHandler;
 import org.rstudio.studio.client.common.filetypes.events.RenameSourceFileEvent;
+import org.rstudio.studio.client.common.rstudioapi.model.RStudioAPIServerOperations;
+import org.rstudio.studio.client.events.RStudioApiRequestEvent;
 import org.rstudio.studio.client.server.*;
 import org.rstudio.studio.client.workbench.WorkbenchContext;
 import org.rstudio.studio.client.workbench.WorkbenchView;
@@ -48,7 +52,7 @@ import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.SessionInfo;
 import org.rstudio.studio.client.workbench.model.helper.JSObjectStateValue;
 import org.rstudio.studio.client.workbench.model.helper.StringStateValue;
-import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 import org.rstudio.studio.client.workbench.views.BasePresenter;
 import org.rstudio.studio.client.workbench.views.environment.dataimport.DataImportPresenter;
 import org.rstudio.studio.client.workbench.views.files.events.*;
@@ -57,6 +61,7 @@ import org.rstudio.studio.client.workbench.views.files.model.FileChange;
 import org.rstudio.studio.client.workbench.views.files.model.FilesServerOperations;
 import org.rstudio.studio.client.workbench.views.files.model.PendingFileUpload;
 import org.rstudio.studio.client.workbench.views.source.events.SourcePathChangedEvent;
+import org.rstudio.studio.client.workbench.views.terminal.events.CreateNewTerminalEvent;
 
 import java.util.ArrayList;
 
@@ -65,7 +70,8 @@ public class Files
       implements FileChangeHandler, 
                  OpenFileInBrowserHandler,
                  DirectoryNavigateHandler,
-                 RenameSourceFileEvent.Handler
+                 RenameSourceFileEvent.Handler,
+                 RStudioApiRequestEvent.Handler
 {
    interface Binder extends CommandBinder<Commands, Files> {}
  
@@ -116,7 +122,9 @@ public class Files
                      String targetURL,
                      FileSystemItem targetDirectory, 
                      RemoteFileSystemContext fileSystemContext,
-                     OperationWithInput<PendingFileUpload> completedOperation);
+                     Operation beginOperation,
+                     OperationWithInput<PendingFileUpload> completedOperation,
+                     Operation failedOperation);
 
 
       void showHtmlFileChoice(FileSystemItem file, 
@@ -126,6 +134,8 @@ public class Files
       void showDataImportFileChoice(FileSystemItem file, 
                                     Command onView, 
                                     Command onImport);
+
+      void bringToFront();
    }
 
    @Inject
@@ -139,14 +149,14 @@ public class Files
                 Provider<FilesCopy> pFilesCopy,
                 Provider<FilesUpload> pFilesUpload,
                 Provider<FileExport> pFileExport,
-                Provider<UIPrefs> pPrefs,
+                Provider<UserPrefs> pPrefs,
                 FileTypeRegistry fileTypeRegistry,
                 ConsoleDispatcher consoleDispatcher,
                 WorkbenchContext workbenchContext,
                 DataImportPresenter dataImportPresenter)
    {
       super(view);
-      view_ = view ;
+      view_ = view;
       view_.setObserver(new DisplayObserver());
       fileTypeRegistry_ = fileTypeRegistry;
       consoleDispatcher_ = consoleDispatcher;
@@ -155,7 +165,7 @@ public class Files
       eventBus_ = eventBus;
       server_ = server;
       fileSystemContext_ = fileSystemContext;
-      globalDisplay_ = globalDisplay ;
+      globalDisplay_ = globalDisplay;
       session_ = session;
       pFilesCopy_ = pFilesCopy;
       pFilesUpload_ = pFilesUpload;
@@ -168,6 +178,7 @@ public class Files
       
       eventBus_.addHandler(FileChangeEvent.TYPE, this);
       eventBus_.addHandler(RenameSourceFileEvent.TYPE, this);
+      eventBus_.addHandler(RStudioApiRequestEvent.TYPE, this);
 
       initSession();
    }
@@ -284,7 +295,7 @@ public class Files
 
    public Display getDisplay()
    {
-      return view_ ;
+      return view_;
    }
    
    // observer for display
@@ -433,11 +444,11 @@ public class Files
       
       // validation: some selection exists
       if  (selectedFiles.size() == 0)
-         return ;
+         return;
 
       // validation -- not prohibited move of public folder
       if (!validateNotRestrictedFolder(selectedFiles, "moved"))
-         return ;
+         return;
       
       view_.showFolderPicker(
                         "Choose Folder", 
@@ -463,7 +474,7 @@ public class Files
                    fileParent.getPath() == targetDir.getPath())
                {
                   progress.onError("Invalid target folder");
-                  return ;
+                  return;
                } 
             }
             
@@ -496,7 +507,7 @@ public class Files
       
       // validation: some selection exists
       if  (selectedFiles.size() == 0)
-         return ;
+         return;
       
       // validation: no more than one file selected
       if  (selectedFiles.size() > 1)
@@ -504,12 +515,12 @@ public class Files
          globalDisplay_.showErrorMessage(
                            "Invalid Selection", 
                            "Please select only one file to rename");
-         return ;
+         return;
       }
       
       // validation -- not prohibited move of public folder
       if (!validateNotRestrictedFolder(selectedFiles, "renamed"))
-         return ;
+         return;
       
       // perform the rename
       final FileSystemItem file = selectedFiles.get(0);
@@ -524,11 +535,11 @@ public class Files
       
       // validation: some selection exists
       if  (selectedFiles.size() == 0)
-         return ;
+         return;
       
       // validation -- not prohibited move of public folder
       if (!validateNotRestrictedFolder(selectedFiles, "deleted"))
-         return ;
+         return;
       
       // confirm delete then execute it
       globalDisplay_.showYesNoMessage(
@@ -575,18 +586,28 @@ public class Files
       view_.bringToFront();
       navigateToDirectory(workbenchContext_.getCurrentWorkingDir());
    }
-   
+
+   void onCopyFilesPaneCurrentDirectory()
+   {
+      DomUtils.copyCodeToClipboard(currentPath_.getPath());
+   }
+
    @Handler
    void onSetAsWorkingDir()
    {
       consoleDispatcher_.executeSetWd(currentPath_, true);
    }
-   
+
+   @Handler
+   void onOpenNewTerminalAtFilePaneLocation()
+   {
+      eventBus_.fireEvent(new CreateNewTerminalEvent(currentPath_));
+   }
+
    void onSetWorkingDirToFilesPane()
    {
       onSetAsWorkingDir();
    }
-   
 
    @Handler
    void onShowFolder()
@@ -615,6 +636,20 @@ public class Files
    public void onRenameSourceFile(RenameSourceFileEvent event)
    {
       renameFile(FileSystemItem.createFile(event.getPath()));
+   }
+   
+   @Override
+   public void onRStudioApiRequest(RStudioApiRequestEvent requestEvent)
+   {
+      RStudioApiRequestEvent.Data requestData = requestEvent.getData();
+      
+      if (requestData.getType() == RStudioApiRequestEvent.TYPE_FILES_PANE_NAVIGATE)
+      {
+         RStudioApiRequestEvent.FilesPaneNavigateData data = requestData.getPayload().cast();
+         String path = data.getPath();
+         navigateToDirectory(FileSystemItem.createDir(path));
+      }
+      
    }
 
    private void navigateToDirectory(FileSystemItem directoryEntry)
@@ -692,9 +727,16 @@ public class Files
    {
       // show the file in a new window if we can get a file url for it
       String fileURL = server_.getFileUrl(file);
-      if (fileURL !=  null)
+      if (fileURL != null)
       {
-         globalDisplay_.openWindow(fileURL);
+         if (!Desktop.isRemoteDesktop())
+         {
+            globalDisplay_.openWindow(fileURL);
+         }
+         else
+         {
+            Desktop.getFrame().browseUrl(fileURL);
+         }
       }
    }
    
@@ -781,13 +823,13 @@ public class Files
          }
       };
 
-   private final Display view_ ;
+   private final Display view_;
    private final FileTypeRegistry fileTypeRegistry_;
    private final ConsoleDispatcher consoleDispatcher_;
    private final WorkbenchContext workbenchContext_;
    private final FilesServerOperations server_;
    private final EventBus eventBus_;
-   private final GlobalDisplay globalDisplay_ ;
+   private final GlobalDisplay globalDisplay_;
    private final RemoteFileSystemContext fileSystemContext_;
    private final Session session_;
    private FileSystemItem currentPath_ = FileSystemItem.home();
@@ -795,7 +837,7 @@ public class Files
    private final Provider<FilesCopy> pFilesCopy_;
    private final Provider<FilesUpload> pFilesUpload_;
    private final Provider<FileExport> pFileExport_;
-   private final Provider<UIPrefs> pPrefs_;
+   private final Provider<UserPrefs> pPrefs_;
    private static final String MODULE_FILES = "files-pane";
    private static final String KEY_PATH = "path";
    private static final String KEY_SORT_ORDER = "sortOrder";

@@ -1,7 +1,7 @@
 /*
  * HistoryPane.java
  *
- * Copyright (C) 2009-19 by RStudio, Inc.
+ * Copyright (C) 2020 by RStudio, PBC
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -31,11 +31,13 @@ import com.google.gwt.resources.client.CssResource;
 import com.google.gwt.resources.client.ImageResource;
 import com.google.gwt.user.client.ui.*;
 import com.google.inject.Inject;
+
+import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.dom.DomUtils;
 import org.rstudio.core.client.events.HasSelectionCommitHandlers;
 import org.rstudio.core.client.events.SelectionCommitEvent;
-import org.rstudio.core.client.events.SelectionCommitHandler;
 import org.rstudio.core.client.widget.*;
+import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.ui.WorkbenchPane;
 import org.rstudio.studio.client.workbench.views.history.HasHistory;
@@ -83,9 +85,9 @@ public class HistoryPane extends WorkbenchPane
    }
 
    @Inject
-   public HistoryPane(Commands commands)
+   public HistoryPane(Commands commands, EventBus events)
    {
-      super("History");
+      super("History", events);
       commands_ = commands;
       ensureWidget();
    }
@@ -94,7 +96,8 @@ public class HistoryPane extends WorkbenchPane
    protected void onLoad()
    {
       super.onLoad();
-      scrollToBottom();
+      if (mode_ == Mode.Recent)
+         scrollToBottom();
    }
 
    @Override
@@ -120,9 +123,9 @@ public class HistoryPane extends WorkbenchPane
          }
       });
    }
-   
+
    @Override
-   public void focusSearch()
+   public void setFocus()
    {
       FocusHelper.setFocusDeferred(searchWidget_);
    }
@@ -238,7 +241,7 @@ public class HistoryPane extends WorkbenchPane
             }
          }
          mode_ = mode;
-         
+
          // enable/disable commands
          boolean enableRemoveCommands = mode_ == Mode.Recent;
          commands_.historyRemoveEntries().setEnabled(enableRemoveCommands);
@@ -387,18 +390,18 @@ public class HistoryPane extends WorkbenchPane
          });
       }
    }
-   
+
    public void truncateRecentCommands(int maxCommands)
    {
       commandList_.removeTopRows(
             Math.max(0, commandList_.getRowCount() - maxCommands));
    }
-   
+
    public ArrayList<Integer> getRecentCommandsSelectedRowIndexes()
    {
       return commandList_.getSelectedRowIndexes();
    }
-   
+
    public int getRecentCommandsRowsDisplayed()
    {
       return commandList_.getRowCount();
@@ -470,12 +473,12 @@ public class HistoryPane extends WorkbenchPane
          }
       };
    }
-   
+
    public int getRecentCommandsScrollPosition()
    {
       return recentScrollPanel_.getVerticalScrollPosition();
    }
-   
+
    public void setRecentCommandsScrollPosition(int scrollPosition)
    {
       recentScrollPanel_.setVerticalScrollPosition(scrollPosition);
@@ -583,7 +586,7 @@ public class HistoryPane extends WorkbenchPane
             {
                event.stopPropagation();
                event.preventDefault();
-               
+
                if (event.isShiftKeyDown())
                   commands_.historySendToSource().execute();
                else
@@ -614,7 +617,9 @@ public class HistoryPane extends WorkbenchPane
          }
       });
 
-      Toolbar toolbar = new Toolbar();
+      ElementIds.assignElementId(searchWidget_, ElementIds.SW_HISTORY);
+
+      Toolbar toolbar = new Toolbar("History Tab");
       toolbar.addLeftWidget(commands_.loadHistory().createToolbarButton());
       toolbar.addLeftWidget(commands_.saveHistory().createToolbarButton());
       toolbar.addLeftSeparator();
@@ -624,14 +629,14 @@ public class HistoryPane extends WorkbenchPane
       toolbar.addLeftSeparator();
       toolbar.addLeftWidget(commands_.historyRemoveEntries().createToolbarButton());
       toolbar.addLeftWidget(commands_.clearHistory().createToolbarButton());
-      
+
       toolbar.addRightWidget(searchWidget_);
-      
+
       return toolbar;
    }
 
    public HandlerRegistration addSelectionCommitHandler(
-         SelectionCommitHandler<Void> handler)
+         SelectionCommitEvent.Handler<Void> handler)
    {
       return addHandler(handler, SelectionCommitEvent.getType());
    }
@@ -649,5 +654,5 @@ public class HistoryPane extends WorkbenchPane
    private Styles styles_ = ((Resources) GWT.create(Resources.class)).styles();
    private LayoutPanel mainPanel_;
    private Mode mode_ = Mode.Recent;
-  
+
 }

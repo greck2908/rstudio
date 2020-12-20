@@ -3,7 +3,7 @@
 #
 # install-dependencies-osx
 #
-# Copyright (C) 2009-19 by RStudio, Inc.
+# Copyright (C) 2020 by RStudio, PBC
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -22,6 +22,40 @@ then
   ./install-overlay
 fi
 
+# make sure brew is installed, and error if not
+if ! command -v brew &> /dev/null; then
+   echo "homebrew is not installed, but is needed to install dependencies"
+   exit 1
+fi
+
+# install postgres, needed by SOCI
+if brew list --formula | grep postgresql &> /dev/null; then
+   echo "postgresql already installed"
+else
+   brew install postgresql
+fi
+
+# coreutils needed for unit tests (specifically gtimeout)
+if ! command -v gtimeout &> /dev/null; then
+   brew install coreutils
+fi
+
+# openssl needed to run rsession  (including unit tests)
+if brew list --formula | grep openssl@1.1 &> /dev/null; then
+   echo "openssl already installed"
+else
+   brew install openssl
+fi
+
+# pidof and gdb needed for analysis of hung unit tests
+if ! command -v pidof &> /dev/null; then
+   brew install pidof
+fi
+if ! command -v gdb &> /dev/null; then
+   brew install gdb
+   grep -qxF 'set startup-with-shell off' ~/.gdbinit || echo "set startup-with-shell off" >> ~/.gdbinit
+fi
+
 cd ../common
 ./install-common --install-crashpad-sudo
 cd ../osx
@@ -29,7 +63,7 @@ cd ../osx
 # desktop dependencies (qt)
 if [ "$1" != "--exclude-qt-sdk" ]
 then
-  export QT_QPA_PLATFORM=minimal && ./install-qt-sdk-osx
+  ./install-qt-macos
 fi
 
 # enable PAM
