@@ -1,7 +1,7 @@
 /*
  * DockMenu.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,8 +20,7 @@
 namespace rstudio {
 namespace desktop {
 
-DockMenu::DockMenu(MainWindow *pMainWindow) :
-   pMainWindow_(pMainWindow)
+DockMenu::DockMenu(MainWindow *pMainWindow)
 {
    setAsDockMenu();
    
@@ -29,21 +28,16 @@ DockMenu::DockMenu(MainWindow *pMainWindow) :
 
    QAction* pNewWindow = addAction(QObject::tr("New RStudio Window"));
 
-   // We hold a raw pointer to MainWindow. When the main window
+   // Lambda holds a raw pointer to MainWindow. When the main window
    // goes away, so does the dock icon, thus the menu and the possibility of the
    // user clicking it, so this is safe (though unpleasant).
-   QObject::connect(pNewWindow, &QAction::triggered, [this] () {
+   QObject::connect(pNewWindow, &QAction::triggered, [pMainWindow] () { 
       std::vector<std::string> args;
-      pMainWindow_->launchRStudio(args);
+      pMainWindow->launchRStudio(args);
    });
 
    connect(this, &QMenu::aboutToShow,
            this, &DockMenu::onAboutToShow);
-}
-
-void DockMenu::setMainWindow(MainWindow* pMainWindow)
-{
-   pMainWindow_ = pMainWindow;
 }
 
 void DockMenu::onAboutToShow()

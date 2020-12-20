@@ -1,7 +1,7 @@
 /*
  * QuitEvent.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,10 +15,9 @@
 package org.rstudio.studio.client.application.events;
 
 import com.google.gwt.core.client.JavaScriptObject;
-import com.google.gwt.event.shared.EventHandler;
 import com.google.gwt.event.shared.GwtEvent;
 
-public class QuitEvent extends GwtEvent<QuitEvent.Handler>
+public class QuitEvent extends GwtEvent<QuitHandler>
 {
    public static class Data extends JavaScriptObject
    {
@@ -28,7 +27,8 @@ public class QuitEvent extends GwtEvent<QuitEvent.Handler>
       public native final String getNextSessionUrl() /*-{ return this.next_session_url; }-*/;
    }
    
-   public static final Type<Handler> TYPE = new Type<>();
+   public static final GwtEvent.Type<QuitHandler> TYPE =
+      new GwtEvent.Type<QuitHandler>();
    
    public QuitEvent(Data data)
    {
@@ -46,21 +46,16 @@ public class QuitEvent extends GwtEvent<QuitEvent.Handler>
    }
    
    @Override
-   protected void dispatch(Handler handler)
+   protected void dispatch(QuitHandler handler)
    {
       handler.onQuit(this);
    }
 
    @Override
-   public GwtEvent.Type<Handler> getAssociatedType()
+   public GwtEvent.Type<QuitHandler> getAssociatedType()
    {
       return TYPE;
    }
    
    private final Data data_;
-
-   public interface Handler extends EventHandler
-   {
-      void onQuit(QuitEvent event);
-   }
 }

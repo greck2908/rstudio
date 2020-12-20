@@ -1,7 +1,7 @@
 /*
  * VisibleChangedEvent.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -25,36 +25,9 @@ public class VisibleChangedEvent extends GwtEvent<VisibleChangedHandler>
       command_ = command;
    }
 
-   public VisibleChangedEvent(AppCommand command,
-                              String columnName)
-   {
-      command_ = command;
-      columnName_ = columnName;
-      buttonVisible_ = command_.isVisible();
-   }
-
-   public VisibleChangedEvent(AppCommand command,
-                              String columnName,
-                              boolean buttonVisible)
-   {
-      command_ = command;
-      columnName_ = columnName;
-      buttonVisible_ = buttonVisible;
-   }
-
    public AppCommand getCommand()
    {
       return command_;
-   }
-
-   public String getColumnName()
-   {
-      return columnName_;
-   }
-
-   public boolean getButtonVisible()
-   {
-      return buttonVisible_;
    }
 
    @Override
@@ -66,10 +39,8 @@ public class VisibleChangedEvent extends GwtEvent<VisibleChangedHandler>
    @Override
    protected void dispatch(VisibleChangedHandler handler)
    {
-      handler.onVisibleChanged(this);
+      handler.onVisibleChanged(command_);
    }
 
    private final AppCommand command_;
-   private String columnName_;
-   private boolean buttonVisible_;
 }

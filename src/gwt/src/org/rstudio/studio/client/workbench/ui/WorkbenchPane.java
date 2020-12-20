@@ -1,7 +1,7 @@
 /*
  * WorkbenchPane.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,17 +14,8 @@
  */
 package org.rstudio.studio.client.workbench.ui;
 
-import com.google.gwt.dom.client.Element;
 import com.google.gwt.user.client.Command;
-import org.rstudio.core.client.Debug;
-import org.rstudio.core.client.StringUtil;
-import org.rstudio.core.client.a11y.A11y;
-import org.rstudio.core.client.dom.DomUtils;
-import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.workbench.WorkbenchView;
-import org.rstudio.studio.client.workbench.events.ActivatePaneEvent;
-
-import java.util.ArrayList;
 
 public abstract class WorkbenchPane extends ToolbarPane
                                  implements WorkbenchView,
@@ -32,14 +23,7 @@ public abstract class WorkbenchPane extends ToolbarPane
 {
    protected WorkbenchPane(String title)
    {
-      title_ = title;
-      events_ = null;
-   }
-
-   protected WorkbenchPane(String title, EventBus events)
-   {
-      title_ = title;
-      events_ = events;
+      title_ = title ;
    }
 
    public void prefetch(Command continuation)
@@ -49,7 +33,7 @@ public abstract class WorkbenchPane extends ToolbarPane
 
    public String getTitle()
    {
-      return title_;
+      return title_ ;
    }
 
    // hook for subclasses to be notified right before & after they are selected
@@ -64,20 +48,6 @@ public abstract class WorkbenchPane extends ToolbarPane
    }
 
    @Override
-   public void setFocus()
-   {
-      ArrayList<Element> focusableElements = DomUtils.getFocusableElements(getElement());
-      if (!focusableElements.isEmpty())
-      {
-         Element el = focusableElements.get(0);
-         el.focus();
-         A11y.showFocusOutline(el);
-      }
-      else
-         Debug.logWarning("Could not set focus, no focusable element on " + title_ + " pane");
-   }
-
-   @Override
    public boolean isSuppressed()
    {
       return false;
@@ -88,21 +58,12 @@ public abstract class WorkbenchPane extends ToolbarPane
    {
       return false;
    }
-
+   
    @Override
    public void confirmClose(Command onConfirmed)
    {
       onConfirmed.execute();
    }
 
-   @Override
-   public void bringToFront()
-   {
-      if (events_ != null && !StringUtil.isNullOrEmpty(title_))
-         events_.fireEvent(new ActivatePaneEvent(title_));
-      super.bringToFront();
-   }
-
-   private final String title_;
-   protected final EventBus events_;
+   private String title_;
 }

@@ -1,7 +1,7 @@
 /*
  * Event.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,10 +17,9 @@
 #define MONITOR_EVENTS_EVENT_HPP
 
 #include <iosfwd>
-#include <gsl/gsl>
 
 #include <boost/date_time/posix_time/posix_time.hpp>
-#include <core/DateTime.hpp>
+
 #include <core/system/System.hpp>
 
 namespace rstudio {
@@ -35,9 +34,6 @@ enum EventScope
 #define kAuthLoginEvent          1001
 #define kAuthLogoutEvent         1002
 #define kAuthLoginFailedEvent    1003
-#define kAuthLoginThrottledEvent 1004
-#define kAuthLicenseFailedEvent  1005
-#define kAuthLoginUnlicensedEvent 1006
 
 #define kSessionStartEvent       2001
 #define kSessionSuicideEvent     2002
@@ -47,10 +43,7 @@ enum EventScope
 #define kSessionAdminSuspend     2006
 #define kSessionAdminTerminate   2007
 
-// after username max size
-#define kMaxEventDataSize     32
-
-struct Event
+class Event
 {
 public:
    Event()
@@ -58,36 +51,40 @@ public:
    {
    }
 
-   Event(int scope,
+   Event(EventScope scope,
          int id,
          const std::string& data = std::string(),
          const std::string& username = core::system::username(),
          PidType pid = core::system::currentProcessId(),
          boost::posix_time::ptime timestamp =
-                        boost::posix_time::microsec_clock::universal_time());
-
+                        boost::posix_time::microsec_clock::universal_time())
+      : empty_(false),
+        scope_(scope),
+        id_(id),
+        username_(username),
+        pid_(pid),
+        timestamp_(timestamp),
+        data_(data)
+   {
+   }
 
 public:
    bool empty() const { return empty_; }
-   int scope() const { return scope_; }
+   EventScope scope() const { return scope_; }
    int id() const { return id_; }
-   std::string username() const { return username_; }
+   const std::string& username() const { return username_; }
    PidType pid() const { return pid_; }
-   boost::posix_time::ptime timestamp() const
-   {
-      return core::date_time::timeFromMillisecondsSinceEpoch(gsl::narrow_cast<int64_t>(timestamp_));
-   }
-   std::string data() const { return data_; }
-
+   boost::posix_time::ptime timestamp() const { return timestamp_; }
+   const std::string& data() const { return data_; }
 
 private:
    bool empty_;
-   int scope_;
+   EventScope scope_;
    int id_;
-   char username_[kMaxEventDataSize+1];
+   std::string username_;
    PidType pid_;
-   double timestamp_;
-   char data_[kMaxEventDataSize+1];
+   boost::posix_time::ptime timestamp_;
+   std::string data_;
 };
 
 std::string eventScopeAndIdAsString(const Event& event);

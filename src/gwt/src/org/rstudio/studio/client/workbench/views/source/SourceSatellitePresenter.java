@@ -1,7 +1,7 @@
 /*
  * SourceSatellitePresenter.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -29,7 +29,7 @@ public class SourceSatellitePresenter implements IsWidget
    {}
 
    @Inject
-   public SourceSatellitePresenter(Source source)
+   public SourceSatellitePresenter(SourceShim source)
    {
       source_ = source;
    }
@@ -41,5 +41,5 @@ public class SourceSatellitePresenter implements IsWidget
       return source_.asWidget();
    }
    
-   private Source source_;
+   private SourceShim source_;
 }

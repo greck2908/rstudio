@@ -1,7 +1,7 @@
 #
 # Options.R
 #
-# Copyright (C) 2020 by RStudio, PBC
+# Copyright (C) 2009-11 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -14,101 +14,90 @@
 #
 
 # get version
-.rs.addGlobalFunction("RStudio.Version", function()
-{
+.rs.addGlobalFunction("RStudio.Version", function() {
    .rs.api.versionInfo()
 })
 
-# custom browseURL implementation.
-.rs.setOption("browser", function(url)
+# custom browseURL implementation
+options(browser = function(url)
 {
-   .Call("rs_browseURL", url, PACKAGE = "(embedding)")
+   .Call("rs_browseURL", url) ;
 })
 
 # default viewer option if not already set
-.rs.setOptionDefault("viewer", function(url, height = NULL)
-{
-   if (!is.character(url) || (length(url) != 1))
-      stop("url must be a single element character vector.", call. = FALSE)
-   
-   if (identical(height, "maximize"))
-      height <- -1
-   
-   if (!is.null(height) && (!is.numeric(height) || (length(height) != 1)))
-      stop("height must be a single element numeric vector or 'maximize'.", call. = FALSE)
-   
-   invisible(.Call("rs_viewer", url, height, PACKAGE = "(embedding)"))
-})
+if (is.null(getOption("viewer"))) {
+   options(viewer = function(url, height = NULL)
+   {
+      if (!is.character(url) || (length(url) != 1))
+         stop("url must be a single element character vector.", call. = FALSE)
+      
+      if (identical(height, "maximize"))
+         height <- -1
+
+      if (!is.null(height) && (!is.numeric(height) || (length(height) != 1)))
+         stop("height must be a single element numeric vector or 'maximize'.", call. = FALSE)
+      
+      invisible(.Call("rs_viewer", url, height))  
+   })
+}
 
 # default page_viewer option if not already set
-.rs.setOptionDefault("page_viewer", function(url,
-                                             title = "RStudio Viewer",
-                                             self_contained = FALSE)
-{
-   if (!is.character(url) || (length(url) != 1))
-      stop("url must be a single element character vector.", call. = FALSE)
-   
-   if (!is.character(title) || (length(title) != 1))
-      stop("title must be a single element character vector.", call. = FALSE)
-   
-   if (!is.logical(self_contained) || (length(self_contained) != 1))
-      stop("self_contained must be a single element logical vector.", call. = FALSE)
-   
-   invisible(.Call("rs_showPageViewer", url, title, self_contained, PACKAGE = "(embedding)"))
-})
+if (is.null(getOption("page_viewer"))) {
+   options(page_viewer = function(url, title = "RStudio Viewer", self_contained = FALSE)
+   {
+      if (!is.character(url) || (length(url) != 1))
+         stop("url must be a single element character vector.", call. = FALSE)
+      
+      if (!is.character(title) || (length(title) != 1))
+         stop("title must be a single element character vector.", call. = FALSE)
+      
+      if (!is.logical(self_contained) || (length(self_contained) != 1))
+         stop("self_contained must be a single element logical vector.", call. = FALSE)
+      
+      invisible(.Call("rs_showPageViewer", url, title, self_contained))
+   })
+}
 
 # default shinygadgets.showdialog if not already set
-.rs.setOptionDefault("shinygadgets.showdialog", function(caption,
-                                                         url,
-                                                         width = NULL,
-                                                         height = NULL)
-{
-   if (!is.character(caption) || (length(caption) != 1))
-      stop("caption must be a single element character vector.", call. = FALSE)
-   
-   if (!is.character(url) || (length(url) != 1))
-      stop("url must be a single element character vector.", call. = FALSE)
-   
-   # default width and height
-   if (is.null(width))
-      width <- 600
-   if (is.null(height))
-      height <- 600
-   
-   # validate width and height
-   if (!is.numeric(width) || (length(width) != 1))
-      stop("width must be a single element numeric vector.", call. = FALSE)
-   if (!is.numeric(height) || (length(height) != 1))
-      stop("height must be a single element numeric vector.", call. = FALSE)
-   
-   invisible(.Call("rs_showShinyGadgetDialog", caption, url, width, height, PACKAGE = "(embedding)"))
-})
+if (is.null(getOption("shinygadgets.showdialog"))) {
+   options(shinygadgets.showdialog = function(caption,
+                                              url,
+                                              width = NULL,
+                                              height = NULL)
+   {
+      if (!is.character(caption) || (length(caption) != 1))
+         stop("caption must be a single element character vector.", call. = FALSE)
+
+      if (!is.character(url) || (length(url) != 1))
+         stop("url must be a single element character vector.", call. = FALSE)
+
+      # default width and height
+      if (is.null(width))
+         width <- 600
+      if (is.null(height))
+         height <- 600
+
+      # validate width and height
+      if (!is.numeric(width) || (length(width) != 1))
+         stop("width must be a single element numeric vector.", call. = FALSE)
+      if (!is.numeric(height) || (length(height) != 1))
+         stop("height must be a single element numeric vector.", call. = FALSE)
+
+      invisible(.Call("rs_showShinyGadgetDialog", caption, url, width, height))
+   })
+}
 
 # provide askpass function
-.rs.setOption("askpass", function(prompt)
-{
-   .rs.askForPassword(prompt)
-})
+options(askpass = .rs.askForPassword)
 
 # provide asksecret function
-.rs.setOption("asksecret", function(name,
-                                    title = name,
-                                    prompt = paste(name, ":", sep = ""))
-{
-   .rs.askForSecret(name, title, prompt)
-})
+options(asksecret = .rs.askForSecret)
 
 # provide restart function
-.rs.setOption("restart", function(afterRestartCommand = "")
-{
-   .rs.restartR(afterRestartCommand)
-})
+options(restart = .rs.restartR)
 
 # custom pager implementation
-.rs.setOption("pager", function(files, header, title, delete.file)
-{
-   .rs.pager(files, header, title, delete.file)
-})
+options(pager = .rs.pager)
 
 # never allow graphical menus
 options(menu.graphics = FALSE)
@@ -129,13 +118,13 @@ local({
    if (platform$GUI != "RStudio") {
       platform$GUI = "RStudio"
       unlockBinding(".Platform", asNamespace("base"))
-      assign(".Platform", platform, inherits = TRUE)
+      assign(".Platform", platform, inherits=TRUE)
       lockBinding(".Platform", asNamespace("base"))
    }
 })
 
 # set default x display (see below for comment on why we need to do this)
-if (is.na(Sys.getenv("DISPLAY", unset = NA)))
+if (is.na(Sys.getenv("DISPLAY", NA)))
    Sys.setenv(DISPLAY = ":0")
 
 # the above two display oriented command affect the behavior of edit.data.frame

@@ -1,7 +1,7 @@
 /*
  * LeftRightToggleButton.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,8 +14,6 @@
  */
 package org.rstudio.core.client.widget;
 
-import com.google.gwt.aria.client.PressedValue;
-import com.google.gwt.aria.client.Roles;
 import org.rstudio.core.client.theme.res.ThemeResources;
 
 import com.google.gwt.core.client.GWT;
@@ -84,9 +82,6 @@ public class LeftRightToggleButton extends Widget
          addStyleName(styles.leftOn());
       else
          addStyleName(styles.rightOn());
-
-      Roles.getButtonRole().setAriaPressedState(left_, leftIsOn ? PressedValue.TRUE : PressedValue.FALSE);
-      Roles.getButtonRole().setAriaPressedState(right_, leftIsOn ? PressedValue.FALSE : PressedValue.TRUE);
    }
 
    @Override

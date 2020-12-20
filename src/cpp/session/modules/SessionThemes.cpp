@@ -1,7 +1,7 @@
 /*
  * SessionThemes.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2018-2019 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,19 +22,15 @@
 #include <boost/bind.hpp>
 #include <boost/regex.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Exec.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/json/JsonRpc.hpp>
 
 #include <core/http/Request.hpp>
 #include <core/http/Response.hpp>
 
-#include <core/system/Xdg.hpp>
-
 #include <session/SessionModuleContext.hpp>
-#include <session/prefs/UserPrefs.hpp>
-#include <session/prefs/UserState.hpp>
 
 #include <r/RExec.hpp>
 #include <r/RRoutines.hpp>
@@ -137,15 +133,15 @@ void getThemesInLocation(
    if (location.isDirectory())
    {
       std::vector<FilePath> locationChildren;
-      location.getChildren(locationChildren);
+      location.children(&locationChildren);
       for (const FilePath& themeFile: locationChildren)
       {
          if (themeFile.hasExtensionLowerCase(".rstheme"))
          {
 #ifdef _WIN32
-            const std::wstring k_themeFileStr = themeFile.getAbsolutePathW();
+            const std::wstring k_themeFileStr = themeFile.absolutePathW();
 #else
-            const std::string k_themeFileStr = themeFile.getCanonicalPath();
+            const std::string k_themeFileStr = themeFile.canonicalPath();
 #endif
             std::ifstream themeIFStream(k_themeFileStr);
             std::string themeContents(
@@ -163,7 +159,7 @@ void getThemesInLocation(
             std::string name;
             if (!found || (matches.size() < 2) || (matches[1] == ""))
             {
-               name = themeFile.getStem();
+               name = themeFile.stem();
             }
             else
             {
@@ -196,7 +192,7 @@ void getThemesInLocation(
 
             (*themeMap)[boost::algorithm::to_lower_copy(name)] = std::make_tuple(
                name,
-               urlPrefix + http::util::urlEncode(themeFile.getFilename()),
+               urlPrefix + http::util::urlEncode(themeFile.filename()),
                isDark);
          }
       }
@@ -210,7 +206,7 @@ void getThemesInLocation(
  */
 FilePath getDefaultThemePath()
 {
-   return session::options().rResourcesPath().completeChildPath("themes");
+   return session::options().rResourcesPath().childPath("themes");
 }
 
 /**
@@ -228,35 +224,11 @@ FilePath getGlobalCustomThemePath()
       return FilePath(kGlobalPathAlt);
    }
 
-   return core::system::xdg::systemConfigFile("themes");
-}
-
-/**
- * @brief Gets the location of custom themes from an environment variable.
- *
- * @return The location of custom themes defined by the environment variable, or an empty path if
- * the variable is not set.
- */
-FilePath getEnvCustomThemePath()
-{
-   const char* kLocalPathAlt = std::getenv("RS_THEME_LOCAL_HOME");
-   if (kLocalPathAlt)
-   {
-      return FilePath(kLocalPathAlt);
-   }
-
-   return FilePath();
-}
-
-/**
- * @brief Gets the location of custom themes that are installed for the current user (legacy RStudio
- * 1.2 version)
- *
- * @return The location of custom themes that are installed for the current user.
- */
-FilePath getLegacyLocalCustomThemePath()
-{
-   return module_context::userHomePath().completeChildPath(".R/rstudio/themes/");
+#ifdef _WIN32
+   return core::system::systemSettingsPath("RStudio\\themes", false);
+#else
+   return FilePath("/etc/rstudio/themes/");
+#endif
 }
 
 /**
@@ -266,38 +238,14 @@ FilePath getLegacyLocalCustomThemePath()
  */
 FilePath getLocalCustomThemePath()
 {
-   return core::system::xdg::userConfigDir().completePath("themes");
-}
-
-/**
- * @brief Gets the local custom theme from either the configured location or one of the two default locations (legacy or
- *        current.
- *
- * @param themeFileName     The name of the theme file to get.
- *
- * @return The theme FilePath.
- */
-FilePath getLocalCustomTheme(std::string themeFileName)
-{
-   // Check if there is an local custom theme path override configured in the environment.
-   FilePath envDir = getEnvCustomThemePath();
-
-   // Look in the configured location, if there was a configured value. Other wise check the defaults.
-   FilePath requestedTheme;
-   if (envDir.isEmpty())
+   using rstudio::core::FilePath;
+   const char* kLocalPathAlt = std::getenv("RS_THEME_LOCAL_HOME");
+   if (kLocalPathAlt)
    {
-      // Check first in the local custom theme path; if the theme isn't found there, try the legacy
-      // theme path (where RStudio 1.2 wrote custom themes)
-      requestedTheme = getLocalCustomThemePath().completeChildPath(themeFileName);
-      if (!requestedTheme.exists())
-         requestedTheme = getLegacyLocalCustomThemePath().completeChildPath(themeFileName);
-   }
-   else
-   {
-      requestedTheme = envDir.completeChildPath(themeFileName);
+      return FilePath(kLocalPathAlt);
    }
 
-   return requestedTheme;
+   return module_context::userHomePath().childPath(".R/rstudio/themes/");
 }
 
 /**
@@ -314,21 +262,7 @@ ThemeMap getAllThemes()
    ThemeMap themeMap;
    getThemesInLocation(getDefaultThemePath(), kDefaultThemeLocation, &themeMap);
    getThemesInLocation(getGlobalCustomThemePath(), kGlobalCustomThemeLocation, &themeMap);
-
-   // Check for an explicit path set from an environment variable. If set, this overrides the
-   // less specific built-in/XDG defaults.
-   FilePath envPath = getEnvCustomThemePath();
-   if (envPath.isEmpty())
-   {
-      // No specific theme path set from environment variable, use defaults
-      getThemesInLocation(getLegacyLocalCustomThemePath(), kLocalCustomThemeLocation, &themeMap);
-      getThemesInLocation(getLocalCustomThemePath(), kLocalCustomThemeLocation, &themeMap);
-   }
-   else
-   {
-      // Use the specific theme path set from the environment variable
-      getThemesInLocation(envPath, kLocalCustomThemeLocation, &themeMap);
-   }
+   getThemesInLocation(getLocalCustomThemePath(), kLocalCustomThemeLocation, &themeMap);
 
    return themeMap;
 }
@@ -390,7 +324,7 @@ SEXP rs_getThemeColors()
    if (error)
    {
       // Client returned something we didn't understand
-      r::exec::warning("No theme colors could be determined: " + error.getSummary());
+      r::exec::warning("No theme colors could be determined: " + error.summary());
       return R_NilValue;
    }
 
@@ -423,11 +357,11 @@ FilePath getDefaultTheme(const http::Request& request)
 
    if (isDark)
    {
-      return getDefaultThemePath().completeChildPath("tomorrow_night.rstheme");
+      return getDefaultThemePath().childPath("tomorrow_night.rstheme");
    }
    else
    {
-      return getDefaultThemePath().completeChildPath("textmate.rstheme");
+      return getDefaultThemePath().childPath("textmate.rstheme");
    }
 }
 
@@ -490,11 +424,11 @@ Error addTheme(const json::JsonRpcRequest& request,
       error.addProperty("queryParam", themeToAdd);
       error.addProperty("details", "Theme file does not exist.");
    }
-   else if (themeFile.getExtensionLowerCase() == ".rstheme")
+   else if (themeFile.extensionLowerCase() == ".rstheme")
    {
       funcName = ".rs.internal.addTheme";
    }
-   else if (!(themeFile.getExtensionLowerCase() == ".tmtheme"))
+   else if (!(themeFile.extensionLowerCase() == ".tmtheme"))
    {
       assert(false);
       error = Error(json::errc::ParamInvalid, ERROR_LOCATION);
@@ -563,13 +497,6 @@ void onDeferredInit(bool)
    s_deferredInitComplete = true;
 }
 
-void setCacheableFile(const FilePath& filePath,
-                      const http::Request& request,
-                      http::Response* pResponse)
-{
-   pResponse->setCacheableFile(filePath, request);
-}
-
 } // anonymous namespace
 
 /**
@@ -583,7 +510,7 @@ void handleDefaultThemeRequest(const http::Request& request,
 {
    std::string prefix = "/" + kDefaultThemeLocation;
    std::string fileName = http::util::pathAfterPrefix(request, prefix);
-   setCacheableFile(getDefaultThemePath().completeChildPath(fileName), request, pResponse);
+   pResponse->setCacheableFile(getDefaultThemePath().childPath(fileName), request);
 }
 
 /**
@@ -599,11 +526,10 @@ void handleGlobalCustomThemeRequest(const http::Request& request,
    // ability to pop up a warning dialog or something to the user.
    std::string prefix = "/" + kGlobalCustomThemeLocation;
    std::string fileName = http::util::pathAfterPrefix(request, prefix);
-   FilePath requestedTheme = getGlobalCustomThemePath().completeChildPath(fileName);
-   setCacheableFile(
+   FilePath requestedTheme = getGlobalCustomThemePath().childPath(fileName);
+   pResponse->setCacheableFile(
       requestedTheme.exists() ? requestedTheme : getDefaultTheme(request),
-      request,
-      pResponse);
+      request);
 }
 
 /**
@@ -619,84 +545,10 @@ void handleLocalCustomThemeRequest(const http::Request& request,
    // ability to pop up a warning dialog or something to the user.
    std::string prefix = "/" + kLocalCustomThemeLocation;
    std::string fileName = http::util::pathAfterPrefix(request, prefix);
-
-   FilePath requestedTheme = getLocalCustomTheme(fileName);
-   setCacheableFile(
+   FilePath requestedTheme = getLocalCustomThemePath().childPath(fileName);
+   pResponse->setCacheableFile(
       requestedTheme.exists() ? requestedTheme : getDefaultTheme(request),
-      request,
-      pResponse);
-}
-
-Error syncThemePrefs()
-{
-   // Determine whether the preference storing the theme is out of sync with the theme details in
-   // user state.
-   Error err;
-   std::string prefTheme = prefs::userPrefs().editorTheme();
-   json::Object stateTheme = prefs::userState().theme();
-   auto themeName = stateTheme.find(kThemeName);
-   if (themeName != stateTheme.end() &&
-       (*themeName).getValue().getString() != prefTheme)
-   {
-      bool found = false;
-      ThemeMap themes = getAllThemes();
-      json::Array jsonThemeArray;
-      for (auto theme: themes)
-      {
-         if (std::get<0>(theme.second) == prefTheme)
-         {
-            found = true;
-            json::Object jsonTheme;
-            jsonTheme["name"] = std::get<0>(theme.second);
-            jsonTheme["url"] = std::get<1>(theme.second);
-            jsonTheme["isDark"] = std::get<2>(theme.second);
-            err = prefs::userState().setTheme(jsonTheme);
-            break;
-         }
-      }
-
-      if (!found)
-      {
-         LOG_WARNING_MESSAGE("The theme preference was set to '" + prefTheme + "' "
-               "but no theme with that name was found.");
-      }
-   }
-
-   return err;
-}
-
-SEXP rs_getGlobalThemeDir()
-{
-   r::sexp::Protect protect;
-   return r::sexp::create(getGlobalCustomThemePath().getAbsolutePath(), &protect);
-}
-
-SEXP rs_getLocalThemeDir()
-{
-   // Check for a configured custom location before returning the default custom location. Never return the legacy
-   // default custom location because we don't want to add new files there.
-   FilePath themeDir = getEnvCustomThemePath();
-   if (themeDir.isEmpty())
-      themeDir = getLocalCustomThemePath();
-
-   r::sexp::Protect protect;
-   return r::sexp::create(themeDir.getAbsolutePath(), &protect);
-}
-
-SEXP rs_getLocalThemePath(SEXP themeFileSEXP)
-{
-   std::string themeFile = r::sexp::asString(themeFileSEXP);
-
-   if (themeFile.empty())
-      return R_NilValue;
-
-   FilePath requestedTheme = getLocalCustomTheme(themeFile);
-   if (requestedTheme.isEmpty())
-      return R_NilValue;
-
-
-   r::sexp::Protect protect;
-   return r::sexp::create(requestedTheme.getAbsolutePath(), &protect);
+      request);
 }
 
 Error initialize()
@@ -707,10 +559,7 @@ Error initialize()
    s_waitForThemeColors = registerWaitForMethod("set_computed_theme_colors");
 
    RS_REGISTER_CALL_METHOD(rs_getThemes);
-   RS_REGISTER_CALL_METHOD(rs_getLocalThemeDir);
-   RS_REGISTER_CALL_METHOD(rs_getGlobalThemeDir);
    RS_REGISTER_CALL_METHOD(rs_getThemeColors);
-   RS_REGISTER_CALL_METHOD(rs_getLocalThemePath);
 
    events().onDeferredInit.connect(onDeferredInit);
 
@@ -718,17 +567,14 @@ Error initialize()
    // links have a different prefix.
    ExecBlock initBlock;
    initBlock.addFunctions()
-      (bind(
-         sourceModuleRFile,
-         session::options().rResourcesPath().completeChildPath("themes").completeChildPath("compile-themes.R").getAbsolutePath()))
+      (bind(sourceModuleRFile, session::options().rResourcesPath().childPath("themes").childPath("compile-themes.R").absolutePath()))
       (bind(sourceModuleRFile, "SessionThemes.R"))
       (bind(registerRpcMethod, "get_themes", getThemes))
       (bind(registerRpcMethod, "add_theme", addTheme))
       (bind(registerRpcMethod, "remove_theme", removeTheme))
       (bind(registerUriHandler, "/" + kDefaultThemeLocation, handleDefaultThemeRequest))
       (bind(registerUriHandler, "/" + kGlobalCustomThemeLocation, handleGlobalCustomThemeRequest))
-      (bind(registerUriHandler, "/" + kLocalCustomThemeLocation, handleLocalCustomThemeRequest))
-      (bind(syncThemePrefs));
+      (bind(registerUriHandler, "/" + kLocalCustomThemeLocation, handleLocalCustomThemeRequest));
 
    return initBlock.execute();
 }

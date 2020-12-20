@@ -1,7 +1,7 @@
 /*
  * ProjectEditingPreferencesPane.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,9 +14,7 @@
  */
 package org.rstudio.studio.client.projects.ui.prefs;
 
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.prefs.PreferencesDialogBaseResources;
-import org.rstudio.core.client.prefs.RestartRequirement;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.widget.NumericValueWidget;
 import org.rstudio.core.client.widget.OperationWithInput;
@@ -24,8 +22,6 @@ import org.rstudio.core.client.widget.TextBoxWithButton;
 import org.rstudio.studio.client.common.SimpleRequestCallback;
 import org.rstudio.studio.client.projects.model.RProjectConfig;
 import org.rstudio.studio.client.projects.model.RProjectOptions;
-import org.rstudio.studio.client.workbench.prefs.model.ProjectPrefs;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 import org.rstudio.studio.client.workbench.prefs.views.LineEndingsSelectWidget;
 import org.rstudio.studio.client.workbench.views.source.editors.text.IconvListResult;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ui.ChooseEncodingDialog;
@@ -46,36 +42,31 @@ public class ProjectEditingPreferencesPane extends ProjectPreferencesPane
       enableCodeIndexing_ = new CheckBox("Index source files (for code search/navigation)", false);
       enableCodeIndexing_.addStyleName(RESOURCES.styles().enableCodeIndexing());
       add(enableCodeIndexing_);
-
+      
       chkSpacesForTab_ = new CheckBox("Insert spaces for tab", false);
       chkSpacesForTab_.addStyleName(RESOURCES.styles().useSpacesForTab());
       add(chkSpacesForTab_);
-
-      numSpacesForTab_ = new NumericValueWidget("Tab width", 1, UserPrefs.MAX_TAB_WIDTH);
+      
+      numSpacesForTab_ = new NumericValueWidget("Tab width");
       numSpacesForTab_.addStyleName(RESOURCES.styles().numberOfTabs());
-      numSpacesForTab_.setWidth("36px");
       add(numSpacesForTab_);
-
+      
       chkAutoAppendNewline_ = new CheckBox("Ensure that source files end with newline");
       chkAutoAppendNewline_.addStyleName(RESOURCES.styles().editingOption());
       add(chkAutoAppendNewline_);
-
+      
       chkStripTrailingWhitespace_ = new CheckBox("Strip trailing horizontal whitespace when saving");
       chkStripTrailingWhitespace_.addStyleName(RESOURCES.styles().editingOption());
       add(chkStripTrailingWhitespace_);
-
+      
       lineEndings_ = new LineEndingsSelectWidget(true);
       lineEndings_.addStyleName(RESOURCES.styles().editingOption());
       lineEndings_.addStyleName(RESOURCES.styles().lineEndings());
       add(lineEndings_);
-
+      
       encoding_ = new TextBoxWithButton(
             "Text encoding:",
-            "",
             "Change...",
-            null,
-            ElementIds.TextBoxButtonId.PROJECT_TEXT_ENCODING,
-            true,
             new ClickHandler()
             {
                public void onClick(ClickEvent event)
@@ -108,11 +99,11 @@ public class ProjectEditingPreferencesPane extends ProjectPreferencesPane
             });
       encoding_.setWidth("250px");
       encoding_.addStyleName(RESOURCES.styles().encodingChooser());
-
+      
       add(encoding_);
-
+      
    }
-
+   
    @Override
    public ImageResource getIcon()
    {
@@ -129,24 +120,24 @@ public class ProjectEditingPreferencesPane extends ProjectPreferencesPane
    protected void initialize(RProjectOptions options)
    {
       initialConfig_ = options.getConfig();
-
+      
       enableCodeIndexing_.setValue(initialConfig_.getEnableCodeIndexing());
       chkSpacesForTab_.setValue(initialConfig_.getUseSpacesForTab());
       numSpacesForTab_.setValue(initialConfig_.getNumSpacesForTab() + "");
       chkAutoAppendNewline_.setValue(initialConfig_.getAutoAppendNewline());
       chkStripTrailingWhitespace_.setValue(initialConfig_.getStripTrailingWhitespace());
-      lineEndings_.setValue(ProjectPrefs.prefFromLineEndings(initialConfig_.getLineEndings()));
+      lineEndings_.setIntValue(initialConfig_.getLineEndings());
       setEncoding(initialConfig_.getEncoding());
    }
-
+   
    @Override
    public boolean validate()
    {
-      return numSpacesForTab_.validate();
+      return numSpacesForTab_.validate("Tab width"); 
    }
 
    @Override
-   public RestartRequirement onApply(RProjectOptions options)
+   public boolean onApply(RProjectOptions options)
    {
       RProjectConfig config = options.getConfig();
       config.setEnableCodeIndexing(enableCodeIndexing_.getValue());
@@ -154,17 +145,17 @@ public class ProjectEditingPreferencesPane extends ProjectPreferencesPane
       config.setNumSpacesForTab(getTabWidth());
       config.setAutoAppendNewline(chkAutoAppendNewline_.getValue());
       config.setStripTrailingWhitespace(chkStripTrailingWhitespace_.getValue());
-      config.setLineEndings(ProjectPrefs.lineEndingsFromPref(lineEndings_.getValue()));
+      config.setLineEndings(lineEndings_.getIntValue());
       config.setEncoding(encodingValue_);
-      return new RestartRequirement();
+      return false;
    }
-
+   
    private void setEncoding(String encoding)
    {
       encodingValue_ = encoding;
       encoding_.setText(encoding);
    }
-
+   
    private int getTabWidth()
    {
       try
@@ -178,7 +169,7 @@ public class ProjectEditingPreferencesPane extends ProjectPreferencesPane
          return initialConfig_.getNumSpacesForTab();
       }
    }
-
+   
    private CheckBox enableCodeIndexing_;
    private CheckBox chkSpacesForTab_;
    private NumericValueWidget numSpacesForTab_;
@@ -188,4 +179,5 @@ public class ProjectEditingPreferencesPane extends ProjectPreferencesPane
    private TextBoxWithButton encoding_;
    private String encodingValue_;
    private RProjectConfig initialConfig_;
+
 }

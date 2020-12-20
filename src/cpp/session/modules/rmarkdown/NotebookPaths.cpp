@@ -1,7 +1,7 @@
 /*
  * NotebookPaths.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,6 +23,7 @@
 #include <core/FileLock.hpp>
 
 #include <session/SessionModuleContext.hpp>
+#include <session/SessionUserSettings.hpp>
 
 using namespace rstudio::core;
 
@@ -52,7 +53,7 @@ public:
    PathLockGuard()
    {
       error_ = nbPathLock().acquire(
-         notebookCacheRoot().completeChildPath("lock_file"));
+            notebookCacheRoot().childPath("lock_file"));
    }
 
    ~PathLockGuard()
@@ -76,7 +77,7 @@ private:
 
 FilePath cachePath()
 {
-   return notebookCacheRoot().completeChildPath("paths");
+   return notebookCacheRoot().childPath("paths");
 }
 
 void cleanNotebookPathMap()
@@ -123,9 +124,9 @@ Error synchronizeCache()
    if (!cache.exists())
    {
       // create folder to host cache if necessary
-      if (!cache.getParent().exists())
+      if (!cache.parent().exists())
       {
-         error = cache.getParent().ensureDirectory();
+         error = cache.parent().ensureDirectory();
          if (error)
             return error;
       }
@@ -133,7 +134,7 @@ Error synchronizeCache()
    else
    {
       // the cache exists; see if we need to reload
-      if (cache.getLastWriteTime() > s_cacheWriteTime)
+      if (cache.lastWriteTime() > s_cacheWriteTime) 
       {
          // attempt to lock the file for reading
          PathLockGuard guard;
@@ -164,7 +165,7 @@ Error notebookPathToId(const core::FilePath& path, std::string *pId)
    
    // check to see if the path is already in our lookup table
    std::map<std::string, std::string>::iterator it = 
-      s_idCache.find(path.getAbsolutePath());
+      s_idCache.find(path.absolutePath());
    if (it != s_idCache.end())
    {
       *pId = it->second;
@@ -173,7 +174,7 @@ Error notebookPathToId(const core::FilePath& path, std::string *pId)
 
    // need to generate a new ID for this path; make sure we don't collide with
    // an existing ID
-   std::string id;
+   std::string id; 
    bool existing;
    do 
    {
@@ -187,7 +188,7 @@ Error notebookPathToId(const core::FilePath& path, std::string *pId)
             break;
          }
       }
-   } while (existing);
+   } while (existing); 
 
    // lock and update the cache
    PathLockGuard guard;
@@ -195,7 +196,7 @@ Error notebookPathToId(const core::FilePath& path, std::string *pId)
       return error;
 
    // insert the new ID and update caches
-   s_idCache[path.getAbsolutePath()] = id;
+   s_idCache[path.absolutePath()] = id;
    error = writeStringMapToFile(cachePath(), s_idCache);
    if (error)
       return error;

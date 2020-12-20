@@ -1,7 +1,7 @@
 /*
  * NodeRelativePosition.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -94,7 +94,7 @@ public class NodeRelativePosition
    public static NodeRelativePosition toPosition(Element container, int offset)
    {
       if (offset < 0)
-         throw new IllegalArgumentException("Offset must not be negative");
+         throw new IllegalArgumentException("Offset must not be negative") ;
 
       int[] counter = new int[] {offset};
       NodeRelativePosition result = toPositionHelper(container, counter);
@@ -141,15 +141,15 @@ public class NodeRelativePosition
       return null;
    }
 
-   public final Node node;
+   public final Node node ;
 
-   public final int offset;
+   public final int offset ;
 
    public NodeRelativePosition(Node node, int offset)
    {
-      super();
-      this.node = node;
-      this.offset = offset;
+      super() ;
+      this.node = node ;
+      this.offset = offset ;
    }
 
 }

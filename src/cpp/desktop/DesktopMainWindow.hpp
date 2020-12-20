@@ -1,7 +1,7 @@
 /*
  * DesktopMainWindow.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,8 +22,6 @@
 #include <QtGui>
 #include <QSessionManager>
 
-#include <core/Thread.hpp>
-
 #include "DesktopInfo.hpp"
 #include "DesktopGwtCallback.hpp"
 #include "DesktopGwtWindow.hpp"
@@ -34,7 +32,6 @@ namespace rstudio {
 namespace desktop {
 
 class SessionLauncher;
-class JobLauncher;
 class RemoteDesktopSessionLauncher;
 
 class MainWindow : public GwtWindow
@@ -54,22 +51,13 @@ public:
    void launchRemoteRStudioProject(const QString& projectUrl);
 
    RemoteDesktopSessionLauncher* getRemoteDesktopSessionLauncher();
-   boost::shared_ptr<JobLauncher> getJobLauncher();
-
    QWebEngineProfile* getPageProfile();
-   WebView* getWebView();
-   bool workbenchInitialized();
-
-   void setErrorDisplayed();
 
 public Q_SLOTS:
    void quit();
    void loadUrl(const QUrl& url);
-   void loadRequest(const QWebEngineHttpRequest& request);
-   void loadHtml(const QString& html);
    void setMenuBar(QMenuBar *pMenuBar);
    void invokeCommand(QString commandId);
-   void runJavaScript(QString script);
    void openFileInRStudio(QString path);
    void onPdfViewerClosed(QString pdfPath);
    void onPdfViewerSyncSource(QString srcFile, int line, int column);
@@ -80,7 +68,6 @@ public Q_SLOTS:
 
 Q_SIGNALS:
    void firstWorkbenchInitialized();
-   void urlChanged(QUrl url);
 
 protected Q_SLOTS:
    void onWorkbenchInitialized();
@@ -117,30 +104,16 @@ private:
    // callback when window is activated
    void onActivated() override;
 
-   void onUrlChanged(QUrl url);
-   void reload();
-   void onLoadFinished(bool ok);
-   void onLoadFailed();
-
-   void saveRemoteAuthCookies(const boost::function<QList<QNetworkCookie>()>& loadCookies,
-                              const boost::function<void(QList<QNetworkCookie>)>& saveCookies,
-                              bool saveSessionCookies);
-
 private:
    bool isRemoteDesktop_;
    bool quitConfirmed_ = false;
    bool geometrySaved_ = false;
-   bool workbenchInitialized_ = false;
    MenuCallback menuCallback_;
    GwtCallback gwtCallback_;
    SessionLauncher* pSessionLauncher_;
    RemoteDesktopSessionLauncher* pRemoteSessionLauncher_;
-   boost::shared_ptr<JobLauncher> pLauncher_;
    ApplicationLaunch *pAppLauncher_;
    QProcess* pCurrentSessionProcess_;
-
-   boost::mutex mutex_;
-   bool isErrorDisplayed_;
 
 #ifdef _WIN32
    HWINEVENTHOOK eventHook_;

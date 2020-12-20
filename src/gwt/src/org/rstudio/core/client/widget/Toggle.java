@@ -1,7 +1,7 @@
 /*
  * Toggle.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,13 +14,8 @@
  */
 package org.rstudio.core.client.widget;
 
-import com.google.gwt.aria.client.CheckedValue;
-import com.google.gwt.aria.client.Id;
-import com.google.gwt.aria.client.Roles;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.event.dom.client.ClickEvent;
-import com.google.gwt.event.dom.client.KeyCodes;
-import com.google.gwt.event.dom.client.KeyDownEvent;
 import com.google.gwt.event.logical.shared.HasValueChangeHandlers;
 import com.google.gwt.event.logical.shared.ValueChangeEvent;
 import com.google.gwt.event.logical.shared.ValueChangeHandler;
@@ -33,12 +28,7 @@ import com.google.gwt.user.client.ui.FlowPanel;
 import com.google.gwt.user.client.ui.HorizontalPanel;
 import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.Widget;
-import org.rstudio.core.client.dom.DomUtils;
-import org.rstudio.studio.client.RStudioGinjector;
 
-/**
- * A custom-drawn checkbox supporting both on/off, and on/off/indeterminate modes
- */
 public class Toggle
       extends Composite
       implements HasValueChangeHandlers<Toggle.State>
@@ -68,25 +58,7 @@ public class Toggle
    private Toggle()
    {
       BINDER.createAndBindUi(this);
-
-      container_.addDomHandler((ClickEvent clickEvent) ->
-      {
-         track_.getElement().focus();
-         toggleState();
-      }, ClickEvent.getType());
-
-      container_.addDomHandler((KeyDownEvent keyDownEvent) ->
-      {
-         if (keyDownEvent.getNativeKeyCode() == KeyCodes.KEY_SPACE)
-         {
-            toggleState();
-         }
-      }, KeyDownEvent.getType());
-
-      DomUtils.ensureHasId(label_.getElement());
-      Roles.getCheckboxRole().set(track_.getElement());
-      Roles.getCheckboxRole().setAriaLabelledbyProperty(track_.getElement(), Id.of(label_.getElement()));
-      track_.getElement().setTabIndex(0);
+      container_.addDomHandler((ClickEvent event) -> { toggleState(); }, ClickEvent.getType());
       initWidget(container_);
    }
    
@@ -97,7 +69,7 @@ public class Toggle
          assert false : "Attempted to set indeterminate state on binary toggle";
       }
       
-      if (animate && !RStudioGinjector.INSTANCE.getUserPrefs().reducedMotion().getValue())
+      if (animate)
          knob_.removeStyleName(styles_.transitionDisabled());
       else
          knob_.addStyleName(styles_.transitionDisabled());
@@ -108,17 +80,14 @@ public class Toggle
       {
       case OFF:
          knob_.addStyleName(styles_.knobLeft());
-         Roles.getCheckboxRole().setAriaCheckedState(track_.getElement(), CheckedValue.FALSE);
          break;
          
       case INDETERMINATE:
          knob_.addStyleName(styles_.knobMiddle());
-         Roles.getCheckboxRole().setAriaCheckedState(track_.getElement(), CheckedValue.MIXED);
          break;
          
       case ON:
          knob_.addStyleName(styles_.knobRight());
-         Roles.getCheckboxRole().setAriaCheckedState(track_.getElement(), CheckedValue.TRUE);
          break;
       }
       

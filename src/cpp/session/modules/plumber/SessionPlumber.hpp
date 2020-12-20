@@ -1,7 +1,7 @@
 /*
  * SessionPlumber.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,7 +16,7 @@
 #ifndef SESSION_PLUMBER_HPP
 #define SESSION_PLUMBER_HPP
 
-#include <shared_core/json/Json.hpp>
+#include <core/json/Json.hpp>
 
 namespace rstudio {
 namespace core {

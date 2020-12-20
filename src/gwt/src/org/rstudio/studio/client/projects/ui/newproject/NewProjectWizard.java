@@ -1,7 +1,7 @@
 /*
  * NewProjectWizard.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -28,7 +28,7 @@ import org.rstudio.core.client.widget.WizardPage;
 import org.rstudio.studio.client.projects.model.NewProjectResult;
 import org.rstudio.studio.client.workbench.WorkbenchContext;
 import org.rstudio.studio.client.workbench.model.SessionInfo;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 
 import com.google.gwt.dom.client.Style.Unit;
 import com.google.gwt.user.client.ui.CheckBox;
@@ -38,7 +38,7 @@ public class NewProjectWizard extends Wizard<NewProjectInput,NewProjectResult>
 {
    public NewProjectWizard(
          SessionInfo sessionInfo,
-         UserPrefs uiPrefs,
+         UIPrefs uiPrefs,
          WorkbenchContext workbenchContext,
          NewProjectInput input,
          boolean allowOpenInNewWindow,

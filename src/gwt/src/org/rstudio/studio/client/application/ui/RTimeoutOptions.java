@@ -1,7 +1,7 @@
 /*
  * RTimeoutOptions.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -43,7 +43,7 @@ public class RTimeoutOptions extends Composite
    public RTimeoutOptions()
    {
       initWidget(uiBinder.createAndBindUi(this));
-
+      
       reload_.addClickHandler((click) ->
       {
          setStatus("Reloading...");
@@ -75,12 +75,7 @@ public class RTimeoutOptions extends Composite
    {
       observer_ = observer;
    }
-
-   public String getMessage()
-   {
-      return visibleMsg_.getText();
-   }
-
+   
    private void setStatus(String status)
    {
       // Disable buttons to prevent attempts to abort these abortive procedures
@@ -99,5 +94,4 @@ public class RTimeoutOptions extends Composite
    @UiField Button safeMode_;
    @UiField Button terminate_;
    @UiField Label status_;
-   @UiField Label visibleMsg_;
 }

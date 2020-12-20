@@ -1,7 +1,7 @@
 /*
  * CppCompletionRequest.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,7 +22,7 @@ import org.rstudio.core.client.regex.Pattern;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.server.ServerError;
 import org.rstudio.studio.client.server.ServerRequestCallback;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.snippets.SnippetHelper;
 import org.rstudio.studio.client.workbench.views.console.shell.editor.InputEditorSelection;
 import org.rstudio.studio.client.workbench.views.output.lint.model.LintItem;
@@ -83,10 +83,10 @@ public class CppCompletionRequest
    }
 
    @Inject
-   void initialize(CppServerOperations server, UserPrefs uiPrefs)
+   void initialize(CppServerOperations server, UIPrefs uiPrefs)
    {
       server_ = server;
-      userPrefs_ = uiPrefs;
+      uiPrefs_ = uiPrefs;
    }
    
    public boolean isExplicit()
@@ -149,7 +149,7 @@ public class CppCompletionRequest
       }
       
       // add in snippets if they are enabled and this is a global scope
-      if (userPrefs_.enableSnippets().getValue() &&
+      if (uiPrefs_.enableSnippets().getValue() &&
           (completionPosition_.getScope() == CompletionPosition.Scope.Global))
       {
          ArrayList<String> snippets = snippets_.getAvailableSnippets();
@@ -393,9 +393,9 @@ public class CppCompletionRequest
      
       String insertText = completion.getTypedText();
       if (completion.getType() == CppCompletion.FUNCTION &&
-            userPrefs_.insertParensAfterFunctionCompletion().getValue())
+            uiPrefs_.insertParensAfterFunctionCompletion().getValue())
       {
-         if (userPrefs_.insertMatching().getValue())
+         if (uiPrefs_.insertMatching().getValue())
             insertText = insertText + "()";
          else
             insertText = insertText + "(";
@@ -418,8 +418,8 @@ public class CppCompletionRequest
       docDisplay_.replaceSelection(insertText, true);
       
       if (completion.hasParameters() &&
-            userPrefs_.insertParensAfterFunctionCompletion().getValue() &&
-            userPrefs_.insertMatching().getValue())
+            uiPrefs_.insertParensAfterFunctionCompletion().getValue() &&
+            uiPrefs_.insertMatching().getValue())
       {
          Position pos = docDisplay_.getCursorPosition();
          pos = Position.create(pos.getRow(), pos.getColumn() - 1);
@@ -447,7 +447,7 @@ public class CppCompletionRequest
       }
       
       if (completion.hasParameters() &&
-          userPrefs_.showFunctionSignatureTooltips().getValue())
+          uiPrefs_.showSignatureTooltips().getValue())
       {
          new CppCompletionSignatureTip(completion, docDisplay_);
       }
@@ -466,7 +466,7 @@ public class CppCompletionRequest
    }
    
    private CppServerOperations server_;
-   private UserPrefs userPrefs_;
+   private UIPrefs uiPrefs_;
   
    private final DocDisplay docDisplay_; 
    private final boolean explicit_;

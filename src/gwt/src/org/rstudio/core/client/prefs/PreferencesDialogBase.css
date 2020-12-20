@@ -1,3 +1,7 @@
+@eval fixedWidthFont org.rstudio.core.client.theme.ThemeFonts.getFixedWidthFont();
+
+@external fixedWidthFont;
+
 @external gwt-CheckBox, gwt-RadioButton, gwt-Label;
 
 .preferencesDialog .gwt-CheckBox,
@@ -11,10 +15,6 @@
 
 .lessSpaced {
    margin-bottom: 4px;
-}
-
-.mediumSpaced {
-   margin-bottom: 15px;
 }
 
 .extraSpaced {
@@ -84,12 +84,12 @@
 }
 
 .textBoxWithChooser {
-   width: 350px;
+   width: 350px;	
 }
 
 .infoLabel {
    font-style: italic;
-   font-size: 0.9em;
+   font-size: 0.9em; 
 }
 
 .spacedBefore {

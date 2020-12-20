@@ -1,7 +1,7 @@
 /*
  * Size.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,18 +21,19 @@ public class Size
    
    public Size(int width, int height)
    {
-      this.width = width;
-      this.height = height;
+      super() ;
+      this.width = width ;
+      this.height = height ;
    }
    
    public int getX()
    {
-      return width;
+      return width ;
    }
    
    public int getY()
    {
-      return height;
+      return height ;
    }
    
    public boolean isEmpty()
@@ -43,25 +44,27 @@ public class Size
    @Override
    public int hashCode()
    {
-      final int prime = 31;
-      int result = 1;
-      result = prime * result + width;
-      result = prime * result + height;
-      return result;
+      final int prime = 31 ;
+      int result = 1 ;
+      result = prime * result + width ;
+      result = prime * result + height ;
+      return result ;
    }
 
    @Override
    public boolean equals(Object obj)
    {
       if (this == obj)
-         return true;
+         return true ;
       if (obj == null)
-         return false;
+         return false ;
       if (getClass() != obj.getClass())
-         return false;
-      Size other = (Size) obj;
+         return false ;
+      Size other = (Size) obj ;
       if (width != other.width)
-         return false;
-      return height == other.height;
+         return false ;
+      if (height != other.height)
+         return false ;
+      return true ;
    }
 }

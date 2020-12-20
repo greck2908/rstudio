@@ -1,7 +1,7 @@
 /*
 * zlib.hpp
 *
-* Copyright (C) 2020 by RStudio, PBC
+* Copyright (C) 2019 by RStudio, Inc.
 *
 * Unless you have received this program directly from RStudio pursuant
 * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,7 @@
 
 #include <string>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 
 namespace rstudio {
 namespace core {

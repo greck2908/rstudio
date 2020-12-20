@@ -1,7 +1,7 @@
 /*
  * ToolbarMenuButton.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,7 +14,6 @@
  */
 package org.rstudio.core.client.widget;
 
-import com.google.gwt.aria.client.ExpandedValue;
 import com.google.gwt.aria.client.Roles;
 import com.google.gwt.core.client.Scheduler;
 import com.google.gwt.event.dom.client.ClickHandler;
@@ -36,11 +35,11 @@ public class ToolbarMenuButton extends ToolbarButton
             new ImageResource2x(ThemeResources.INSTANCE.menuDownArrow2x()),
             (ImageResource) null,
             (ClickHandler) null);
-
+      
       leftImageWidget_.addStyleName("rstudio-themes-inverts");
-
+      
       addMenuHandlers(menu, rightAlignMenu);
-
+      
       addStyleName(styles_.toolbarButtonMenu());
       addStyleName(styles_.toolbarButtonMenuOnly());
    }
@@ -70,7 +69,7 @@ public class ToolbarMenuButton extends ToolbarButton
       this(text,
            title,
            new SimpleImageResourceProvider(leftImage),
-           menu,
+           menu, 
            rightAlignMenu);
    }
 
@@ -81,28 +80,17 @@ public class ToolbarMenuButton extends ToolbarButton
                              boolean rightAlignMenu)
    {
       super(text, title, leftImage, new ImageResource2x(ThemeResources.INSTANCE.menuDownArrow2x()), null);
-
+      
       rightImageWidget_.addStyleName("rstudio-themes-inverts");
       addMenuHandlers(menu, rightAlignMenu);
       addStyleName(styles_.toolbarButtonMenu());
-   }
-
-   private void setMenuShowing(boolean showing)
-   {
-      if (showing)
-         Roles.getMenuRole().setAriaExpandedState(getElement(), ExpandedValue.TRUE);
-      else
-         A11y.setARIANotExpanded(getElement());
-
-      menuShowing_ = showing;
    }
 
    private void addMenuHandlers(final ToolbarPopupMenu popupMenu,
                                 final boolean rightAlignMenu)
    {
       Roles.getButtonRole().setAriaHaspopupProperty(getElement(), true);
-      setMenuShowing(false);
-
+      
       menu_ = popupMenu;
       rightAlignMenu_ = rightAlignMenu;
 
@@ -116,19 +104,16 @@ public class ToolbarMenuButton extends ToolbarButton
        * time you get into the mousedown handler).
        */
 
-      addMouseDownHandler(event ->
-      {
+      addMouseDownHandler(event -> {
          event.preventDefault();
          event.stopPropagation();
          menuClick();
       });
-      popupMenu.addCloseHandler(popupPanelCloseEvent ->
-      {
+      popupMenu.addCloseHandler(popupPanelCloseEvent -> {
          removeStyleName(styles_.toolbarButtonPushed());
-         Scheduler.get().scheduleDeferred(() -> setMenuShowing(false));
+         Scheduler.get().scheduleDeferred(() -> menuShowing_ = false);
       });
-      addKeyPressHandler(event ->
-      {
+      addKeyPressHandler(event -> {
          char charCode = event.getCharCode();
          if (charCode == KeyCodes.KEY_ENTER || charCode == KeyCodes.KEY_SPACE)
          {
@@ -142,15 +127,14 @@ public class ToolbarMenuButton extends ToolbarButton
    private void menuClick()
    {
       addStyleName(styles_.toolbarButtonPushed());
-      // Some menus are rebuilt on every invocation. Ask the menu for
+      // Some menus are rebuilt on every invocation. Ask the menu for 
       // the most up-to-date version before proceeding.
-      menu_.getDynamicPopupMenu(menu ->
-      {
+      menu_.getDynamicPopupMenu(menu -> {
          if (menuShowing_)
          {
             removeStyleName(styles_.toolbarButtonPushed());
             menu.hide();
-            setMenuShowing(false);
+            A11y.setARIAMenuItemExpanded(getElement(), false);
             setFocus(true);
          }
          else
@@ -177,8 +161,9 @@ public class ToolbarMenuButton extends ToolbarButton
             {
                menu.showRelativeTo(ToolbarMenuButton.this);
             }
-            setMenuShowing(true);
+            menuShowing_ = true;
             menu_.focus();
+            A11y.setARIAMenuItemExpanded(getElement(), true);
          }
       });
    }

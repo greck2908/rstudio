@@ -1,7 +1,7 @@
 /*
  * CodeCompletion.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,7 @@
 #include <iostream>
 
 #include <core/Debug.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/system/Process.hpp>
 #include <core/RegexUtils.hpp>
@@ -32,7 +32,7 @@
 #include "RSourceIndex.hpp"
 #include "Diagnostics.hpp"
 
-using namespace rstudio::core;
+using namespace rstudio::core ;
 using namespace rstudio::core::libclang;
 
 #ifndef _WIN32
@@ -176,7 +176,7 @@ void discoverTranslationUnitIncludePaths(const FilePath& filePath,
 {
    std::vector<std::string> args =
          rCompilationDatabase().compileArgsForTranslationUnit(
-            filePath.getAbsolutePathNative(), false);
+            filePath.absolutePathNative(), false);
    
    for (const std::string& arg : args)
    {
@@ -356,11 +356,11 @@ void discoverRelativeIncludePaths(const FilePath& filePath,
                                   std::vector<std::string>* pIncludePaths)
 {
    // Construct the directory in which to search for includes
-   FilePath targetPath = filePath.getParent().completePath(parentDir);
+   FilePath targetPath = filePath.parent().complete(parentDir);
    if (!targetPath.exists())
       return;
    
-   pIncludePaths->push_back(targetPath.getAbsolutePath());
+   pIncludePaths->push_back(targetPath.absolutePath());
 }
 
 json::Object jsonHeaderCompletionResult(const std::string& name,
@@ -416,22 +416,22 @@ Error getHeaderCompletionsImpl(const std::string& token,
       if (!includePath.exists())
          continue;
       
-      FilePath targetPath = includePath.completePath(parentDir);
+      FilePath targetPath = includePath.complete(parentDir);
       if (!targetPath.exists())
          continue;
       
       std::vector<FilePath> children;
-      Error error = targetPath.getChildren(children);
+      Error error = targetPath.children(&children);
       if (error)
          LOG_ERROR(error);
       
       for (const FilePath& childPath : children)
       {
-         std::string name = childPath.getFilename();
+         std::string name = childPath.filename();
          if (discoveredEntries.count(name))
             continue;
          
-         std::string extension = childPath.getExtensionLowerCase();
+         std::string extension = childPath.extensionLowerCase();
          if (!(extension == ".h" || extension == ".hpp" || extension == ""))
             continue;
          
@@ -439,7 +439,7 @@ Error getHeaderCompletionsImpl(const std::string& token,
          {
             int type = childPath.isDirectory() ? kCompletionDirectory : kCompletionFile;
             completionsJson.push_back(jsonHeaderCompletionResult(name,
-                                                                 childPath.getAbsolutePath(),
+                                                                 childPath.absolutePath(),
                                                                  type));
          }
          
@@ -526,7 +526,7 @@ Error getCppCompletions(const core::json::JsonRpcRequest& request,
       return getHeaderCompletions(line, filePath, docId, request, pResponse);
 
    // get the translation unit and do the code completion
-   std::string filename = filePath.getAbsolutePath();
+   std::string filename = filePath.absolutePath();
    TranslationUnit tu = rSourceIndex().getTranslationUnit(filename);
 
    if (!tu.empty())
@@ -558,10 +558,10 @@ Error getCppCompletions(const core::json::JsonRpcRequest& request,
             std::string typedText = result.getTypedText();
 
             // if we have the same typed text then just ammend previous result
-            if ((typedText == lastTypedText) && !completionsJson.isEmpty())
+            if ((typedText == lastTypedText) && !completionsJson.empty())
             {
-               json::Object res = completionsJson.getBack().getObject();
-               json::Array text = res["text"].getArray();
+               json::Object res = completionsJson.back().get_obj();
+               json::Array text = res["text"].get_array();
                text.push_back(friendlyCompletionText(result));
             }
             else

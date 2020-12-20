@@ -1,7 +1,7 @@
 /*
  * Win32Pty.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,7 @@
 
 #include "Win32Pty.hpp"
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/StringUtils.hpp>
 #include <core/system/System.hpp>
 #include <core/system/LibraryLoader.hpp>
@@ -106,7 +106,7 @@ Error tryLoad(const core::FilePath& libraryPath)
       return Success();
 
    Error error = core::system::loadLibrary(
-            libraryPath.getAbsolutePath(),
+            libraryPath.absolutePath(),
             reinterpret_cast<void**>(&hMod));
    if (error)
    {
@@ -278,7 +278,7 @@ public:
          lpEnv = &envBlock[0];
       }
 
-      std::wstring workingDir(options.workingDir.getAbsolutePathW());
+      std::wstring workingDir(options.workingDir.absolutePathW());
 
       if (spawn_config_new)
       {

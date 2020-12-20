@@ -1,7 +1,7 @@
 /*
  * SourceCppOutputPresenter.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,17 +20,12 @@ import com.google.inject.Inject;
 
 import org.rstudio.core.client.CodeNavigationTarget;
 import org.rstudio.core.client.FilePosition;
-import org.rstudio.core.client.command.CommandBinder;
-import org.rstudio.core.client.command.Handler;
-import org.rstudio.core.client.events.HasEnsureHiddenHandlers;
-import org.rstudio.core.client.events.HasSelectionCommitHandlers;
-import org.rstudio.core.client.events.SelectionCommitEvent;
+import org.rstudio.core.client.events.*;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.studio.client.common.filetypes.FileTypeRegistry;
 import org.rstudio.studio.client.common.sourcemarkers.SourceMarker;
 import org.rstudio.studio.client.workbench.WorkbenchView;
-import org.rstudio.studio.client.workbench.commands.Commands;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.views.BasePresenter;
 import org.rstudio.studio.client.workbench.views.output.sourcecpp.events.SourceCppCompletedEvent;
 import org.rstudio.studio.client.workbench.views.output.sourcecpp.events.SourceCppStartedEvent;
@@ -50,43 +45,42 @@ public class SourceCppOutputPresenter extends BasePresenter
       HasSelectionCommitHandlers<CodeNavigationTarget> errorList();
    }
 
-   public interface Binder extends CommandBinder<Commands, SourceCppOutputPresenter> {}
-
    @Inject
    public SourceCppOutputPresenter(Display view,
                                    FileTypeRegistry fileTypeRegistry,
-                                   Commands commands,
-                                   Binder binder,
-                                   UserPrefs uiPrefs)
+                                   UIPrefs uiPrefs)
    {
       super(view);
       view_ = view;
       fileTypeRegistry_ = fileTypeRegistry;
       uiPrefs_ = uiPrefs;
-      commands_ = commands;
-      binder.bind(commands, this);
-
+    
       view_.errorList().addSelectionCommitHandler(
-         (SelectionCommitEvent<CodeNavigationTarget> event) ->
+                         new SelectionCommitHandler<CodeNavigationTarget>() {
+
+         @Override
+         public void onSelectionCommit(
+                              SelectionCommitEvent<CodeNavigationTarget> event)
          {
             CodeNavigationTarget target = event.getSelectedItem();
             FileSystemItem fsi = FileSystemItem.createFile(target.getFile());
             fileTypeRegistry_.editFile(fsi, target.getPosition());
-         });
+         }
+      });
    }
-
-   @Override
+ 
+   @Override 
    public void onSourceCppStarted(SourceCppStartedEvent event)
    {
       view_.clearAll();
    }
-
-   @Override
+   
+   @Override 
    public void onSourceCppCompleted(SourceCppCompletedEvent event)
    {
       updateView(event.getState(), true);
    }
-
+   
    @Override
    public void onSelected()
    {
@@ -101,22 +95,14 @@ public class SourceCppOutputPresenter extends BasePresenter
       });
    }
 
-   @Handler
-   public void onActivateSourceCpp()
-   {
-      // Ensure that console pane is not minimized
-      commands_.activateConsolePane().execute();
-      view_.bringToFront();
-   }
-
    private void updateView(SourceCppState state, boolean activate)
    {
       if (state.getErrors().length() > 0)
          view_.ensureVisible(activate);
-
-      // show results
+      
+      // show results   
       view_.showResults(state);
-
+      
       // navigate to the first error
       if (uiPrefs_.navigateToBuildError().getValue())
       {
@@ -129,11 +115,10 @@ public class SourceCppOutputPresenter extends BasePresenter
               true);
          }
       }
-
+      
    }
-
+   
    private final Display view_;
    private final FileTypeRegistry fileTypeRegistry_;
-   private final UserPrefs uiPrefs_;
-   private final Commands commands_;
+   private final UIPrefs uiPrefs_;
 }

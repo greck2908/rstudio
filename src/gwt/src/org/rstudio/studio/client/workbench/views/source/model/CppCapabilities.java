@@ -1,7 +1,7 @@
 /*
  * CppCapabilities.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,8 +24,8 @@ public class CppCapabilities extends JavaScriptObject
    
    public static final native CppCapabilities createDefault()  /*-{
       var caps = new Object();
-      caps.can_build = false;
-      caps.can_source_cpp = false;
+      caps.can_build = false ;
+      caps.can_source_cpp = false ;
       return caps;
    }-*/;
    

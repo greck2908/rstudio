@@ -1,7 +1,7 @@
 /*
  * FileBrowserWidget.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,8 @@
 package org.rstudio.core.client.files.filedialog;
 
 import org.rstudio.core.client.ElementIds;
-import org.rstudio.core.client.events.SelectionCommitEvent;
+import org.rstudio.core.client.FocusTransitionManager;
+import org.rstudio.core.client.events.SelectionCommitHandler;
 import org.rstudio.core.client.files.FileSystemContext;
 import org.rstudio.core.client.files.FileSystemItem;
 
@@ -33,7 +34,7 @@ import org.rstudio.core.client.widget.FormLabel;
 public class FileBrowserWidget extends Composite
                  implements FileSystemContext.Callbacks
 {
-   public interface Host extends SelectionCommitEvent.Handler<FileSystemItem>,
+   public interface Host extends SelectionCommitHandler<FileSystemItem>,
                                  SelectionHandler<FileSystemItem>
    {
       String getFilenameLabel();
@@ -47,7 +48,7 @@ public class FileBrowserWidget extends Composite
    {
       context_ = context;
       host_ = host;
-
+      
       breadcrumb_ = new PathBreadcrumbWidget(context_);
       breadcrumb_.addSelectionCommitHandler(host);
 
@@ -67,7 +68,7 @@ public class FileBrowserWidget extends Composite
    }
 
    // Public methods ----------------------------------------------------------
-
+   
    public void setFilename(String filename)
    {
       if (filename_ != null)
@@ -75,30 +76,30 @@ public class FileBrowserWidget extends Composite
       else
          initialFilename_ = filename;
    }
-
+   
    public String getFilename()
    {
       return filename_.getText();
    }
-
+   
    public void setFilenameEnabled(boolean enabled)
    {
       filename_.setEnabled(enabled);
    }
-
+   
    public void selectFilename()
    {
       filename_.selectAll();
    }
-
+   
    public void setFilenameFocus(boolean focus)
    {
       filename_.setFocus(focus);
    }
-
+   
    public Style getFilenameStyle()
    {
-     return filename_.getElement().getStyle();
+     return filename_.getElement().getStyle(); 
    }
 
    public void onNavigated()
@@ -125,7 +126,7 @@ public class FileBrowserWidget extends Composite
       assert dir.isDirectory();
       cd(dir.getPath());
    }
-
+   
    public void addKeyUpHandler(KeyUpHandler handler)
    {
       filename_.addKeyUpHandler(handler);
@@ -135,12 +136,12 @@ public class FileBrowserWidget extends Composite
    {
       filename_.addKeyPressHandler(handler);
    }
-
+   
    public void setSelectedRow(Integer row)
    {
       directory_.setSelectedRow(row);
    }
-
+   
    public void setDirectoryFocus(boolean focus)
    {
       directory_.setFocus(focus);
@@ -162,17 +163,17 @@ public class FileBrowserWidget extends Composite
    {
       return directory_.getSelectedValue();
    }
-
+   
    public FileSystemItem getSelectedItem()
    {
       return directory_.getSelectedItem();
    }
-
+   
    public FileSystemItem getCurrentDirectory()
    {
       return context_.pwdItem();
    }
-
+   
    // Private methods ---------------------------------------------------------
 
    private Widget createTopWidget()
@@ -198,13 +199,17 @@ public class FileBrowserWidget extends Composite
       filenamePanel.add(filename_);
       filenamePanel.setCellWidth(filename_, "100%");
 
+      ftm_ = new FocusTransitionManager();
+      ftm_.add(filename_, directory_);
+
       return filenamePanel;
    }
-
+   
    private PathBreadcrumbWidget breadcrumb_;
    private DirectoryContentsWidget directory_;
    private TextBox filename_;
    private FileSystemContext context_;
    private String initialFilename_;
    private Host host_;
+   private FocusTransitionManager ftm_;
 }

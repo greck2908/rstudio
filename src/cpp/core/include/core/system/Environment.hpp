@@ -1,7 +1,7 @@
 /*
  * Environment.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,8 +17,6 @@
 #define CORE_SYSTEM_ENVIRONMENT_HPP
 
 #include <string>
-
-#include <boost/noncopyable.hpp>
 
 #include <core/system/Types.hpp>
 
@@ -67,10 +65,6 @@ void unsetenv(Options* pEnvironment,
 
 void getModifiedEnv(const Options& extraVars, Options* pEnv);
 
-// add to the PATH
-void addToPath(const std::string& filePath,
-               bool prepend = false);
-
 // add to the PATH within a string
 void addToPath(std::string* pPath,
                const std::string& filePath,
@@ -81,48 +75,12 @@ void addToPath(Options* pEnvironment,
                const std::string& filePath,
                bool prepend = false);
 
+
 /****************************************************************
    Utility functions
 *****************************************************************/
 
 bool parseEnvVar(const std::string envVar, Option* pEnvVar);
-
-// expand environment variables in a string; for example /$USER/foo to
-// /bob/foo when USER=bob
-std::string expandEnvVars(const Options& environment, const std::string& str);
-
-// set an environment variable in some scope (overridding and
-// later restoring a previously-set environment variable)
-class EnvironmentScope : boost::noncopyable
-{
-   
-public:
-   
-   EnvironmentScope(const char* variable,
-                    const char* value)
-      : variable_(variable),
-        value_(::getenv(variable))
-   {
-      core::system::setenv(variable, value);
-   }
-   
-   ~EnvironmentScope()
-   {
-      if (value_)
-      {
-         core::system::setenv(variable_, value_);
-      }
-      else
-      {
-         core::system::unsetenv(variable_);
-      }
-   }
-   
-private:
-   const char* variable_;
-   const char* value_;
-   
-};
 
 } // namespace system
 } // namespace core

@@ -1,7 +1,7 @@
 /*
  * MessageDialog.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -34,7 +34,7 @@ public class MessageDialog extends ModalDialogBase
    {
       this(type, caption, labelForMessage(message));
    }
-
+   
    public MessageDialog(int type, String caption, Widget message)
    {
       super(Roles.getAlertdialogRole());
@@ -42,7 +42,7 @@ public class MessageDialog extends ModalDialogBase
       setText(caption);
       messageWidget_ = message;
       setButtonAlignment(HasHorizontalAlignment.ALIGN_CENTER);
-
+      
       // read the message when dialog is shown
       setARIADescribedBy(messageWidget_.getElement());
    }
@@ -53,8 +53,7 @@ public class MessageDialog extends ModalDialogBase
                                  boolean isDefault,
                                  boolean isCancel)
    {
-      ThemedButton button = new ThemedButton(label, clickEvent ->
-      {
+      ThemedButton button = new ThemedButton(label, event -> {
          if (operation != null)
             operation.execute();
          closeDialog();
@@ -74,8 +73,7 @@ public class MessageDialog extends ModalDialogBase
       if (operation != null && progress_ == null)
          progress_ = addProgressIndicator();
 
-      ThemedButton button = new ThemedButton(label, clickEvent ->
-      {
+      ThemedButton button = new ThemedButton(label, event -> {
          if (operation != null)
             operation.execute(progress_);
          else
@@ -139,10 +137,10 @@ public class MessageDialog extends ModalDialogBase
 
       // add message widget
       horizontalPanel.add(messageWidget_);
-
+      
       return horizontalPanel;
    }
-
+   
    public static Label labelForMessage(String message)
    {
       Label label = new MultiLineLabel(StringUtil.notNull(message));
@@ -156,7 +154,7 @@ public class MessageDialog extends ModalDialogBase
       focusOkButton();
    }
 
-   private final int type_;
-   private final Widget messageWidget_;
-   private ProgressIndicator progress_;
+   private int type_ ;
+   private Widget messageWidget_ ;
+   private ProgressIndicator progress_ ;
 }

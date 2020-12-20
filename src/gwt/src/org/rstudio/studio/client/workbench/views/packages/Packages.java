@@ -1,7 +1,7 @@
 /*
  * Packages.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -47,8 +47,6 @@ import org.rstudio.studio.client.packrat.model.PackratPackageAction;
 import org.rstudio.studio.client.packrat.model.PackratServerOperations;
 import org.rstudio.studio.client.packrat.ui.PackratActionDialog;
 import org.rstudio.studio.client.packrat.ui.PackratResolveConflictDialog;
-import org.rstudio.studio.client.renv.model.RenvServerOperations;
-import org.rstudio.studio.client.renv.ui.RenvActionDialog;
 import org.rstudio.studio.client.server.ServerDataSource;
 import org.rstudio.studio.client.server.ServerError;
 import org.rstudio.studio.client.server.ServerRequestCallback;
@@ -61,9 +59,9 @@ import org.rstudio.studio.client.workbench.model.RemoteFileSystemContext;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.helper.JSObjectStateValue;
 import org.rstudio.studio.client.workbench.projects.ProjectContext;
-import org.rstudio.studio.client.workbench.projects.RenvAction;
 import org.rstudio.studio.client.workbench.views.BasePresenter;
 import org.rstudio.studio.client.workbench.views.console.events.ConsolePromptEvent;
+import org.rstudio.studio.client.workbench.views.console.events.ConsolePromptHandler;
 import org.rstudio.studio.client.workbench.views.console.events.SendToConsoleEvent;
 import org.rstudio.studio.client.workbench.views.help.events.ShowHelpEvent;
 import org.rstudio.studio.client.workbench.views.packages.events.PackageStateChangedEvent;
@@ -115,7 +113,7 @@ public class Packages
       
       void setPackageStatus(PackageStatus status);
   
-      void setObserver(PackagesDisplayObserver observer);
+      void setObserver(PackagesDisplayObserver observer) ;
       void setProgress(boolean showProgress);
    }
    
@@ -124,7 +122,6 @@ public class Packages
                    final EventBus events,
                    PackagesServerOperations server,
                    PackratServerOperations packratServer,
-                   RenvServerOperations renvServer,
                    GlobalDisplay globalDisplay,
                    Session session,
                    Binder binder,
@@ -139,10 +136,9 @@ public class Packages
       view_ = view;
       server_ = server;
       packratServer_ = packratServer;
-      renvServer_ = renvServer;
-      globalDisplay_ = globalDisplay;
-      view_.setObserver(this);
-      events_ = events;
+      globalDisplay_ = globalDisplay ;
+      view_.setObserver(this) ;
+      events_ = events ;
       defaultCRANMirror_ = defaultCRANMirror;
       workbenchContext_ = workbenchContext;
       fsContext_ = fsContext;
@@ -507,8 +503,6 @@ public class Packages
       updatePackageState(true, true);
    }
    
-   // Packrat ----
-   
    @Handler
    public void onPackratHelp()
    {
@@ -632,72 +626,6 @@ public class Packages
       });
    }
    
-   // renv ----
-   
-   private void renvAction(final String action)
-   {
-      String errorMessage = "Error during " + action;
-      ProgressIndicator indicator =
-            globalDisplay_.getProgressIndicator(errorMessage);
-      
-      indicator.onProgress("Performing " + action.toLowerCase() + "...");
-      
-      renvServer_.renvActions(action, new ServerRequestCallback<JsArray<RenvAction>>()
-      {
-         @Override
-         public void onResponseReceived(JsArray<RenvAction> response)
-         {
-            indicator.onCompleted();
-            
-            if (response.length() == 0)
-            {
-               globalDisplay_.showMessage(
-                     GlobalDisplay.MSG_INFO,
-                     "Up to Date",
-                     "The project is already up to date.");
-               return;
-            }
-
-            final OperationWithInput<Void> operation = (Void input) -> {
-
-               String code = "renv::" + action.toLowerCase() + "(confirm = FALSE)";
-               events_.fireEvent(new SendToConsoleEvent(code, true));
-            };
-
-            RenvActionDialog dialog = new RenvActionDialog(action, response, operation);
-            dialog.showModal();
-
-         }
-
-         @Override
-         public void onError(ServerError error)
-         {
-            Debug.logError(error);
-            indicator.onError(error.getUserMessage());
-         }
-      });
-   }
-   
-   @Handler
-   public void onRenvHelp()
-   {
-      globalDisplay_.openRStudioLink("renv", false);
-   }
-   
-   @Handler
-   public void onRenvSnapshot()
-   {
-      renvAction("Snapshot");
-   }
-   
-   @Handler
-   public void onRenvRestore()
-   {
-      renvAction("Restore");
-   }
-   
-   // Miscellaneous ----
-   
    public void removePackage(final PackageInfo packageInfo)
    {
       withPackageInstallContext(new OperationWithInput<PackageInstallContext>(){
@@ -796,7 +724,7 @@ public class Packages
    
    public void showHelp(PackageInfo packageInfo)
    {
-      events_.fireEvent(new ShowHelpEvent(packageInfo.getHelpUrl()));
+      events_.fireEvent(new ShowHelpEvent(packageInfo.getHelpUrl())) ;
    }
    
    public void onPackageStateChanged(PackageStateChangedEvent event)
@@ -897,7 +825,7 @@ public class Packages
       removeConsolePromptHandler();
       
       consolePromptHandlerReg_ = events_.addHandler(ConsolePromptEvent.TYPE, 
-         new ConsolePromptEvent.Handler() {
+         new ConsolePromptHandler() {
             @Override
             public void onConsolePrompt(ConsolePromptEvent event)
             {  
@@ -1023,12 +951,13 @@ public class Packages
    
    private void restartForInstallWithConfirmation(final String installCmd)
    {
-      String msg = 
-            "One or more of the packages to be updated are currently loaded. " +
-            "Restarting R prior to install is highly recommended.\n\n" +
-            "RStudio can restart R before installing the requested packages. " +
-            "All work and data will be preserved during restart.\n\n" +
-            "Do you want to restart R prior to install?";
+      String msg = "One or more of the packages that will be updated by this " +
+                   "installation are currently loaded. Restarting R prior " +
+                   "to updating these packages is strongly recommended.\n\n" +
+                   "RStudio can restart R and then automatically continue " +
+                   "the installation after restarting (all work and " +
+                   "data will be preserved during the restart).\n\n" +
+                   "Do you want to restart R prior to installing?";
                   
       final boolean haveInstallCmd = installCmd.startsWith("install.packages");
       
@@ -1037,12 +966,13 @@ public class Packages
             "Updating Loaded Packages",
             msg,
             true,
-            () ->
+            new Operation() { public void execute()
             {
                events_.fireEvent(new SuspendAndRestartEvent(
                       SuspendOptions.createSaveAll(true), installCmd));  
-            },
-            () ->
+                  
+            }},
+            new Operation() { public void execute()
             {
                server_.ignoreNextLoadedPackageCheck(
                                             new VoidServerRequestCallback() {
@@ -1053,7 +983,7 @@ public class Packages
                         executePkgCommand(installCmd);
                   }
                });
-            },
+            }},
             true);   
    }
 
@@ -1272,13 +1202,12 @@ public class Packages
    private final Display view_;
    private final PackagesServerOperations server_;
    private final PackratServerOperations packratServer_;
-   private final RenvServerOperations renvServer_;
    private ArrayList<PackageInfo> allPackages_ = new ArrayList<PackageInfo>();
    private ProjectContext projectContext_;
    private String packageFilter_ = new String();
    private HandlerRegistration consolePromptHandlerReg_ = null;
-   private final EventBus events_;
-   private final GlobalDisplay globalDisplay_;
+   private final EventBus events_ ;
+   private final GlobalDisplay globalDisplay_ ;
    private final WorkbenchContext workbenchContext_;
    private final PackratUtil packratUtil_;
    private final RemoteFileSystemContext fsContext_;

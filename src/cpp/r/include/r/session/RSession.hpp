@@ -1,7 +1,7 @@
 /*
  * RSession.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,24 +20,19 @@
 
 #include <boost/function.hpp>
 
-#include <shared_core/json/Json.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 
 #include <core/r_util/RSessionContext.hpp>
 
 #include <R_ext/RStartup.h>
 #include <r/session/RSessionUtils.hpp>
 
-#define kConsoleInputCancel 1
-#define kConsoleInputEof    2
-
-#define EX_CONTINUE                         100
-#define EX_FORCE                            101
-#define EX_SUSPEND_RESTART_LAUNCHER_SESSION 102
+#define EX_CONTINUE 100
+#define EX_FORCE    101
 
 namespace rstudio {
 namespace core {
-   class Error;
+	class Error ;
    class Settings;
 } 
 }
@@ -53,9 +48,9 @@ struct RClientMetrics
         graphicsHeight(0), devicePixelRatio(1.0)
    {
    }
-   int consoleWidth;
+   int consoleWidth ;
    int buildConsoleWidth;
-   int graphicsWidth;
+   int graphicsWidth ;
    int graphicsHeight;
    double devicePixelRatio;
 };
@@ -64,7 +59,7 @@ struct ROptions
 {
    ROptions() :
          useInternet2(true),
-         rCompatibleGraphicsEngineVersion(14),
+         rCompatibleGraphicsEngineVersion(12),
          serverMode(false),
          autoReloadSource(false),
          restoreWorkspace(true),
@@ -93,7 +88,7 @@ struct ROptions
    bool useInternet2;
    int rCompatibleGraphicsEngineVersion;
    bool serverMode;
-   bool autoReloadSource;
+   bool autoReloadSource ;
    bool restoreWorkspace;
    SA_TYPE saveWorkspace;
    bool disableRProfileOnStart;
@@ -118,48 +113,12 @@ struct RInitInfo
       
 struct RConsoleInput
 {
-   explicit RConsoleInput()
-      : flags(0)
-   {
-   }
-   
-   explicit RConsoleInput(int flags)
-      : flags(flags)
-   {
-   }
-   
-   explicit RConsoleInput(const std::string& text,
-                          const std::string& console = "",
-                          int flags = 0)
-      : text(text),
-        console(console),
-        flags(flags)
-   {
-   }
-   
-   bool isCancel()
-   {
-      return (flags & kConsoleInputCancel) != 0;
-   }
-   
-   bool isEof()
-   {
-      return (flags & kConsoleInputEof) != 0;
-   }
-   
-   // typically used for hand-constructed RPC requests
-   core::json::Array toJsonArray()
-   {
-      core::json::Array jsonArray;
-      jsonArray.push_back(text);
-      jsonArray.push_back(console);
-      jsonArray.push_back(flags);
-      return jsonArray;
-   }
-   
+   explicit RConsoleInput(const std::string& console) : cancel(true), console(console) {}
+   explicit RConsoleInput(const std::string& text, const std::string& console) : 
+                          cancel(false), text(text), console(console) {}
+   bool cancel ;
    std::string text;
    std::string console;
-   int flags;
 };
 
 // forward declare DisplayState
@@ -177,7 +136,7 @@ extern const int kSerializationActionCompleted;
 struct RSuspendOptions;
 struct RCallbacks
 {
-   boost::function<core::Error(const RInitInfo&)> init;
+   boost::function<core::Error(const RInitInfo&)> init ;
    boost::function<bool(const std::string&,bool,RConsoleInput*)> consoleRead;
    boost::function<void(const std::string&)> browseURL;
    boost::function<void(const core::FilePath&)> browseFile;
@@ -188,7 +147,7 @@ struct RCallbacks
    boost::function<bool(double*,double*)> locator;
    boost::function<core::FilePath(bool)> chooseFile;
    boost::function<int(const std::string&)> editFile;
-   boost::function<void(const std::string&)> showMessage;
+   boost::function<void(const std::string&)> showMessage ;
    boost::function<void(bool)> busy;
    boost::function<void(bool)> deferredInit;
    boost::function<void(const r::session::RSuspendOptions& options)> suspended;
@@ -214,25 +173,19 @@ void reportAndLogWarning(const std::string& warning);
 
 // suspend/resume
 bool isSuspendable(const std::string& prompt);
-bool suspend(bool force, int status, const std::string& envVarSaveBlacklist);
+bool suspend(bool force, int status = EXIT_SUCCESS);
 
 struct RSuspendOptions
 {
    RSuspendOptions(int exitStatus)
-      : status(exitStatus)
-   {
-   }
-
-   RSuspendOptions(int exitStatus, const std::string& blacklist) 
-      : status(exitStatus),
-        envVarSaveBlacklist(blacklist)
+      : status(exitStatus), saveMinimal(false), saveWorkspace(false), 
+        excludePackages(false)
    {
    }
    int status;
-   bool saveMinimal { false };
-   bool saveWorkspace { false };
-   bool excludePackages { false };
-   std::string envVarSaveBlacklist;
+   bool saveMinimal;
+   bool saveWorkspace;
+   bool excludePackages;
 };
 void suspendForRestart(const RSuspendOptions& options);
    

@@ -1,7 +1,7 @@
 /*
  * RmdOutputPanel.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -204,7 +204,7 @@ public class RmdOutputPanel extends SatelliteFramePanel<AnchorableFrame>
                RStudioGinjector.INSTANCE.getGlobalDisplay().showMessage(
                      MessageDialog.INFO,
                      "Find in Page", 
-                     "No occurrences found",
+                     "No occurences found",
                      findInputSource);
             }     
          }
@@ -371,12 +371,6 @@ public class RmdOutputPanel extends SatelliteFramePanel<AnchorableFrame>
    public String getTitle()
    {
       return title_;
-   }
-   
-   @Override
-   public String getName()
-   {
-      return shinyFrame_.getWindow().getName();
    }
    
    @Override

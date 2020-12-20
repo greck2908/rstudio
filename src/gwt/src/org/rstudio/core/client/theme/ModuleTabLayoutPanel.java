@@ -1,7 +1,7 @@
 /*
  * ModuleTabLayoutPanel.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,16 +22,10 @@ import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.event.dom.client.MouseDownEvent;
 import com.google.gwt.event.dom.client.MouseDownHandler;
 import com.google.gwt.event.shared.HandlerRegistration;
+import com.google.gwt.user.client.ui.*;
 
-import com.google.gwt.user.client.ui.Composite;
-import com.google.gwt.user.client.ui.HTML;
-import com.google.gwt.user.client.ui.HorizontalPanel;
-import com.google.gwt.user.client.ui.Image;
-import com.google.gwt.user.client.ui.Label;
-import com.google.gwt.user.client.ui.TabLayoutPanel;
-import com.google.gwt.user.client.ui.Widget;
 import org.rstudio.core.client.ElementIds;
-import org.rstudio.core.client.events.WindowStateChangeEvent;
+import org.rstudio.core.client.events.*;
 import org.rstudio.core.client.layout.WindowState;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.theme.res.ThemeResources;
@@ -40,27 +34,28 @@ import org.rstudio.core.client.widget.DoubleClickState;
 import org.rstudio.core.client.widget.ProgressSpinner;
 import org.rstudio.core.client.widget.model.ProvidesBusy;
 import org.rstudio.studio.client.workbench.events.BusyEvent;
+import org.rstudio.studio.client.workbench.events.BusyHandler;
 
 public class ModuleTabLayoutPanel extends TabLayoutPanel
 {
-   public static class ModuleTab extends Composite implements BusyEvent.Handler
+   public static class ModuleTab extends Composite implements BusyHandler
    {
       public ModuleTab(String title, ThemeStyles styles, boolean canClose, boolean minimized)
       {
-         HorizontalPanel layoutPanel = new HorizontalPanel();
-         layoutPanel.setStylePrimaryName(styles.tabLayout());
+         layoutPanel_ = new HorizontalPanel();
+         layoutPanel_.setStylePrimaryName(styles.tabLayout());
 
          String minimized_id = "";
          if (minimized)
             minimized_id = "_minimized";
 
-         // Determine a base element ID based on the tab's title; make available to be
-         // associated with actual tab element when ModuleTab is attached to the tab layout panel
-         tabId_ = ElementIds.WORKBENCH_TAB + minimized_id + "_" + ElementIds.idSafeString(title);
+         // Assign a unique element ID based on the tab's title
+         ElementIds.assignElementId(layoutPanel_.getElement(), 
+               ElementIds.WORKBENCH_TAB + minimized_id + "_" + ElementIds.idSafeString(title));
 
          HTML left = new HTML();
          left.setStylePrimaryName(styles.tabLayoutLeft());
-         layoutPanel.add(left);
+         layoutPanel_.add(left);
 
          HorizontalPanel center = new HorizontalPanel();
          center.setStylePrimaryName(styles.rstheme_tabLayoutCenter());
@@ -74,20 +69,22 @@ public class ModuleTabLayoutPanel extends TabLayoutPanel
             closeButton_.setAltText("Close " + title + " tab");
             center.add(closeButton_);
          }
-         layoutPanel.add(center);
+         layoutPanel_.add(center);
 
          HTML right = new HTML();
          right.setStylePrimaryName(styles.tabLayoutRight());
-         layoutPanel.add(right);
+         layoutPanel_.add(right);
 
-         MouseDownHandler onMouseDown = mouseDownEvent ->
+         addDomHandler(new MouseDownHandler()
          {
-            // Stop double-click of tab from selecting the tab title text
-            mouseDownEvent.preventDefault();
-         };
-         addDomHandler(onMouseDown, MouseDownEvent.getType());
+            public void onMouseDown(MouseDownEvent event)
+            {
+               // Stop double-click of tab from selecting the tab title text
+               event.preventDefault();
+            }
+         }, MouseDownEvent.getType());
 
-         initWidget(layoutPanel);
+         initWidget(layoutPanel_);
       }
 
       public Widget getWidget()
@@ -110,7 +107,7 @@ public class ModuleTabLayoutPanel extends TabLayoutPanel
       {
          setBusy(event.isBusy());
       }
-
+      
       private void setBusy(boolean isBusy)
       {
          if (isBusy)
@@ -118,14 +115,14 @@ public class ModuleTabLayoutPanel extends TabLayoutPanel
             if (busySpinner_ == null)
             {
                HorizontalPanel center = (HorizontalPanel)closeButton_.getParent();
-
+               
                busySpinner_ = new ProgressSpinner(center.getElement());
-
+               
                busySpinner_.setHeight("9px");
                busySpinner_.setWidth("9px");
                busySpinner_.getElement().getStyle().setMarginLeft(4, Unit.PX);
                busySpinner_.getElement().getStyle().setMarginTop(6, Unit.PX);
-
+               
                if (center != null)
                   center.add(busySpinner_);
             }
@@ -142,45 +139,40 @@ public class ModuleTabLayoutPanel extends TabLayoutPanel
          }
       }
 
-      public String getTabId()
-      {
-         return tabId_;
-      }
-
+      private HorizontalPanel layoutPanel_;
       private Image closeButton_;
       private ProgressSpinner busySpinner_;
-      private final String tabId_;
    }
 
-   public ModuleTabLayoutPanel(final WindowFrame owner, String tabListName)
+   public ModuleTabLayoutPanel(final WindowFrame owner)
    {
-      super(BAR_HEIGHT, Style.Unit.PX, tabListName);
+      super(BAR_HEIGHT, Style.Unit.PX);
       owner_ = owner;
       styles_ = ThemeResources.INSTANCE.themeStyles();
       addStyleName(styles_.moduleTabPanel());
-
-      MouseDownHandler onMouseDown = mouseDownEvent ->
-      {
-         if (!isWithinTopBand(mouseDownEvent.getNativeEvent()))
-            return;
-         // Stop click-drag selection from working in top band
-         mouseDownEvent.preventDefault();
-      };
-      addDomHandler(onMouseDown, MouseDownEvent.getType());
-
-      ClickHandler onClick = clickEvent ->
-      {
-         if (!isWithinTopBand(clickEvent.getNativeEvent()))
-            return;
-
-         clickEvent.preventDefault();
-         clickEvent.stopPropagation();
-         if (doubleClickState_.checkForDoubleClick(clickEvent.getNativeEvent()))
+      addDomHandler(new MouseDownHandler() {
+         public void onMouseDown(MouseDownEvent event)
          {
-            owner.fireEvent(new WindowStateChangeEvent(WindowState.MAXIMIZE));
+            if (!isWithinTopBand(event.getNativeEvent()))
+               return;
+            // Stop click-drag selection from working in top band
+            event.preventDefault();
          }
-      };
-      addDomHandler(onClick, ClickEvent.getType());
+      }, MouseDownEvent.getType());
+      addDomHandler(new ClickHandler() {
+         public void onClick(ClickEvent event)
+         {
+            if (!isWithinTopBand(event.getNativeEvent()))
+               return;
+
+            event.preventDefault();
+            event.stopPropagation();
+            if (doubleClickState_.checkForDoubleClick(event.getNativeEvent()))
+            {
+               owner.fireEvent(new WindowStateChangeEvent(WindowState.MAXIMIZE));
+            }
+         }
+      }, ClickEvent.getType());
    }
 
    private boolean isWithinTopBand(NativeEvent event)
@@ -201,7 +193,8 @@ public class ModuleTabLayoutPanel extends TabLayoutPanel
       add(child, text, asHtml, null);
    }
 
-   public void add(Widget child, String text, boolean asHtml, ClickHandler closeHandler)
+   public void add(Widget child, String text, boolean asHtml, 
+                   ClickHandler closeHandler)
    {
       add(child, text, asHtml, closeHandler, null);
    }
@@ -214,11 +207,10 @@ public class ModuleTabLayoutPanel extends TabLayoutPanel
 
       ModuleTab tab = new ModuleTab(text, styles_, closeHandler != null, false /*minimized*/);
       super.add(child, tab);
-      setTabId(child, ElementIds.getUniqueElementId(tab.getTabId()));
 
       if (closeHandler != null)
          tab.addCloseButtonClickHandler(closeHandler);
-
+      
       if (providesBusy != null)
          providesBusy.addBusyHandler(tab);
    }

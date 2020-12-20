@@ -1,7 +1,7 @@
 /*
  * LocalRepositoriesWidget.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -40,6 +40,8 @@ public class LocalRepositoriesWidget extends Composite
       RStudioGinjector.INSTANCE.injectMembers(this);
       
       VerticalPanel panel = new VerticalPanel();
+      panel.add(new LabelWithHelp("Local repositories:",
+            "packrat_local_repos", "Help on local Packrat repositories"));
       
       HorizontalPanel hp = new HorizontalPanel();
       listBox_ = new ListBox();
@@ -57,9 +59,6 @@ public class LocalRepositoriesWidget extends Composite
       buttonPanel.add(buttonRemove);
       hp.add(buttonPanel);
       
-      panel.add(new LabelWithHelp("Local repositories:",
-            "packrat_local_repos", "Help on local Packrat repositories",
-            listBox_));
       panel.add(hp);
       
       initWidget(panel);

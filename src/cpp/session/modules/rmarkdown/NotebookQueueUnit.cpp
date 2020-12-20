@@ -1,7 +1,7 @@
 /*
  * NotebookQueueUnit.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -54,11 +54,11 @@ Error fillExecRange(const json::Array& in, std::list<ExecRange>* pOut)
    for (const json::Value val : in)
    {
       // ignore non-value types
-      if (!val.isObject())
+      if (val.type() != json::ObjectType)
          continue;
 
       ExecRange range(0, 0);
-      Error error = ExecRange::fromJson(val.getObject(), &range);
+      Error error = ExecRange::fromJson(val.get_obj(), &range);
       if (error)
          return error;
 
@@ -69,7 +69,7 @@ Error fillExecRange(const json::Array& in, std::list<ExecRange>* pOut)
 
 void fillJsonRange(const std::list<ExecRange>& in, json::Array* pOut)
 {
-   for (const ExecRange& range : in)
+   for (const ExecRange range : in)
    {
       pOut->push_back(range.toJson());
    }
@@ -81,8 +81,8 @@ Error ExecRange::fromJson(const json::Object& source,
                           ExecRange* pRange)
 {
    return json::readObject(source,
-         kQueueUnitRangeStart, pRange->start,
-         kQueueUnitRangeStop,  pRange->stop);
+         kQueueUnitRangeStart, &pRange->start,
+         kQueueUnitRangeStop,  &pRange->stop);
 }
 
 json::Object ExecRange::toJson() const
@@ -115,13 +115,13 @@ Error NotebookQueueUnit::fromJson(const json::Object& source,
    int execMode, execScope;
    std::string code;
    Error error = json::readObject(source, 
-         kQueueUnitCode,      code,
-         kQueueUnitDocId,     unit.docId_,
-         kQueueUnitChunkId,   unit.chunkId_,
-         kQueueUnitCompleted, completed,
-         kQueueUnitPending,   pending,
-         kQueueUnitExecMode,  execMode,
-         kQueueUnitExecScope, execScope);
+         kQueueUnitCode,      &code,
+         kQueueUnitDocId,     &unit.docId_,
+         kQueueUnitChunkId,   &unit.chunkId_,
+         kQueueUnitCompleted, &completed,
+         kQueueUnitPending,   &pending,
+         kQueueUnitExecMode,  &execMode,
+         kQueueUnitExecScope, &execScope);
    if (error)
       LOG_ERROR(error);
 
@@ -154,28 +154,27 @@ Error NotebookQueueUnit::parseOptions(json::Object* pOptions)
    // evaluate this chunk's options in R
    r::sexp::Protect protect;
    SEXP sexpOptions = R_NilValue;
-   Error error = r::exec::RFunction(".rs.evaluateChunkOptions")
-         .addUtf8Param(string_utils::wideToUtf8(code_))
-         .call(&sexpOptions, &protect);
+   Error error = r::exec::RFunction(".rs.evaluateChunkOptions", 
+               string_utils::wideToUtf8(code_)).call(&sexpOptions, &protect);
    if (error)
       return error;
 
    // convert to JSON 
    json::Value jsonOptions;
    error = r::json::jsonValueFromList(sexpOptions, &jsonOptions);
-   if (jsonOptions.isArray() &&
-       jsonOptions.getArray().isEmpty())
+   if (jsonOptions.type() == json::ArrayType && 
+       jsonOptions.get_array().empty())
    {
       // treat empty array as empty object
       *pOptions = json::Object();
    }
-   else if (!jsonOptions.isObject())
+   else if (jsonOptions.type() != json::ObjectType)
    {
       return Error(json::errc::ParseError, ERROR_LOCATION);
    }
    else 
    {
-      *pOptions = jsonOptions.getObject();
+      *pOptions = jsonOptions.get_value<json::Object>();
    }
 
    return Success();
@@ -183,9 +182,8 @@ Error NotebookQueueUnit::parseOptions(json::Object* pOptions)
 
 Error NotebookQueueUnit::innerCode(std::string* pCode)
 {
-   return r::exec::RFunction(".rs.extractChunkInnerCode")
-       .addUtf8Param(string_utils::wideToUtf8(code_))
-       .callUtf8(pCode);
+   return r::exec::RFunction(".rs.extractChunkInnerCode", 
+         string_utils::wideToUtf8(code_)).call(pCode);
 }
 
 bool NotebookQueueUnit::hasPendingRanges()
@@ -200,7 +198,7 @@ void NotebookQueueUnit::updateFrom(const NotebookQueueUnit& other)
 
    // we don't support removing or changing executable ranges, so process only
    // additions
-   std::list<ExecRange>::iterator i = pending_.begin();
+   std::list<ExecRange>::iterator i = pending_.begin(); 
    for (std::list<ExecRange>::const_iterator o = other.pending_.begin();
         o != other.pending_.end();
         o ++)

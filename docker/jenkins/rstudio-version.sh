@@ -30,9 +30,6 @@
 # see what the script would do (in this mode debug output is written and no
 # changes are saved to S3).
 
-# abort on error
-set -e
-
 if [[ "$#" -lt 2 ]]; then
     # TODO: add "set" command to move forward 
     echo "Usage: rstudio-version.sh [get|bump] [major.minor] [debug]"
@@ -202,3 +199,4 @@ case "$ACTION" in
         echo "$PRO_VERSION"
     fi
 esac
+

@@ -1,7 +1,7 @@
 /*
  * FindReplace.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,6 +17,7 @@ package org.rstudio.studio.client.workbench.views.source.editors.text.findreplac
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.event.dom.client.HasClickHandlers;
+import com.google.gwt.event.dom.client.KeyCodes;
 import com.google.gwt.event.dom.client.KeyUpEvent;
 import com.google.gwt.event.dom.client.KeyUpHandler;
 import com.google.gwt.event.logical.shared.ValueChangeEvent;
@@ -25,7 +26,6 @@ import com.google.gwt.user.client.ui.HasValue;
 import com.google.gwt.user.client.ui.Widget;
 
 import org.rstudio.core.client.StringUtil;
-import org.rstudio.core.client.command.KeyboardHelper;
 import org.rstudio.core.client.regex.Match;
 import org.rstudio.core.client.regex.Pattern;
 import org.rstudio.core.client.regex.Pattern.ReplaceOperation;
@@ -135,12 +135,22 @@ public class FindReplace
          @Override
          public void onKeyUp(KeyUpEvent event)
          {
-            int keycode = event.getNativeKeyCode();
-            if (KeyboardHelper.isNavigationalKeycode(keycode) || 
-                KeyboardHelper.isControlKeycode(keycode)) 
+            // bail on navigational keys
+            if (event.getNativeKeyCode() == KeyCodes.KEY_TAB ||
+                event.getNativeKeyCode() == KeyCodes.KEY_ENTER ||
+                event.getNativeKeyCode() == KeyCodes.KEY_ESCAPE ||
+                event.getNativeKeyCode() == KeyCodes.KEY_HOME ||
+                event.getNativeKeyCode() == KeyCodes.KEY_END ||
+                event.getNativeKeyCode() == KeyCodes.KEY_RIGHT ||
+                event.getNativeKeyCode() == KeyCodes.KEY_LEFT)
             {
+               return ;
+            }
+            
+            // bail on control characters
+            if (event.getNativeKeyCode() < 32)
                return;
-            } 
+            
             // perform incremental search
             find(defaultForward_ ? FindType.Forward : FindType.Reverse, true);
          }

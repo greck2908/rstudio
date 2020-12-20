@@ -1,7 +1,7 @@
 /*
  * History.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -34,6 +34,7 @@ import org.rstudio.core.client.command.CommandBinder;
 import org.rstudio.core.client.command.Handler;
 import org.rstudio.core.client.events.HasSelectionCommitHandlers;
 import org.rstudio.core.client.events.SelectionCommitEvent;
+import org.rstudio.core.client.events.SelectionCommitHandler;
 import org.rstudio.core.client.jsonrpc.RpcObjectList;
 import org.rstudio.core.client.widget.ProgressIndicator;
 import org.rstudio.core.client.widget.ProgressOperation;
@@ -51,6 +52,7 @@ import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.helper.StringStateValue;
 import org.rstudio.studio.client.workbench.views.BasePresenter;
 import org.rstudio.studio.client.workbench.views.console.events.ConsoleResetHistoryEvent;
+import org.rstudio.studio.client.workbench.views.console.events.ConsoleResetHistoryHandler;
 import org.rstudio.studio.client.workbench.views.console.events.SendToConsoleEvent;
 import org.rstudio.studio.client.workbench.views.history.events.FetchCommandsEvent;
 import org.rstudio.studio.client.workbench.views.history.events.FetchCommandsHandler;
@@ -62,7 +64,7 @@ import org.rstudio.studio.client.workbench.views.source.events.InsertSourceEvent
 
 import java.util.ArrayList;
 
-public class History extends BasePresenter implements SelectionCommitEvent.Handler<Void>,
+public class History extends BasePresenter implements SelectionCommitHandler<Void>,
                                                       FetchCommandsHandler
 {
    public interface SearchBoxDisplay extends HasValueChangeHandlers<String>
@@ -93,18 +95,18 @@ public class History extends BasePresenter implements SelectionCommitEvent.Handl
          private final int value_;
       }
 
-      void setRecentCommands(ArrayList<HistoryEntry> commands,
+      void setRecentCommands(ArrayList<HistoryEntry> commands, 
                              boolean scrollToBottom);
       void addRecentCommands(ArrayList<HistoryEntry> entries, boolean top);
-
+      
       int getRecentCommandsScrollPosition();
       void setRecentCommandsScrollPosition(int scrollPosition);
-
+      
       ArrayList<Integer> getRecentCommandsSelectedRowIndexes();
       int getRecentCommandsRowsDisplayed();
-
-      void truncateRecentCommands(int maxCommands);
-
+      
+      void truncateRecentCommands(int maxCommands);   
+      
       ArrayList<String> getSelectedCommands();
       ArrayList<Long> getSelectedCommandIndexes();
       HandlerRegistration addFetchCommandsHandler(FetchCommandsHandler handler);
@@ -112,7 +114,7 @@ public class History extends BasePresenter implements SelectionCommitEvent.Handl
       SearchBoxDisplay getSearchBox();
       Mode getMode();
       void scrollToBottom();
-      void setFocus();
+      void focusSearch();
 
       void dismissSearchResults();
       void showSearchResults(String query,
@@ -128,8 +130,8 @@ public class History extends BasePresenter implements SelectionCommitEvent.Handl
       HasHistory getCommandContextWidget();
 
       boolean isCommandTableFocused();
-
-
+    
+   
    }
 
    public interface Binder extends CommandBinder<Commands, History>
@@ -214,35 +216,37 @@ public class History extends BasePresenter implements SelectionCommitEvent.Handl
       view_.addFetchCommandsHandler(this);
 
       server_ = server;
-      events_.addHandler(ConsoleResetHistoryEvent.TYPE, new ConsoleResetHistoryEvent.Handler()
+      events_.addHandler(ConsoleResetHistoryEvent.TYPE, new ConsoleResetHistoryHandler()
       {
          @Override
          public void onConsoleResetHistory(ConsoleResetHistoryEvent event)
          {
+            view_.bringToFront();
+            
             // convert to HistoryEntry
             ArrayList<HistoryEntry> commands = toRecentCommandsList(
                                                          event.getHistory());
-
+            
             // determine entries to add
             int preservedScrollPos = -1;
             int startIndex = Math.max(0, commands.size() - COMMAND_CHUNK_SIZE);
-
-            // if we are updating an existing context then preserve the
+            
+            // if we are updating an existing context then preserve the 
             // history position and the scroll position
             if (event.getPreserveUIContext())
             {
                preservedScrollPos = view_.getRecentCommandsScrollPosition();
-
+               
                if (historyPosition_ < commands.size())
-                  startIndex = Long.valueOf(historyPosition_).intValue();
+                  startIndex = new Long(historyPosition_).intValue();
             }
-
+            
             // set recent commands
             ArrayList<HistoryEntry> subList = new ArrayList<HistoryEntry>();
             subList.addAll(commands.subList(startIndex, commands.size()));
             boolean scrollToBottom = preservedScrollPos == -1;
             setRecentCommands(subList, scrollToBottom);
-
+            
             // restore scroll position if requested
             if (preservedScrollPos != -1)
             {
@@ -253,11 +257,11 @@ public class History extends BasePresenter implements SelectionCommitEvent.Handl
                   {
                      view_.setRecentCommandsScrollPosition(scrollPos);
                   }
-               });
+               });         
             }
-         }
+         }  
       });
-
+      
       events_.addHandler(HistoryEntriesAddedEvent.TYPE, new HistoryEntriesAddedHandler()
       {
          public void onHistoryEntriesAdded(HistoryEntriesAddedEvent event)
@@ -271,9 +275,9 @@ public class History extends BasePresenter implements SelectionCommitEvent.Handl
       view_.getSearchBox().addValueChangeHandler(searchCommand_);
 
       view_.getRecentCommandsWidget().getKeyTarget().addKeyDownHandler(
-            new KeyHandler(commands.historySendToConsole(),
+            new KeyHandler(commands.historySendToConsole(), 
                            commands.historySendToSource(),
-                           null,
+                           null, 
                            null));
       view_.getSearchResultsWidget().getKeyTarget().addKeyDownHandler(
             new KeyHandler(commands.historySendToConsole(),
@@ -325,26 +329,26 @@ public class History extends BasePresenter implements SelectionCommitEvent.Handl
       });
    }
 
-
+   
    private void setRecentCommands(ArrayList<HistoryEntry> commands,
                                   boolean scrollToBottom)
-   {
+   {  
       view_.setRecentCommands(commands, scrollToBottom);
 
       if (commands.size() > 0)
          historyPosition_ = commands.get(0).getIndex();
       else
          historyPosition_ = 0;
-
+      
       view_.setMoreCommands(Math.min(historyPosition_, COMMAND_CHUNK_SIZE));
    }
-
+   
 
    private class KeyHandler implements KeyDownHandler
    {
-      private KeyHandler(Command accept,
+      private KeyHandler(Command accept, 
                          Command shiftAccept,
-                         Command left,
+                         Command left, 
                          Command right)
       {
          this.accept_ = accept;
@@ -357,9 +361,9 @@ public class History extends BasePresenter implements SelectionCommitEvent.Handl
       {
          if (!view_.isCommandTableFocused())
             return;
-
+         
          boolean handled = false;
-
+         
          if (event.getNativeKeyCode() == KeyCodes.KEY_ENTER)
          {
             if (event.isShiftKeyDown())
@@ -392,7 +396,7 @@ public class History extends BasePresenter implements SelectionCommitEvent.Handl
                   break;
             }
          }
-
+         
          if (handled)
          {
             event.preventDefault();
@@ -410,7 +414,7 @@ public class History extends BasePresenter implements SelectionCommitEvent.Handl
    public void onSelected()
    {
       super.onSelected();
-      view_.setFocus();
+      view_.focusSearch();
    }
 
    private String getSelectedCommands()
@@ -442,83 +446,88 @@ public class History extends BasePresenter implements SelectionCommitEvent.Handl
       if (commandString.length() > 0)
          events_.fireEvent(new InsertSourceEvent(commandString, true));
    }
-
+   
+   void onSearchHistory()
+   {
+      globalDisplay_.showErrorMessage("Message", "onSearchHistory");
+   }
+   
    void onLoadHistory()
    {
       view_.bringToFront();
-
-      consoleDispatcher_.chooseFileThenExecuteCommand("Load History",
+      
+      consoleDispatcher_.chooseFileThenExecuteCommand("Load History", 
                                                       "loadhistory");
    }
-
+   
    void onSaveHistory()
    {
       view_.bringToFront();
-
-      consoleDispatcher_.saveFileAsThenExecuteCommand("Save History As",
-                                                      ".Rhistory",
+      
+      consoleDispatcher_.saveFileAsThenExecuteCommand("Save History As", 
+                                                      ".Rhistory", 
                                                       false,
                                                       "savehistory");
    }
-
+   
    @Handler
    void onHistoryRemoveEntries()
-   {
+   {   
       // get selected indexes (bail if there is no selection)
-      final ArrayList<Integer> selectedRowIndexes =
+      final ArrayList<Integer> selectedRowIndexes = 
                               view_.getRecentCommandsSelectedRowIndexes();
       if (selectedRowIndexes.size() < 1)
       {
          globalDisplay_.showErrorMessage(
-                              "Error",
+                              "Error", 
                               "No history entries currently selected.");
          return;
       }
-
+      
       // bring view to front
       view_.bringToFront();
-
+      
       globalDisplay_.showYesNoMessage(
             GlobalDisplay.MSG_QUESTION,
             "Confirm Remove Entries",
             "Are you sure you want to remove the selected entries from " +
             "the history?",
-
+     
             new ProgressOperation() {
                public void execute(final ProgressIndicator indicator)
                {
                   indicator.onProgress("Removing items...");
-
+                  
                   // for each selected row index we need to calculate
                   // the offset from the bottom
-                  int rowCount = view_.getRecentCommandsRowsDisplayed();
-                  JsArrayNumber bottomIndexes = (JsArrayNumber)
+                  int rowCount = view_.getRecentCommandsRowsDisplayed(); 
+                  JsArrayNumber bottomIndexes = (JsArrayNumber) 
                                              JsArrayNumber.createArray();
                   for (int i = 0; i<selectedRowIndexes.size(); i++)
                      bottomIndexes.push(rowCount - selectedRowIndexes.get(i) - 1);
-
+                  
                   server_.removeHistoryItems(
                                     bottomIndexes,
                                     new VoidServerRequestCallback(indicator));
                }
             },
-
+            
             true
          );
-
-
+      
+      
    }
-
+   
    @Handler
    void onClearHistory()
    {
       view_.bringToFront();
-
+      
       globalDisplay_.showYesNoMessage(
          GlobalDisplay.MSG_WARNING,
          "Confirm Clear History",
          "Are you sure you want to clear all history entries?",
-
+  
          new ProgressOperation() {
             public void execute(final ProgressIndicator indicator)
             {
@@ -527,7 +536,7 @@ public class History extends BasePresenter implements SelectionCommitEvent.Handl
                      new VoidServerRequestCallback(indicator));
             }
          },
-
+         
          true
       );
    }
@@ -580,7 +589,7 @@ public class History extends BasePresenter implements SelectionCommitEvent.Handl
          entries.add(response.get(i));
       return entries;
    }
-
+   
    private ArrayList<HistoryEntry> toRecentCommandsList(
                                              JsArrayString jsCommands)
    {
@@ -589,7 +598,7 @@ public class History extends BasePresenter implements SelectionCommitEvent.Handl
          commands.add(HistoryEntry.create(i, jsCommands.get(i)));
       return commands;
    }
-
+   
    private ArrayList<HistoryEntry> toRecentCommandsList(
                                  RpcObjectList<HistoryEntry> response)
    {
@@ -598,8 +607,8 @@ public class History extends BasePresenter implements SelectionCommitEvent.Handl
          entries.add(response.get(i));
       return entries;
    }
-
-
+   
+   
 
    public void onSelectionCommit(SelectionCommitEvent<Void> e)
    {
@@ -625,7 +634,7 @@ public class History extends BasePresenter implements SelectionCommitEvent.Handl
                @Override
                public void onResponseReceived(RpcObjectList<HistoryEntry> response)
                {
-                  ArrayList<HistoryEntry> entries =
+                  ArrayList<HistoryEntry> entries = 
                                                 toRecentCommandsList(response);
                   view_.addRecentCommands(entries, true);
                   fetchingMoreCommands_ = false;
@@ -647,8 +656,8 @@ public class History extends BasePresenter implements SelectionCommitEvent.Handl
                }
             });
    }
-
-
+   
+  
 
    // This field indicates how far into the history stream we have reached.
    // When this value becomes 0, that means there is no more history to go

@@ -1,7 +1,7 @@
 /*
  * ChildProcessSubprocPollTests.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -223,7 +223,7 @@ test_context("ChildProcess polling support class")
       CwdPollingFixture test(pid);
 
       expect_true(test.poller_.hasRecentOutput());
-      expect_true(test.poller_.getCwd().isEmpty());
+      expect_true(test.poller_.getCwd().empty());
    }
 }
 

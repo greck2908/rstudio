@@ -1,7 +1,7 @@
 /*
  * SessionConsoleProcessTable.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,7 +17,7 @@
 
 #include <boost/range/adaptor/map.hpp>
 
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 
 #include <session/SessionModuleContext.hpp>
 
@@ -50,7 +50,7 @@ std::string serializeConsoleProcs(SerializationMode serialMode)
    }
 
    std::ostringstream ostr;
-   array.write(ostr);
+   json::write(array, ostr);
    return ostr.str();
 }
 
@@ -59,18 +59,18 @@ void deserializeConsoleProcs(const std::string& jsonStr)
    if (jsonStr.empty())
       return;
    json::Value value;
-   if (value.parse(jsonStr))
+   if (!json::parse(jsonStr, &value))
    {
       LOG_WARNING_MESSAGE("invalid console process json: " + jsonStr);
       return;
    }
 
-   const json::Array& procs = value.getArray();
-   for (json::Array::Iterator it = procs.begin();
+   const json::Array& procs = value.get_array();
+   for (json::Array::iterator it = procs.begin();
         it != procs.end();
         it++)
    {
-      ConsoleProcessPtr proc = ConsoleProcess::fromJson((*it).getObject());
+      ConsoleProcessPtr proc = ConsoleProcess::fromJson((*it).get_obj());
 
       // Deserializing consoleprocs list only happens during session
       // initialization, therefore they do not represent an actual running

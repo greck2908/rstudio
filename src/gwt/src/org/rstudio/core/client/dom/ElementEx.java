@@ -1,7 +1,7 @@
 /*
  * ElementEx.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,13 +21,13 @@ public class ElementEx extends Element
    protected ElementEx()
    {
    }
-
+   
    public final native boolean getContentEditable() /*-{
-      return !!this.contentEditable;
+      return !!this.contentEditable ;
    }-*/;
 
    public final native void normalize() /*-{
-      this.normalize();
+      this.normalize() ;
    }-*/;
 
    public final native String getOuterHtml() /*-{
@@ -63,7 +63,7 @@ public class ElementEx extends Element
          top += iFrame.getClientTop();
       return top;
    }
-
+   
    // NOTE: these static methods are provided only because
    // GWT seems unable to find the instance methods of the
    // same name in some contexts in devmode
@@ -71,17 +71,12 @@ public class ElementEx extends Element
    {
       return ((ElementEx) el).getClientLeft();
    }
-
+   
    public static final int getClientTop(Element el)
    {
       return ((ElementEx) el).getClientTop();
    }
-
-   public static final DOMRect getBoundingClientRect(Element el)
-   {
-      return ((ElementEx) el).getBoundingClientRect();
-   }
-
+   
    public final native DOMRect getBoundingClientRect() /*-{
       return this.getBoundingClientRect();
    }-*/;

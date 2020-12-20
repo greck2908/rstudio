@@ -1,7 +1,7 @@
 /*
  * PlainTextEditorImplFirefox.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -33,16 +33,16 @@ public class PlainTextEditorImplFirefox extends PlainTextEditorImpl
    public Element setupTextContainer(Element element)
    {
         
-      Element zwspSpan = Document.get().createSpanElement();
-      zwspSpan.setInnerText("\u200B");
+      Element zwspSpan = Document.get().createSpanElement() ;
+      zwspSpan.setInnerText("\u200B") ;
       
       Element textContainer = Document.get().createDivElement();
       textContainer.getStyle().setDisplay(Display.INLINE);
       
-      element.appendChild(zwspSpan);
-      element.appendChild(textContainer);
+      element.appendChild(zwspSpan) ;
+      element.appendChild(textContainer) ;
       
-      textContainer.setPropertyBoolean("contentEditable", true);
+      textContainer.setPropertyBoolean("contentEditable", true) ;
 
       textContainer_ = textContainer;
       return textContainer_;

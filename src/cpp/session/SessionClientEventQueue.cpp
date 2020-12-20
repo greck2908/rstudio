@@ -1,7 +1,7 @@
 /*
  * SessionClientEventQueue.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,12 +19,12 @@
 
 #include <core/BoostThread.hpp>
 #include <core/Thread.hpp>
-#include <shared_core/json/Json.hpp>
+#include <core/json/Json.hpp>
 #include <core/StringUtils.hpp>
 
 #include <r/session/RConsoleActions.hpp>
 
-using namespace rstudio::core;
+using namespace rstudio::core ;
 
 namespace rstudio {
 namespace session {
@@ -77,23 +77,23 @@ void ClientEventQueue::add(const ClientEvent& event)
       // console output is batched up for compactness/efficiency.
       if (event.type() == client_events::kConsoleWriteOutput)
       {
-         if (event.data().getType() == json::Type::STRING)
-            pendingConsoleOutput_ += event.data().getString();
+         if (event.data().type() == json::StringType)
+            pendingConsoleOutput_ += event.data().get_str();
       }
       else if (event.type() == client_events::kConsoleWriteError &&
-               event.data().getType() == json::Type::STRING)
+               event.data().type() == json::StringType)
       {
          flushPendingConsoleOutput();
-         enqueueClientOutputEvent(event.type(), event.data().getString());
+         enqueueClientOutputEvent(event.type(), event.data().get_str());
       }
       else
       {
          // flush existing console output prior to adding an 
          // action of another type
-         flushPendingConsoleOutput();
+         flushPendingConsoleOutput() ;
          
          // add event to queue
-         pendingEvents_.push_back(event);
+         pendingEvents_.push_back(event) ;
       }
       
       lastEventAddTime_ = boost::posix_time::microsec_clock::universal_time();
@@ -113,7 +113,7 @@ bool ClientEventQueue::hasEvents()
    END_LOCK_MUTEX
    
    // keep compiler happy
-   return false;
+   return false ;
 }
   
 void ClientEventQueue::remove(std::vector<ClientEvent>* pEvents)
@@ -158,9 +158,9 @@ bool ClientEventQueue::waitForEvent(
    catch(const thread_resource_error& e) 
    { 
       Error waitError(boost::thread_error::ec_from_exception(e), 
-                        ERROR_LOCATION);
+                        ERROR_LOCATION) ; 
       LOG_ERROR(waitError);
-      return false;
+      return false ;
    }
 }
    
@@ -195,7 +195,7 @@ void ClientEventQueue::flushPendingConsoleOutput()
 
       enqueueClientOutputEvent(client_events::kConsoleWriteOutput, 
             pendingConsoleOutput_);
-      pendingConsoleOutput_.clear();
+      pendingConsoleOutput_.clear() ;
    }
 }
 
@@ -205,7 +205,7 @@ void ClientEventQueue::enqueueClientOutputEvent(
    json::Object output;
    output[kConsoleText] = text;
    output[kConsoleId]   = activeConsole_;
-   pendingEvents_.push_back(ClientEvent(event, output));
+   pendingEvents_.push_back(ClientEvent(event, output)); 
 }
 
 } // namespace session

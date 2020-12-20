@@ -1,7 +1,7 @@
 /*
  * RStudioFrame.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -51,36 +51,6 @@ public class RStudioFrame extends Frame
    public IFrameElementEx getIFrame()
    {
       return getElement().cast();
-   }
-   
-   public String getSrcUrl()
-   {
-      return getIFrame().getSrc();
-   }
-   
-   public void setSrcUrl(String url)
-   {
-      getIFrame().setSrc(url);
-   }
-   
-   public String getWindowName()
-   {
-      return getIFrame().getContentWindow().getName();
-   }
-   
-   public String getWindowUrl()
-   {
-      return getIFrame().getContentWindow().getLocationHref();
-   }
-   
-   public void setWindowUrl(String url)
-   {
-      getIFrame().getContentWindow().setLocationHref(url);
-   }
-   
-   public void replaceWindowUrl(String url)
-   {
-      getIFrame().getContentWindow().replaceLocationHref(url);
    }
 
 }

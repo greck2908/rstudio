@@ -1,7 +1,7 @@
 /*
  * SessionHelp.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -27,7 +27,7 @@
 #include <boost/iostreams/filter/aggregate.hpp>
 
 #include <core/Algorithm.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Exec.hpp>
 #include <core/Log.hpp>
 
@@ -51,8 +51,6 @@
 
 #include <session/SessionModuleContext.hpp>
 #include <session/SessionPersistentState.hpp>
-
-#include <session/prefs/UserPrefs.hpp>
 
 #include "presentation/SlideRequestHandler.hpp"
 
@@ -81,6 +79,10 @@ const char * const kHelpLocation = "/help";
 const std::string kPythonLocation = "/python";
 const char * const kCustomLocation = "/custom";
 const char * const kSessionLocation = "/session";
+
+// flag indicating whether we should send headers to custom handlers
+// (only do this for 2.13 or higher)
+bool s_provideHeaders = false;
 
 // are we handling custom urls internally or allowing them to
 // show in an external browser
@@ -256,7 +258,7 @@ bool handleLocalHttpUrl(const std::string& url)
 // displaying the manual. Redirect these to the appropriate help event
 bool handleRShowDocFile(const core::FilePath& filePath)
 {
-   std::string absPath = filePath.getAbsolutePath();
+   std::string absPath = filePath.absolutePath();
    boost::regex manualRegx(".*/lib/R/(doc/manual/[A-Za-z0-9_\\-]*\\.html)");
    boost::smatch match;
    if (regex_utils::match(absPath, match, manualRegx))
@@ -281,25 +283,11 @@ const char * const kJsCallbacks =
       "</script>\n";
 
 
-class HelpFontSizeFilter : public boost::iostreams::aggregate_filter<char>
-{
-public:
-   typedef std::vector<char> Characters;
-
-   void do_filter(const Characters& src, Characters& dest)
-   {
-      std::string cssValue(src.begin(), src.end());
-      cssValue.append("body, td {\n   font-size:");
-      cssValue.append(safe_convert::numberToString(prefs::userPrefs().helpFontSizePoints()));
-      cssValue.append("pt;\n}");
-      std::copy(cssValue.begin(), cssValue.end(), std::back_inserter(dest));
-   }
-};
-
+   
 class HelpContentsFilter : public boost::iostreams::aggregate_filter<char>
 {
 public:
-   typedef std::vector<char> Characters;
+   typedef std::vector<char> Characters ;
 
    HelpContentsFilter(const http::Request& request)
    {
@@ -372,7 +360,7 @@ void setDynamicContentResponse(const std::string& content,
       if (error)
       {
          pResponse->setError(http::status::InternalServerError,
-                             error.getMessage());
+                             error.code().message());
       }
    }
    // otherwise just leave it alone
@@ -412,7 +400,7 @@ void handleHttpdResult(SEXP httpdSEXP,
    // if present, second element is content type
    if (LENGTH(httpdSEXP) > 1) 
    {
-      SEXP ctSEXP = VECTOR_ELT(httpdSEXP, 1);
+      SEXP ctSEXP = VECTOR_ELT(httpdSEXP, 1);     
       if (TYPEOF(ctSEXP) == STRSXP && LENGTH(ctSEXP) > 0)
          contentType = CHAR(STRING_ELT(ctSEXP, 0));
    }
@@ -467,7 +455,7 @@ void handleHttpdResult(SEXP httpdSEXP,
          content = normalizeHttpdSearchContent(content);
       
       // check for special file returns
-      std::string fileName;
+      std::string fileName ;
       if (TYPEOF(namesSEXP) == STRSXP && LENGTH(namesSEXP) > 0 &&
           !std::strcmp(CHAR(STRING_ELT(namesSEXP, 0)), "file"))
       {
@@ -643,11 +631,21 @@ SEXP callHandler(const std::string& path,
    SEXP requestBodySEXP = parseRequestBody(request, pProtect);
    SEXP headersSEXP = headersBuffer(request, pProtect);
 
+   // only provide headers if appropriate
    SEXP argsSEXP;
-   argsSEXP = Rf_list4(Rf_mkString(path.c_str()),
-                       queryStringSEXP,
-                       requestBodySEXP,
-                       headersSEXP);
+   if (s_provideHeaders)
+   {
+      argsSEXP = Rf_list4(Rf_mkString(path.c_str()),
+                          queryStringSEXP,
+                          requestBodySEXP,
+                          headersSEXP);
+   }
+   else
+   {
+      argsSEXP = Rf_list3(Rf_mkString(path.c_str()),
+                          queryStringSEXP,
+                          requestBodySEXP);
+   }
    pProtect->add(argsSEXP);
 
    // form the call expression
@@ -674,9 +672,9 @@ SEXP callHandler(const std::string& path,
 
 r_util::RPackageInfo packageInfoForRd(const FilePath& rdFilePath)
 {
-   FilePath packageDir = rdFilePath.getParent().getParent();
+   FilePath packageDir = rdFilePath.parent().parent();
 
-   FilePath descFilePath = packageDir.completeChildPath("DESCRIPTION");
+   FilePath descFilePath = packageDir.childPath("DESCRIPTION");
    if (!descFilePath.exists())
       return r_util::RPackageInfo();
 
@@ -722,28 +720,16 @@ void handleRdPreviewRequest(const http::Request& request,
       pResponse->setError(error);
       return;
    }
-   
    shell_utils::ShellCommand rCmd = module_context::rCmd(rHomeBinDir);
    rCmd << "Rdconv";
    rCmd << "--type=html";
-   
-   // add in package-specific information if available
    r_util::RPackageInfo pkgInfo = packageInfoForRd(filePath);
    if (!pkgInfo.empty())
-   {
-      if (!pkgInfo.name().empty())
-         rCmd << "--package=" + pkgInfo.name();
-      
-      std::string macros = pkgInfo.name();
-      if (!pkgInfo.rdMacros().empty())
-         macros = macros + "," + pkgInfo.rdMacros();
-      
-      rCmd << "--RdMacros=" + macros;
-   }
+      rCmd << "--package=" + pkgInfo.name();
 
    rCmd << filePath;
 
-   // run the conversion and return it
+   // run the converstion and return it
    core::system::ProcessOptions options;
    core::system::ProcessResult result;
    error = core::system::runCommand(rCmd, options, &result);
@@ -753,8 +739,7 @@ void handleRdPreviewRequest(const http::Request& request,
    }
    else if (result.exitStatus != EXIT_SUCCESS)
    {
-      LOG_ERROR_MESSAGE("Rd preview error: " + result.stdErr);
-      pResponse->setError(http::status::InternalServerError, "Internal Server Error");
+      pResponse->setError(http::status::InternalServerError, result.stdErr);
    }
    else
    {
@@ -778,12 +763,10 @@ void handleHttpdRequest(const std::string& location,
    // server custom css file if necessary
    if (boost::algorithm::ends_with(path, "/R.css"))
    {
-      core::FilePath cssFile = options().rResourcesPath().completeChildPath("R.css");
+      core::FilePath cssFile = options().rResourcesPath().childPath("R.css");
       if (cssFile.exists())
       {
-         // ignoring the filter parameter here because the only other possible filter 
-         // is HelpContentsFilter which is for html
-         pResponse->setFile(cssFile, request, HelpFontSizeFilter());
+         pResponse->setFile(cssFile, request, filter);
          return;
       }
    }
@@ -805,8 +788,8 @@ void handleHttpdRequest(const std::string& location,
    // markdown help is also a special case
    if (path == "/doc/markdown_help.html")
    {
-      core::FilePath helpFile = options().rResourcesPath().completeChildPath(
-         "markdown_help.html");
+      core::FilePath helpFile = options().rResourcesPath().childPath(
+                                                      "markdown_help.html");
       if (helpFile.exists())
       {
          pResponse->setFile(helpFile, request, filter);
@@ -817,7 +800,7 @@ void handleHttpdRequest(const std::string& location,
    // roxygen help
    if (path == "/doc/roxygen_help.html")
    {
-      core::FilePath helpFile = options().rResourcesPath().completeChildPath("roxygen_help.html");
+      core::FilePath helpFile = options().rResourcesPath().childPath("roxygen_help.html");
       if (helpFile.exists())
       {
          pResponse->setFile(helpFile, request, filter);
@@ -846,15 +829,14 @@ void handleHttpdRequest(const std::string& location,
    if (error)
    {
       pResponse->setError(http::status::InternalServerError,
-                          error.getMessage());
+                          error.code().message());
    }
    
    // error returned explicitly by httpd
    else if (TYPEOF(httpdSEXP) == STRSXP && LENGTH(httpdSEXP) > 0)
    {
-      LOG_ERROR_MESSAGE("Handle httpd request error: " + r::sexp::asString(httpdSEXP));
       pResponse->setError(http::status::InternalServerError, 
-                          "Internal Server Error");
+                          r::sexp::asString(httpdSEXP));
    }
    
    // content returned from httpd
@@ -942,9 +924,10 @@ void handleSessionRequest(const http::Request& request, http::Response* pRespons
    }
 
    // form a path to the temporary file
-   FilePath tempFilePath = r::session::utils::tempDir().completeChildPath(uri);
+   FilePath tempFilePath = r::session::utils::tempDir().childPath(uri);
 
    // return the file
+   pResponse->setCacheWithRevalidationHeaders();
    pResponse->setCacheableFile(tempFilePath, request);
 }
 
@@ -1015,14 +998,17 @@ SEXP rs_showPythonHelp(SEXP codeSEXP)
    
 Error initialize()
 {
+   // determine whether we should provide headers to custom handlers
+   s_provideHeaders = r::util::hasRequiredVersion("2.13");
+
    RS_REGISTER_CALL_METHOD(rs_previewRd, 1);
    RS_REGISTER_CALL_METHOD(rs_showPythonHelp, 1);
 
    using boost::bind;
    using core::http::UriHandler;
    using namespace module_context;
-   using namespace rstudio::r::function_hook;
-   ExecBlock initBlock;
+   using namespace rstudio::r::function_hook ;
+   ExecBlock initBlock ;
    initBlock.addFunctions()
       (bind(registerRBrowseUrlHandler, handleLocalHttpUrl))
       (bind(registerRBrowseFileHandler, handleRShowDocFile))
@@ -1040,16 +1026,6 @@ Error initialize()
                                                             &s_handleCustom);
    if (error)
       LOG_ERROR(error);
-
-#ifdef _WIN32
-   // R's help server handler has issues with R 4.0.0; disable it explicitly
-   // when that version of R is in use.
-   // (see comments in module_context::sessionTempDirUrl)
-   if (r::util::hasExactVersion("4.0.0"))
-   {
-      s_handleCustom = false;
-   }
-#endif
 
    // handle /custom and /session urls internally if necessary (always in
    // server mode, in desktop mode if the internal http server can't

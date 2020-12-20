@@ -1,7 +1,7 @@
 /*
  * ProjectSharingPreferencesPane.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,7 +14,6 @@
  */
 package org.rstudio.studio.client.projects.ui.prefs;
 
-import org.rstudio.core.client.prefs.RestartRequirement;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.studio.client.projects.model.RProjectOptions;
 
@@ -41,8 +40,8 @@ public class ProjectSharingPreferencesPane extends ProjectPreferencesPane
    }
 
    @Override
-   public RestartRequirement onApply(RProjectOptions prefs)
+   public boolean onApply(RProjectOptions prefs)
    {
-      return new RestartRequirement();
+      return false;
    }
 }

@@ -1,7 +1,7 @@
 /*
  * HTMLPreviewPanel.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -81,7 +81,7 @@ public class HTMLPreviewPanel extends ResizeComposite
    
    private Toolbar createToolbar(Commands commands)
    {
-      Toolbar toolbar = new Toolbar("Preview Tab");
+      Toolbar toolbar = new Toolbar();
       
       fileCaption_ = new ToolbarLabel("Preview: ");
       toolbar.addLeftWidget(fileCaption_);
@@ -160,7 +160,7 @@ public class HTMLPreviewPanel extends ResizeComposite
                RStudioGinjector.INSTANCE.getGlobalDisplay().showMessage(
                      MessageDialog.INFO,
                      "Find in Page", 
-                     "No occurrences found",
+                     "No occurences found",
                      findInputSource);
             }     
          }

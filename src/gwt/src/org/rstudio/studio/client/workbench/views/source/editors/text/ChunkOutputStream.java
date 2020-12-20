@@ -1,7 +1,7 @@
 /*
  * ChunkOutputStream.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,26 +19,20 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.google.gwt.user.client.Timer;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.VirtualConsole;
-import org.rstudio.core.client.dom.DomUtils;
-import org.rstudio.core.client.dom.MutationObserver;
 import org.rstudio.core.client.js.JsArrayEx;
 import org.rstudio.core.client.widget.FixedRatioWidget;
 import org.rstudio.core.client.widget.PreWidget;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.common.debugging.model.UnhandledError;
 import org.rstudio.studio.client.common.debugging.ui.ConsoleError;
-import org.rstudio.studio.client.common.satellite.Satellite;
 import org.rstudio.studio.client.rmarkdown.model.NotebookFrameMetadata;
 import org.rstudio.studio.client.rmarkdown.model.NotebookHtmlMetadata;
 import org.rstudio.studio.client.rmarkdown.model.NotebookPlotMetadata;
 import org.rstudio.studio.client.rmarkdown.model.RmdChunkOutputUnit;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
-import org.rstudio.studio.client.workbench.prefs.model.UserState;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.views.source.editors.text.rmd.ChunkOutputUi;
-import org.rstudio.studio.client.workbench.views.source.editors.text.themes.AceTheme;
 
 import com.google.gwt.core.client.JavaScriptObject;
 import com.google.gwt.core.client.JsArray;
@@ -104,11 +98,6 @@ public class ChunkOutputStream extends FlowPanel
    public void showConsoleOutput(JsArray<JsArrayEx> output)
    {
       initializeOutput(RmdChunkOutputUnit.TYPE_TEXT);
-      
-      // track number of newlines in output
-      int newlineCount = 0;
-      int maxCount = Satellite.isCurrentWindowSatellite() ? 10000 : 2000;
-      
       for (int i = 0; i < output.length(); i++)
       {
          // the first element is the output, and the second is the text; if we
@@ -138,17 +127,6 @@ public class ChunkOutputStream extends FlowPanel
             }
 
             vconsole_.submit(outputText, classOfOutput(outputType));
-         }
-         
-         // avoid hanging the IDE by displaying too much output
-         // https://github.com/rstudio/rstudio/issues/5518
-         newlineCount += StringUtil.countMatches(outputText, '\n');
-         if (newlineCount >= maxCount)
-         {
-            vconsole_.submit(
-                  "\n[Output truncated]",
-                  classOfOutput(ChunkConsolePage.CONSOLE_ERROR));
-            break;
          }
       }
    }
@@ -227,19 +205,15 @@ public class ChunkOutputStream extends FlowPanel
 
       final ChunkOutputFrame frame = new ChunkOutputFrame("Chunk HTML Output Frame");
 
-      if (chunkOutputSize_ == ChunkOutputSize.Default || 
-          chunkOutputSize_ == ChunkOutputSize.Natural)
-      {
-         if (knitrFigure)
-         {
+      if (chunkOutputSize_ == ChunkOutputSize.Default) {
+         if (knitrFigure) {
             final FixedRatioWidget fixedFrame = new FixedRatioWidget(frame, 
                         ChunkOutputUi.OUTPUT_ASPECT, 
                         ChunkOutputUi.MAX_HTMLWIDGET_WIDTH);
 
             addWithOrdinal(fixedFrame, ordinal);
          }
-         else
-         {
+         else {
             // reduce size of html widget as much as possible and add scroll,
             // once it loads, we will adjust the height appropriately.
             frame.getElement().getStyle().setHeight(25, Unit.PX);
@@ -249,8 +223,7 @@ public class ChunkOutputStream extends FlowPanel
             addWithOrdinal(frame, ordinal);
          }
       }
-      else if (chunkOutputSize_ == ChunkOutputSize.Full)
-      {
+      else if (chunkOutputSize_ == ChunkOutputSize.Full) {
          frame.getElement().getStyle().setPosition(Position.ABSOLUTE);
          frame.getElement().getStyle().setWidth(100, Unit.PCT);
          frame.getElement().getStyle().setHeight(100, Unit.PCT);
@@ -336,12 +309,9 @@ public class ChunkOutputStream extends FlowPanel
          flushQueuedErrors();
       }
       
-      UserState state =  RStudioGinjector.INSTANCE.getUserState();
-      ConsoleError error = new ConsoleError(err, 
-            AceTheme.getThemeErrorClass(state.theme().getValue().cast()),
+      UIPrefs prefs =  RStudioGinjector.INSTANCE.getUIPrefs();
+      ConsoleError error = new ConsoleError(err, prefs.getThemeErrorClass(), 
             this, null);
-
-      UserPrefs prefs =  RStudioGinjector.INSTANCE.getUserPrefs();
       error.setTracebackVisible(prefs.autoExpandErrorTracebacks().getValue());
 
       add(error);
@@ -362,7 +332,7 @@ public class ChunkOutputStream extends FlowPanel
          NotebookFrameMetadata metadata, int ordinal)
    {
       metadata_.put(ordinal, metadata);
-      addWithOrdinal(new ChunkDataWidget(data, metadata, chunkOutputSize_), ordinal);
+      addWithOrdinal(new ChunkDataWidget(data, chunkOutputSize_), ordinal);
    }
 
    @Override
@@ -424,65 +394,7 @@ public class ChunkOutputStream extends FlowPanel
          }
       }
    }
-
-   @Override
-   public void showCallbackHtml(String htmlOutput, Element parentElement)
-   {
-      // flush any queued errors
-      initializeOutput(RmdChunkOutputUnit.TYPE_HTML);
-      flushQueuedErrors();
-
-      if (StringUtil.isNullOrEmpty(htmlOutput))
-         return;
-      final ChunkOutputFrame frame = new ChunkOutputFrame("Chunk Feedback");
-      add(frame);
-
-      Element body = frame.getDocument().getBody();
-      Style bodyStyle = body.getStyle();
-      bodyStyle.setPadding(0, Unit.PX);
-      bodyStyle.setMargin(0, Unit.PX);
-
-      frame.loadUrlDelayed(htmlOutput, 250, new Command()
-      {
-         @Override
-         public void execute()
-         {
-            DomUtils.fillIFrame(frame.getIFrame(), htmlOutput);
-            DomUtils.forwardWheelEvent(frame.getIFrame().getContentDocument(), parentElement);
-            
-            int contentHeight = frame.getWindow().getDocument().getDocumentElement().getOffsetHeight();
-            frame.getElement().getStyle().setHeight(contentHeight, Unit.PX);
-            frame.getElement().getStyle().setWidth(100, Unit.PCT);
-            onHeightChanged();
-
-            Command handler = () -> {
-               // reset height so we can shrink it if necessary
-               frame.getElement().getStyle().setHeight(0, Unit.PX);
-  
-               // delay calculating the height so any images can load
-               new Timer()
-               {
-                  @Override
-                  public void run()
-                  {
-                     int newHeight = frame.getWindow().getDocument().getDocumentElement().getOffsetHeight();
-                     frame.getElement().getStyle().setHeight(newHeight, Unit.PX);
-                     onHeightChanged();
-                  }
-               }.schedule(50);
-            };
-            
-            MutationObserver.Builder builder = new MutationObserver.Builder(handler);
-            builder.attributes(true);
-            builder.characterData(true);
-            builder.childList(true);
-            builder.subtree(true);
-            MutationObserver observer = builder.get();
-            observer.observe(frame.getIFrame().getContentDocument().getBody());
-         }
-      });
-   }
-
+   
    @Override
    public void onEditorThemeChanged(EditorThemeListener.Colors colors)
    {
@@ -678,8 +590,7 @@ public class ChunkOutputStream extends FlowPanel
    private String classOfOutput(int type)
    {
       if (type == ChunkConsolePage.CONSOLE_ERROR)
-         return AceTheme.getThemeErrorClass(
-               RStudioGinjector.INSTANCE.getUserState().theme().getValue().cast());
+        return RStudioGinjector.INSTANCE.getUIPrefs().getThemeErrorClass();
       else if (type == ChunkConsolePage.CONSOLE_INPUT)
         return "ace_keyword";
       return null;
@@ -740,10 +651,7 @@ public class ChunkOutputStream extends FlowPanel
          console_.getElement().setInnerHTML("");
       }
       if (vconsole_ == null)
-      {
          vconsole_ = RStudioGinjector.INSTANCE.getVirtualConsoleFactory().create(console_.getElement());
-         vconsole_.setVirtualizedDisableOverride(true);
-      }
       else
          vconsole_.clear();
 

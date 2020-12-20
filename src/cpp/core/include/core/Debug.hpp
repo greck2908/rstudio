@@ -1,7 +1,7 @@
 /*
  * Debug.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,7 +17,7 @@
 #define CORE_DEBUG_HPP
 
 #include <iostream>
-#include <shared_core/json/Json.hpp>
+#include <core/json/Json.hpp>
 #include <vector>
 #include <map>
 
@@ -26,7 +26,7 @@ namespace core {
 namespace debug {
 
 template <typename K, typename V>
-inline void print(const std::map<K, V>& map, std::ostream& os = std::cerr)
+void print(const std::map<K, V>& map, std::ostream& os = std::cerr)
 {
    json::Object object;
    for (typename std::map<K, V>::const_iterator it = map.begin();
@@ -35,22 +35,16 @@ inline void print(const std::map<K, V>& map, std::ostream& os = std::cerr)
    {
       object[it->first] = json::toJsonValue(it->second);
    }
-   object.writeFormatted(os);
+   json::writeFormatted(object, os);
    os << std::endl;
 }
 
 template <typename ConvertibleToArray>
-inline void print(const ConvertibleToArray& object, std::ostream& os = std::cerr)
+void print(const ConvertibleToArray& object, std::ostream& os = std::cerr)
 {
    typedef typename ConvertibleToArray::value_type value_type;
    std::vector<value_type> asVector(object.begin(), object.end());
-   json::toJsonArray(asVector).writeFormatted(os);
-   os << std::endl;
-}
-
-inline void print(const json::Value& value, std::ostream& os = std::cerr)
-{
-   value.writeFormatted(os);
+   json::writeFormatted(json::toJsonArray(asVector), os);
    os << std::endl;
 }
 

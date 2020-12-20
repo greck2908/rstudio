@@ -1,7 +1,7 @@
 /*
  * XTermResources.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,14 +20,17 @@ import org.rstudio.core.client.resources.StaticDataResource;
 
 public interface XTermResources extends ClientBundle
 {
-   XTermResources INSTANCE = GWT.create(XTermResources.class);
-
+   public static final XTermResources INSTANCE = GWT.create(XTermResources.class);
+  
    @Source("xterm.js")
    StaticDataResource xtermjs();
-
+   
+   @Source("xterm-uncompressed.js")
+   StaticDataResource xtermjsUncompressed();
+   
    @Source("fit.js")
    StaticDataResource xtermfitjs();
 
-   @Source("web-links.js")
-   StaticDataResource xtermweblinksjs();
+   @Source("fit-uncompressed.js")
+   StaticDataResource xtermfitjsUncompressed();
 }

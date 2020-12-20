@@ -1,7 +1,7 @@
 /*
  * DesktopWebView.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -39,6 +39,8 @@ namespace desktop {
 
 namespace {
 
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+
 class DevToolsWindow : public QMainWindow
 {
 public:
@@ -70,64 +72,13 @@ private:
 
 std::map<QWebEnginePage*, DevToolsWindow*> s_devToolsWindows;
 
-
-class MouseNavigateSourceEventFilter : public QObject
-{
-public:
-   explicit MouseNavigateSourceEventFilter(WebView* pParent)
-      : QObject(pParent)
-   {
-   }
-
-protected:
-   // Handler for mouse back/forward button for source history navigation.
-   // This is needed for Desktop because QtWebEngine doesn't receive these button clicks. In the
-   // web browser/Server scenario this is handled by Source.java::handleMouseButtonNavigations().
-   bool eventFilter(QObject* pObject, QEvent* pEvent) override
-   {
-      if (pEvent->type() == QEvent::MouseButtonPress)
-      {
-         QMouseEvent* pMouseEvent = static_cast<QMouseEvent*>(pEvent);
-         if (pMouseEvent->button() == Qt::ForwardButton ||
-             pMouseEvent->button() == Qt::BackButton)
-         {
-            WebView* pWebView = qobject_cast<WebView*>(parent());
-            if (pWebView)
-            {
-               pWebView->mouseNavigateButtonClick(pMouseEvent);
-               return true;
-            }
-         }
-      }
-
-      return QObject::eventFilter(pObject, pEvent);
-   }
-};
-
+#endif
 
 } // end anonymous namespace
 
 WebView::WebView(QUrl baseUrl, QWidget *parent, bool allowExternalNavigate) :
     QWebEngineView(parent),
     baseUrl_(baseUrl)
-{
-
-   pWebPage_ = new WebPage(baseUrl, this, allowExternalNavigate);
-   init();
-}
-
-WebView::WebView(QWebEngineProfile *profile,
-                 QUrl baseUrl,
-                 QWidget *parent,
-                 bool allowExternalNavigate) :
-   QWebEngineView(parent),
-   baseUrl_(baseUrl)
-{
-   pWebPage_ = new WebPage(profile, baseUrl, this, allowExternalNavigate);
-   init();
-}
-
-void WebView::init()
 {
 #ifdef Q_OS_LINUX
    if (!core::system::getenv("KDE_FULL_SESSION").empty())
@@ -137,9 +88,8 @@ void WebView::init()
          setStyle(QStyleFactory::create(fusion));
    }
 #endif
-
+   pWebPage_ = new WebPage(baseUrl, this, allowExternalNavigate);
    setPage(pWebPage_);
-   setAcceptDrops(true);
 }
 
 void WebView::setBaseUrl(const QUrl& baseUrl)
@@ -191,66 +141,23 @@ QString WebView::promptForFilename(const QNetworkRequest& request,
 
 void WebView::keyPressEvent(QKeyEvent* pEvent)
 {
-   
 #ifdef Q_OS_MAC
-   // on macOS, intercept Cmd+W and emit the window close signal
-   if (pEvent->key() == Qt::Key_W && pEvent->modifiers() == Qt::CTRL)
+   if (pEvent->key() == Qt::Key_W &&
+       pEvent->modifiers() == Qt::CTRL)
    {
+      // on macOS, intercept Cmd+W and emit the window close signal
       onCloseWindowShortcut();
-      return;
    }
-#endif
- 
-   // use default behavior otherwise
+   else
+   {
+      // pass other key events through to WebEngine
+      QWebEngineView::keyPressEvent(pEvent);
+   }
+#else
+
    QWebEngineView::keyPressEvent(pEvent);
    
-}
-
-void WebView::dragEnterEvent(QDragEnterEvent *pEvent)
-{
-   // notify GWT context of drag start
-   QString command = QString::fromUtf8(
-     "if (window.desktopHooks) "
-     "  window.desktopHooks.onDragStart();");
-   webPage()->runJavaScript(command);
-
-   // delegate to default
-   QWebEngineView::dragEnterEvent(pEvent);
-}
-
-void WebView::dropEvent(QDropEvent *pEvent)
-{
-   // notify GWT context of dropped urls (as in the JS layer
-   // the dataTransfer object comes up empty)
-   if (pEvent->mimeData()->hasUrls())
-   {
-      // build buffer of urls
-      QString urlsBuffer;
-      auto urls = pEvent->mimeData()->urls();
-      for (auto url : urls)
-      {
-         // append (converting file-based urls)
-         if (url.scheme() == QString::fromUtf8("file"))
-            urlsBuffer.append(createAliasedPath(url.toLocalFile()));
-         else
-            urlsBuffer.append(url.toString());
-
-         // append unique separator
-         const char * const kUrlSeparator = "26D63FFA-995F-4E9A-B4AA-04DA9F93B538";
-         urlsBuffer.append(QString::fromUtf8(kUrlSeparator));
-      }
-
-      // notify desktop of dropped urls
-      QString command = QStringLiteral(
-        "if (window.desktopHooks) "
-        "  window.desktopHooks.onUrlsDropped(\"%1\");")
-           .arg(urlsBuffer);
-      webPage()->runJavaScript(command);
-   }
-
-   // delegate to default (will end up in standard drag/drop
-   // handling but w/ empty dataTransfer)
-   QWebEngineView::dropEvent(pEvent);
+#endif
 }
 
 void WebView::openFile(QString fileName)
@@ -284,7 +191,6 @@ bool WebView::event(QEvent* event)
 
 void WebView::closeEvent(QCloseEvent*)
 {
-   onClose();
 }
 
 namespace {
@@ -351,10 +257,12 @@ void WebView::contextMenuEvent(QContextMenuEvent* event)
          
       case QWebEngineContextMenuData::MediaTypeAudio:
          
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
          if (data.mediaFlags().testFlag(QWebEngineContextMenuData::MediaPaused))
             menu->addAction(label(tr("&Play")), [&]() { triggerPageAction(QWebEnginePage::ToggleMediaPlayPause); });
          else
             menu->addAction(label(tr("&Pause")), [&]() { triggerPageAction(QWebEnginePage::ToggleMediaPlayPause); });
+#endif
 
          menu->addAction(label(tr("&Loop")),            [&]() { triggerPageAction(QWebEnginePage::ToggleMediaLoop); });
          menu->addAction(label(tr("Toggle &controls")), [&]() { triggerPageAction(QWebEnginePage::ToggleMediaControls); });
@@ -366,10 +274,12 @@ void WebView::contextMenuEvent(QContextMenuEvent* event)
          
       case QWebEngineContextMenuData::MediaTypeVideo:
          
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
          if (data.mediaFlags().testFlag(QWebEngineContextMenuData::MediaPaused))
             menu->addAction(label(tr("&Play")), [&]() { triggerPageAction(QWebEnginePage::ToggleMediaPlayPause); });
          else
             menu->addAction(label(tr("&Pause")), [&]() { triggerPageAction(QWebEnginePage::ToggleMediaPlayPause); });
+#endif
 
          menu->addAction(label(tr("&Loop")),            [&]() { triggerPageAction(QWebEnginePage::ToggleMediaLoop); });
          menu->addAction(label(tr("Toggle &controls")), [&]() { triggerPageAction(QWebEnginePage::ToggleMediaControls); });
@@ -422,6 +332,7 @@ void WebView::contextMenuEvent(QContextMenuEvent* event)
       menu->addAction(selectAll);
    }
    
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
    menu->addSeparator();
    menu->addAction(label(tr("&Reload")), [&]() { triggerPageAction(QWebEnginePage::Reload); });
    menu->addAction(label(tr("I&nspect element")), [&]() {
@@ -446,32 +357,22 @@ void WebView::contextMenuEvent(QContextMenuEvent* event)
       // we have a window; invoke Inspect Element now
       webPage()->triggerAction(QWebEnginePage::InspectElement);
    });
-
+#else
+   
+# ifndef NDEBUG
+   
+   menu->addAction(label(tr("&Reload")), [&]() { triggerPageAction(QWebEnginePage::Reload); });
+   menu->addSeparator();
+   menu->addAction(label(tr("I&nspect element")), [&]() { triggerPageAction(QWebEnginePage::InspectElement); });
+   
+# endif
+   
+#endif
+   
    menu->setAttribute(Qt::WA_DeleteOnClose, true);
    
    menu->exec(event->globalPos());
 }
-
-void WebView::childEvent(QChildEvent *event)
-{
-   if (event->added() && event->child()->inherits("QWidget"))
-   {
-      event->child()->installEventFilter(new MouseNavigateSourceEventFilter(this));
-   }
-}
-
-void WebView::mouseNavigateButtonClick(QMouseEvent* pMouseEvent)
-{
-   QString command =  QStringLiteral(
-      "if (window.desktopHooks) "
-      "  window.desktopHooks.mouseNavigateButtonClick(%1, %2, %3);")
-         .arg(pMouseEvent->button() == Qt::ForwardButton ? QStringLiteral("true") : QStringLiteral("false"))
-         .arg(pMouseEvent->x())
-         .arg(pMouseEvent->y());
-
-   webPage()->runJavaScript(command);
-}
-
 
 } // namespace desktop
 } // namespace rstudio

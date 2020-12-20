@@ -1,7 +1,7 @@
 /*
  * RQuit.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -98,15 +98,14 @@ void quit(bool saveWorkspace, int status)
    bool didQuit = win32Quit(save, 0, true, &quitErr);
    if (!didQuit)
    {
-      REprintf("%s\n", quitErr.c_str());
+      REprintf((quitErr + "\n").c_str());
       LOG_ERROR_MESSAGE(quitErr);
    }
  #else
    Error error = r::exec::RFunction("base:::q", save, status, true).call();
    if (error)
    {
-      std::string message = r::endUserErrorMessage(error);
-      REprintf("%s\n", message.c_str());
+      REprintf((r::endUserErrorMessage(error) + "\n").c_str());
       LOG_ERROR(error);
    }
  #endif

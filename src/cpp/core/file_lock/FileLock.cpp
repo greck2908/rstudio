@@ -1,7 +1,7 @@
 /*
  * FileLock.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,12 +19,11 @@
 #include <core/Macros.hpp>
 
 #include <core/Settings.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/http/SocketUtils.hpp>
 #include <core/system/Environment.hpp>
-#include <core/system/Xdg.hpp>
 
 #include <boost/algorithm/string.hpp>
 
@@ -41,14 +40,12 @@ const char * const kLockTypeLinkBased = "linkbased";
 
 // use advisory locks on Windows by default; link-based elsewhere
 #ifdef _WIN32
-# define kLockTypeDefault      kLockTypeAdvisory
-# define kLockTypeDefaultEnum  (FileLock::LOCKTYPE_ADVISORY)
+# define kLockTypeDefault kLockTypeAdvisory
 #else
-# define kLockTypeDefault      kLockTypeLinkBased
-# define kLockTypeDefaultEnum  (FileLock::LOCKTYPE_LINKBASED)
+# define kLockTypeDefault kLockTypeLinkBased
 #endif 
 
-const char * const kLocksConfFile    = "file-locks";
+const char * const kLocksConfPath    = "/etc/rstudio/file-locks";
 const double kDefaultRefreshRate     = 20.0;
 const double kDefaultTimeoutInterval = 30.0;
 
@@ -64,8 +61,7 @@ std::string lockTypeToString(FileLock::LockType type)
    return std::string();
 }
 
-FileLock::LockType stringToLockType(const std::string& lockType,
-                                    FileLock::LockType defaultLockType)
+FileLock::LockType stringToLockType(const std::string& lockType)
 {
    using namespace boost::algorithm;
    
@@ -75,7 +71,7 @@ FileLock::LockType stringToLockType(const std::string& lockType,
       return FileLock::LOCKTYPE_LINKBASED;
    
    LOG_WARNING_MESSAGE("unrecognized lock type '" + lockType + "'");
-   return defaultLockType;
+   return FileLock::LOCKTYPE_LINKBASED;
 }
 
 double getFieldPositive(const Settings& settings,
@@ -113,11 +109,12 @@ bool FileLock::verifyInitialized()
    return s_isInitialized;
 }
 
-void FileLock::initialize(FileLock::LockType fallbackLockType)
-{
-   // read settings
-   FilePath locksConfPath = core::system::xdg::systemConfigFile(kLocksConfFile);
 
+void FileLock::initialize(FilePath locksConfPath)
+{
+   if (locksConfPath.empty())
+      locksConfPath = FilePath(kLocksConfPath);
+   
    Settings settings;
    if (locksConfPath.exists())
    {
@@ -126,16 +123,13 @@ void FileLock::initialize(FileLock::LockType fallbackLockType)
          LOG_ERROR(error);
    }
    
-#ifdef _WIN32
-   // TODO: link-based locks are not yet implemented on Windows
-   FileLock::s_defaultType = LOCKTYPE_ADVISORY;
-#else
+   FileLock::initialize(settings);
+}
+
+void FileLock::initialize(const Settings& settings)
+{
    // default lock type
-   std::string lockTypePref = settings.get("lock-type");
-   FileLock::s_defaultType = lockTypePref.empty()
-         ? fallbackLockType
-         : stringToLockType(lockTypePref, fallbackLockType);
-#endif
+   FileLock::s_defaultType = stringToLockType(settings.get("lock-type", kLockTypeDefault));
 
    // timeout interval
    double timeoutInterval = getFieldPositive(settings, "timeout-interval", kDefaultTimeoutInterval);
@@ -172,14 +166,9 @@ void FileLock::initialize(FileLock::LockType fallbackLockType)
    s_isInitialized = true;
 }
 
-void FileLock::initialize()
-{
-   initialize(kLockTypeDefaultEnum);
-}
-
 void FileLock::log(const std::string& message)
 {
-   if (s_logFile.isEmpty() || !isLoggingEnabled())
+   if (s_logFile.empty() || !isLoggingEnabled())
    {
       // if we were constructed without a path, or file lock logging was not explicitly enabled
       // (legacy option), then debug log to the in-proc logger
@@ -219,8 +208,7 @@ void FileLock::log(const std::string& message)
    }
 }
 
-// definitions for static members
-// NOTE: these will be overridden when FileLock::initialize() is called
+// default values for static members
 FileLock::LockType FileLock::s_defaultType(FileLock::LOCKTYPE_LINKBASED);
 boost::posix_time::seconds FileLock::s_timeoutInterval(static_cast<long>(kDefaultTimeoutInterval));
 boost::posix_time::seconds FileLock::s_refreshRate(static_cast<long>(kDefaultRefreshRate));

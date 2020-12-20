@@ -1,7 +1,7 @@
 /*
  * Cookie.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,31 +19,19 @@
 #include <string>
 
 #include <boost/date_time/gregorian/gregorian.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
+#include "Request.hpp"
+
 namespace rstudio {
 namespace core {
 namespace http {
 
-class Request;
-
-#define kLegacyCookieSuffix "-legacy"
-
 class Cookie
 {
 public:
-   enum class SameSite
-   {
-      Undefined,
-      None,
-      Lax,
-      Strict
-   };
-
    Cookie(const Request& request,
           const std::string& name,
           const std::string& value, 
           const std::string& path,
-          SameSite sameSite = SameSite::Undefined,
           bool httpOnly = false,
           bool secure = false);
    virtual ~Cookie();
@@ -63,27 +51,21 @@ public:
    const std::string& path() const { return path_; }
 
    void setExpires(const boost::posix_time::time_duration& expiresFromNow);
-   void setExpiresDelete();
+   void setExpires(const boost::gregorian::days& days);
+   void setExpiresDelete() ;
    const boost::posix_time::ptime& expires() const { return expires_; }
    
    void setHttpOnly();
-   bool httpOnly() const { return httpOnly_; }
-
    void setSecure();
-   bool secure() const { return secure_; }
 
-   void setSameSite(SameSite sameSite);
-   SameSite sameSite() const { return sameSite_; }
-
-   std::string cookieHeaderValue() const;
+   std::string cookieHeaderValue() const ;
 
 private:
-   std::string name_;
-   std::string value_;
-   std::string domain_;
-   std::string path_;
-   boost::posix_time::ptime expires_;
-   SameSite sameSite_;
+   std::string name_ ;
+   std::string value_ ;
+   std::string domain_ ;
+   std::string path_ ;
+   boost::posix_time::ptime expires_ ;
    bool httpOnly_;
    bool secure_;
 };

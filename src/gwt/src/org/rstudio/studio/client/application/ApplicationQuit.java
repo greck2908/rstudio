@@ -1,7 +1,7 @@
 /*
  * ApplicationQuit.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,6 +21,8 @@ import org.rstudio.core.client.Barrier.Token;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.command.CommandBinder;
 import org.rstudio.core.client.command.Handler;
+import org.rstudio.core.client.events.BarrierReleasedEvent;
+import org.rstudio.core.client.events.BarrierReleasedHandler;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.widget.MessageDialog;
 import org.rstudio.core.client.widget.Operation;
@@ -28,10 +30,13 @@ import org.rstudio.core.client.widget.OperationWithInput;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.application.events.HandleUnsavedChangesEvent;
+import org.rstudio.studio.client.application.events.HandleUnsavedChangesHandler;
 import org.rstudio.studio.client.application.events.QuitInitiatedEvent;
 import org.rstudio.studio.client.application.events.RestartStatusEvent;
 import org.rstudio.studio.client.application.events.SaveActionChangedEvent;
+import org.rstudio.studio.client.application.events.SaveActionChangedHandler;
 import org.rstudio.studio.client.application.events.SuspendAndRestartEvent;
+import org.rstudio.studio.client.application.events.SuspendAndRestartHandler;
 import org.rstudio.studio.client.application.model.ApplicationServerOperations;
 import org.rstudio.studio.client.application.model.RVersionSpec;
 import org.rstudio.studio.client.application.model.SaveAction;
@@ -39,25 +44,24 @@ import org.rstudio.studio.client.application.model.SuspendOptions;
 import org.rstudio.studio.client.application.model.TutorialApiCallContext;
 import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.common.GlobalProgressDelayer;
+import org.rstudio.studio.client.common.SuperDevMode;
 import org.rstudio.studio.client.common.TimedProgressIndicator;
 import org.rstudio.studio.client.common.filetypes.FileIcon;
-import org.rstudio.studio.client.projects.Projects;
-import org.rstudio.studio.client.projects.events.OpenProjectNewWindowEvent;
 import org.rstudio.studio.client.server.ServerError;
 import org.rstudio.studio.client.server.ServerRequestCallback;
 import org.rstudio.studio.client.server.VoidServerRequestCallback;
 import org.rstudio.studio.client.workbench.WorkbenchContext;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.events.LastChanceSaveEvent;
-import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.SessionOpener;
 import org.rstudio.studio.client.workbench.model.UnsavedChangesItem;
 import org.rstudio.studio.client.workbench.model.UnsavedChangesTarget;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.ui.unsaved.UnsavedChangesDialog;
 import org.rstudio.studio.client.workbench.ui.unsaved.UnsavedChangesDialog.Result;
 import org.rstudio.studio.client.workbench.views.jobs.model.JobManager;
 import org.rstudio.studio.client.workbench.views.source.Source;
+import org.rstudio.studio.client.workbench.views.source.SourceShim;
 import org.rstudio.studio.client.workbench.views.terminal.TerminalHelper;
 
 import com.google.gwt.core.client.GWT;
@@ -67,9 +71,9 @@ import com.google.inject.Provider;
 import com.google.inject.Singleton;
 
 @Singleton
-public class ApplicationQuit implements SaveActionChangedEvent.Handler,
-                                        HandleUnsavedChangesEvent.Handler,
-                                        SuspendAndRestartEvent.Handler
+public class ApplicationQuit implements SaveActionChangedHandler,
+                                        HandleUnsavedChangesHandler,
+                                        SuspendAndRestartHandler
 {
    public interface Binder extends CommandBinder<Commands, ApplicationQuit> {}
    
@@ -78,8 +82,8 @@ public class ApplicationQuit implements SaveActionChangedEvent.Handler,
                           GlobalDisplay globalDisplay,
                           EventBus eventBus,
                           WorkbenchContext workbenchContext,
-                          Provider<Source> pSource,
-                          Provider<UserPrefs> pUiPrefs,
+                          SourceShim sourceShim,
+                          Provider<UIPrefs> pUiPrefs,
                           Commands commands,
                           Binder binder,
                           TerminalHelper terminalHelper,
@@ -91,8 +95,8 @@ public class ApplicationQuit implements SaveActionChangedEvent.Handler,
       globalDisplay_ = globalDisplay;
       eventBus_ = eventBus;
       workbenchContext_ = workbenchContext;
-      pSource_ = pSource;
-      pUserPrefs_ = pUiPrefs;
+      sourceShim_ = sourceShim;
+      pUiPrefs_ = pUiPrefs;
       terminalHelper_ = terminalHelper;
       pJobManager_ = pJobManager;
       pSessionOpener_ = pSessionOpener;
@@ -100,8 +104,11 @@ public class ApplicationQuit implements SaveActionChangedEvent.Handler,
       // bind to commands
       binder.bind(commands, this);
       
+      // only enable suspendSession() in devmode
+      commands.suspendSession().setVisible(SuperDevMode.isActive());
+      
       // subscribe to events
-      eventBus.addHandler(SaveActionChangedEvent.TYPE, this);
+      eventBus.addHandler(SaveActionChangedEvent.TYPE, this);   
       eventBus.addHandler(HandleUnsavedChangesEvent.TYPE, this);
       eventBus.addHandler(SuspendAndRestartEvent.TYPE, this);
    }
@@ -124,7 +131,7 @@ public class ApplicationQuit implements SaveActionChangedEvent.Handler,
                               final boolean forceSaveAll,
                               final QuitContext quitContext)
    {
-      String busyMode = pUserPrefs_.get().busyDetection().getValue();
+      int busyMode = pUiPrefs_.get().terminalBusyMode().getValue();
 
       boolean busy = workbenchContext_.isServerBusy() || terminalHelper_.warnBeforeClosing(busyMode);
       String msg = null;
@@ -159,11 +166,10 @@ public class ApplicationQuit implements SaveActionChangedEvent.Handler,
       else
       {
          // if we aren't restoring source documents then close them all now
-         if (pSource_.get() != null && !pUserPrefs_.get().restoreSourceDocuments().getValue())
+         if (!pUiPrefs_.get().restoreSourceDocuments().getValue())
          {
-            pSource_.get().closeAllSourceDocs(caption,
-                  () -> handleUnfinishedWork(caption, allowCancel, forceSaveAll, quitContext),
-                  false);
+            sourceShim_.closeAllSourceDocs(caption,
+                  () -> handleUnfinishedWork(caption, allowCancel, forceSaveAll, quitContext));
          }
          else
          {
@@ -180,7 +186,7 @@ public class ApplicationQuit implements SaveActionChangedEvent.Handler,
       Command handleUnsaved = () -> {
          // handle unsaved editor changes
          handleUnsavedChanges(saveAction_.getAction(), caption, allowCancel, forceSaveAll,
-               pSource_.get(), workbenchContext_, globalEnvTarget_, quitContext);
+               sourceShim_, workbenchContext_, globalEnvTarget_, quitContext);
       };
 
       if (allowCancel)
@@ -211,20 +217,20 @@ public class ApplicationQuit implements SaveActionChangedEvent.Handler,
                                      String caption,
                                      boolean allowCancel,
                                      boolean forceSaveAll,
-                                     final Source source,
+                                     final SourceShim sourceShim,
                                      final WorkbenchContext workbenchContext,
                                      final UnsavedChangesTarget globalEnvTarget,
                                      final QuitContext quitContext)
    {   
       // see what the unsaved changes situation is and prompt accordingly
       ArrayList<UnsavedChangesTarget> unsavedSourceDocs = 
-                        source.getUnsavedChanges(Source.TYPE_FILE_BACKED);
+                        sourceShim.getUnsavedChanges(Source.TYPE_FILE_BACKED);
       
       // force save all
       if (forceSaveAll)
       {
          // save all unsaved documents and then quit
-         source.handleUnsavedChangesBeforeExit(
+         sourceShim.handleUnsavedChangesBeforeExit(
                unsavedSourceDocs,
                new Command() {
                   @Override
@@ -290,9 +296,9 @@ public class ApplicationQuit implements SaveActionChangedEvent.Handler,
                (Desktop.hasDesktopFrame() ||
                 !(unsavedSourceDocs.get(0) instanceof UnsavedChangesItem)))
       {
-         source.saveWithPrompt(
+         sourceShim.saveWithPrompt(
            unsavedSourceDocs.get(0), 
-           source.revertUnsavedChangesBeforeExitCommand(new Command() {
+           sourceShim.revertUnsavedChangesBeforeExitCommand(new Command() {
                @Override
                public void execute()
                {
@@ -329,7 +335,7 @@ public class ApplicationQuit implements SaveActionChangedEvent.Handler,
                   final boolean saveChanges = saveGlobalEnv;
                   
                   // save specified documents and then quit
-                  source.handleUnsavedChangesBeforeExit(
+                  sourceShim.handleUnsavedChangesBeforeExit(
                         saveTargets,
                         new Command() {
                            @Override
@@ -446,14 +452,14 @@ public class ApplicationQuit implements SaveActionChangedEvent.Handler,
       
       // get unsaved source docs
       ArrayList<UnsavedChangesTarget> unsavedSourceDocs = 
-                        pSource_.get().getUnsavedChanges(Source.TYPE_FILE_BACKED);
+                        sourceShim_.getUnsavedChanges(Source.TYPE_FILE_BACKED);
       
       if (unsavedSourceDocs.size() == 1)
       {
-         pSource_.get().saveWithPrompt(
+         sourceShim_.saveWithPrompt(
                unsavedSourceDocs.get(0), 
-               pSource_.get().revertUnsavedChangesBeforeExitCommand(
-                  new HandleUnsavedCommand(true)),
+               sourceShim_.revertUnsavedChangesBeforeExitCommand(
+                                             new HandleUnsavedCommand(true)),
                new HandleUnsavedCommand(false));
       }
       else if (unsavedSourceDocs.size() > 1)
@@ -466,7 +472,7 @@ public class ApplicationQuit implements SaveActionChangedEvent.Handler,
                   public void execute(Result result)
                   {
                      // save specified documents and then quit
-                     pSource_.get().handleUnsavedChangesBeforeExit(
+                     sourceShim_.handleUnsavedChangesBeforeExit(
                            result.getSaveTargets(),
                            new HandleUnsavedCommand(true));
                   }
@@ -496,7 +502,7 @@ public class ApplicationQuit implements SaveActionChangedEvent.Handler,
                         SuspendOptions.createSaveMinimal(saveChanges),
                         null));
                }, "Restart R", "Terminal jobs will be terminated. Are you sure?",
-                  pUserPrefs_.get().busyDetection().getValue());
+                  pUiPrefs_.get().terminalBusyMode().getValue());
             }
          });
    }
@@ -514,7 +520,7 @@ public class ApplicationQuit implements SaveActionChangedEvent.Handler,
       if (suspendingAndRestarting_) return;
       
       // set restart pending for desktop
-      setPendingQuit(DesktopFrame.PENDING_QUIT_AND_RESTART);
+      setPendinqQuit(DesktopFrame.PENDING_QUIT_AND_RESTART);
       
       final TimedProgressIndicator progress = new TimedProgressIndicator(
             globalDisplay_.getProgressIndicator("Error"));
@@ -536,11 +542,11 @@ public class ApplicationQuit implements SaveActionChangedEvent.Handler,
             onRestartComplete.execute();
          }, () -> { // failure
             onRestartComplete.execute();
-            setPendingQuit(DesktopFrame.PENDING_QUIT_NONE);
+            setPendinqQuit(DesktopFrame.PENDING_QUIT_NONE);
          });
    }
    
-   private void setPendingQuit(int pendingQuit)
+   private void setPendinqQuit(int pendingQuit)
    {
       if (Desktop.hasDesktopFrame())
          Desktop.getFrame().setPendingQuit(pendingQuit);
@@ -557,22 +563,6 @@ public class ApplicationQuit implements SaveActionChangedEvent.Handler,
    {
       prepareForQuit("Quit R Session", false /*allowCancel*/, false /*forceSaveChanges*/,
             (boolean saveChanges) -> performQuit(null, saveChanges));
-   }
-
-   public void doRestart(Session session)
-   {
-      prepareForQuit(
-            "Restarting RStudio",
-            saveChanges -> {
-               String project = session.getSessionInfo().getActiveProjectFile();
-               if (project == null)
-                  project = Projects.NONE;
-
-               final String finalProject = project;
-               performQuit(null, saveChanges, () -> {
-                  eventBus_.fireEvent(new OpenProjectNewWindowEvent(finalProject, null));
-               });
-            });
    }
 
    private UnsavedChangesTarget globalEnvTarget_ = new UnsavedChangesTarget()
@@ -647,78 +637,81 @@ public class ApplicationQuit implements SaveActionChangedEvent.Handler,
          // Use a barrier and LastChanceSaveEvent to allow source documents
          // and client state to be synchronized before quitting.
          Barrier barrier = new Barrier();
-         barrier.addBarrierReleasedHandler(releasedEvent ->
+         barrier.addBarrierReleasedHandler(new BarrierReleasedHandler()
          {
-            // All last chance save operations have completed (or possibly
-            // failed). Now do the real quit.
-
-            // notify the desktop frame that we are about to quit
-            String switchToProject = StringUtil.create(switchToProject_);
-            if (Desktop.hasDesktopFrame())
+            public void onBarrierReleased(BarrierReleasedEvent event)
             {
-               Desktop.getFrame().setPendingQuit(switchToProject_ != null ?
-                     DesktopFrame.PENDING_QUIT_RESTART_AND_RELOAD :
-                     DesktopFrame.PENDING_QUIT_AND_EXIT);
-            }
-            
-            server_.quitSession(
-               saveChanges_,
-               switchToProject,
-               switchToRVersion_,
-               GWT.getHostPageBaseURL(),
-               new ServerRequestCallback<Boolean>()
+               // All last chance save operations have completed (or possibly
+               // failed). Now do the real quit.
+
+               // notify the desktop frame that we are about to quit
+               String switchToProject = StringUtil.create(switchToProject_);
+               if (Desktop.hasDesktopFrame())
                {
-                  @Override
-                  public void onResponseReceived(Boolean response)
+                  Desktop.getFrame().setPendingQuit(switchToProject_ != null ?
+                        DesktopFrame.PENDING_QUIT_RESTART_AND_RELOAD :
+                        DesktopFrame.PENDING_QUIT_AND_EXIT);
+               }
+               
+               server_.quitSession(
+                  saveChanges_,
+                  switchToProject,
+                  switchToRVersion_,
+                  GWT.getHostPageBaseURL(),
+                  new ServerRequestCallback<Boolean>()
                   {
-                     if (response)
+                     @Override
+                     public void onResponseReceived(Boolean response)
                      {
-                        // clear progress only if we aren't switching projects
-                        // (otherwise we want to leave progress up until
-                        // the app reloads)
-                        if (switchToProject_ == null)
-                           progress.dismiss();
+                        if (response)
+                        {
+                           // clear progress only if we aren't switching projects
+                           // (otherwise we want to leave progress up until
+                           // the app reloads)
+                           if (switchToProject_ == null)
+                              progress.dismiss();
+                           
+                           if (callContext_ != null)
+                           {
+                              eventBus_.fireEvent(new ApplicationTutorialEvent(
+                                    ApplicationTutorialEvent.API_SUCCESS, callContext_));
+                           }
+                           
+                           // fire onQuitAcknowledged
+                           if (onQuitAcknowledged_ != null)
+                              onQuitAcknowledged_.execute();
+                        }
+                        else
+                        {
+                           onFailedToQuit("server quitSession responded false");
+                        }
+                     }
+
+                     @Override
+                     public void onError(ServerError error)
+                     {
+                        onFailedToQuit(error.getMessage());
+                     }
+                     
+                     private void onFailedToQuit(String message)
+                     {
+                        progress.dismiss();
                         
                         if (callContext_ != null)
                         {
                            eventBus_.fireEvent(new ApplicationTutorialEvent(
-                                 ApplicationTutorialEvent.API_SUCCESS, callContext_));
+                                 ApplicationTutorialEvent.API_ERROR,
+                                 message,
+                                 callContext_));
                         }
-                        
-                        // fire onQuitAcknowledged
-                        if (onQuitAcknowledged_ != null)
-                           onQuitAcknowledged_.execute();
+                        if (Desktop.hasDesktopFrame())
+                        {
+                           Desktop.getFrame().setPendingQuit(
+                                         DesktopFrame.PENDING_QUIT_NONE);
+                        }
                      }
-                     else
-                     {
-                        onFailedToQuit("server quitSession responded false");
-                     }
-                  }
-
-                  @Override
-                  public void onError(ServerError error)
-                  {
-                     onFailedToQuit(error.getMessage());
-                  }
-                  
-                  private void onFailedToQuit(String message)
-                  {
-                     progress.dismiss();
-                     
-                     if (callContext_ != null)
-                     {
-                        eventBus_.fireEvent(new ApplicationTutorialEvent(
-                              ApplicationTutorialEvent.API_ERROR,
-                              message,
-                              callContext_));
-                     }
-                     if (Desktop.hasDesktopFrame())
-                     {
-                        Desktop.getFrame().setPendingQuit(
-                                      DesktopFrame.PENDING_QUIT_NONE);
-                     }
-                  }
-               });
+                  });
+            }
          });
 
          // We acquire a token to make sure that the barrier doesn't fire before
@@ -749,10 +742,10 @@ public class ApplicationQuit implements SaveActionChangedEvent.Handler,
    // injected
    private final ApplicationServerOperations server_;
    private final GlobalDisplay globalDisplay_;
-   private final Provider<UserPrefs> pUserPrefs_;
+   private final Provider<UIPrefs> pUiPrefs_;
    private final EventBus eventBus_;
    private final WorkbenchContext workbenchContext_;
-   private final Provider<Source> pSource_;
+   private final SourceShim sourceShim_;
    private final TerminalHelper terminalHelper_;
    private final Provider<JobManager> pJobManager_;
    private final Provider<SessionOpener> pSessionOpener_;

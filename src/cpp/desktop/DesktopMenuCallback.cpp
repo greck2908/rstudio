@@ -1,7 +1,7 @@
 /*
  * DesktopMenuCallback.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -219,10 +219,6 @@ void MenuCallback::addCommand(QString commandId,
    // on macOS, replace instances of 'Ctrl' with 'Meta'; QKeySequence renders "Ctrl" using the
    // macOS command symbol, but we want the menu to show the literal Ctrl symbol (^)
    shortcut.replace(QStringLiteral("Ctrl"), QStringLiteral("Meta"));
-
-   // on Mac the enter key and return keys have different symbols
-   // https://github.com/rstudio/rstudio/issues/6524
-   shortcut.replace(QStringLiteral("Enter"), QStringLiteral("Return"));
 #endif
 
    // replace instances of 'Cmd' with 'Ctrl' -- note that on macOS
@@ -244,10 +240,6 @@ void MenuCallback::addCommand(QString commandId,
    else if (commandId == QStringLiteral("pasteDummy"))
    {
       keySequence = QKeySequence(QKeySequence::Paste);
-   }
-   else if (commandId == QStringLiteral("pasteWithIndentDummy"))
-   {
-      keySequence = QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_V);
    }
    else if (commandId == QStringLiteral("undoDummy"))
    {

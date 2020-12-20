@@ -33,17 +33,6 @@
    width: auto;
 }
 
-.leftLeft button,
-.rightRight button {
-   background: none;
-   color: inherit;
-   border: none;
-   padding: 0;
-   font: inherit;
-   cursor: pointer;
-   outline: inherit;
-}
-
 @sprite .leftRight {
    gwt-image: 'leftToggleRightOff';
    width: value('leftToggleRightOff.getWidth', 'px');

@@ -1,7 +1,7 @@
 /*
  * TexSynctex.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,8 +20,8 @@
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/StringUtils.hpp>
 
 #include <core/system/System.hpp>
@@ -102,8 +102,8 @@ bool Synctex::parse(const FilePath& pdfPath)
 {
    using namespace rstudio::core::string_utils;
    pImpl_->pdfPath = pdfPath;
-   std::string path = utf8ToSystem(pdfPath.getAbsolutePath());
-   std::string buildDir = utf8ToSystem(pdfPath.getParent().getAbsolutePath());
+   std::string path = utf8ToSystem(pdfPath.absolutePath());
+   std::string buildDir = utf8ToSystem(pdfPath.parent().absolutePath());
 
    pImpl_->scanner = ::synctex_scanner_new_with_output_file(path.c_str(),
                                                             buildDir.c_str(),
@@ -156,7 +156,7 @@ SourceLocation Synctex::inverseSearch(const PdfLocation& location)
 
          // might be relative or might be absolute, complete it against the
          // pdf's parent directory to cover both cases
-         FilePath filePath = pImpl_->pdfPath.getParent().completePath(adjustedName);
+         FilePath filePath = pImpl_->pdfPath.parent().complete(adjustedName);
 
          // fully normalize
          Error error = core::system::realPath(filePath, &filePath);
@@ -198,7 +198,7 @@ PdfLocation Synctex::topOfPageContent(int page)
 std::string Synctex::synctexNameForInputFile(const FilePath& inputFile)
 {
    // get the base directory for the input file
-   FilePath parentPath = inputFile.getParent();
+   FilePath parentPath = inputFile.parent();
 
    // iterate through the known input files looking for a match
    synctex_node_t node = ::synctex_scanner_input(pImpl_->scanner);
@@ -211,7 +211,7 @@ std::string Synctex::synctexNameForInputFile(const FilePath& inputFile)
 
       // complete the name against the parent path -- if it is equal to
       // the input file that that's the one we are looking for
-      FilePath synctexPath = parentPath.completePath(adjustedName);
+      FilePath synctexPath = parentPath.complete(adjustedName);
       if (synctexPath.isEquivalentTo(inputFile))
          return name;
 

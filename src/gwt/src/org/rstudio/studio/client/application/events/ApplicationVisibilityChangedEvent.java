@@ -1,7 +1,7 @@
 /*
  * ApplicationVisibilityChangedEvent.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,7 +17,8 @@ package org.rstudio.studio.client.application.events;
 import com.google.gwt.event.shared.EventHandler;
 import com.google.gwt.event.shared.GwtEvent;
 
-public class ApplicationVisibilityChangedEvent extends GwtEvent<ApplicationVisibilityChangedEvent.Handler>
+public class ApplicationVisibilityChangedEvent 
+                  extends GwtEvent<ApplicationVisibilityChangedEvent.Handler>
 {
    public interface Handler extends EventHandler
    {
@@ -48,5 +49,5 @@ public class ApplicationVisibilityChangedEvent extends GwtEvent<ApplicationVisib
    
    private final boolean isHidden_;
 
-   public static final Type<Handler> TYPE = new Type<>();
+   public static final Type<Handler> TYPE = new Type<Handler>();
 }

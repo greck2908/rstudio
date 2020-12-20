@@ -1,7 +1,7 @@
 /*
  * markdown_highlight_rules.js
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * The Initial Developer of the Original Code is
  * Ajax.org B.V.
@@ -228,16 +228,13 @@ var MarkdownHighlightRules = function() {
             linkByReference,
            { // HR *
             token : "constant",
-            regex : "^\\s*[*](?:\\s*[*]){2,}\\s*$",
-            next  : "allowBlock",
+            regex : "^[ ]{0,2}(?:[ ]?\\*[ ]?){3,}\\s*$"
         }, { // HR -
             token : "constant",
-            regex : "^\\s*[-](?:\\s*[-]){2,}\\s*$",
-            next  : "allowBlock",
+            regex : "^[ ]{0,2}(?:[ ]?\\-[ ]?){3,}\\s*$"
         }, { // HR _
             token : "constant",
-            regex : "^\\s*[_](?:\\s*[_]){2,}\\s*$",
-            next  : "allowBlock"
+            regex : "^[ ]{0,2}(?:[ ]?\\_[ ]?){3,}\\s*$"
         }, { // MathJax native display \[ ... \]
             token : "latex.markup.list.string.begin",
             regex : "\\\\\\[",
@@ -281,6 +278,10 @@ var MarkdownHighlightRules = function() {
         }, {
             token : "text",
             regex : "\\\\"
+        }, { // HR * - _
+            token : "constant",
+            regex : "^ {0,2}(?:(?: ?\\* ?){3,}|(?: ?\\- ?){3,}|(?: ?\\_ ?){3,})\\s*$",
+            next: "allowBlock"
         }, { // list
             token : "text",
             regex : "^\\s*(?:[*+-]|\\d+\\.)\\s+",

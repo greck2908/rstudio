@@ -1,6 +1,5 @@
 <ui:UiBinder xmlns:ui='urn:ui:com.google.gwt.uibinder'
-             xmlns:g='urn:import:com.google.gwt.user.client.ui'
-             xmlns:rw='urn:import:org.rstudio.core.client.widget'>
+             xmlns:g='urn:import:com.google.gwt.user.client.ui'>
 
    <ui:with field="res" type="org.rstudio.studio.client.application.ui.serializationprogress.ApplicationSerializationProgress.Resources"/>
 
@@ -10,7 +9,7 @@
             <td class="{res.styles.left}"></td>
             <td class="{res.styles.center}" valign="top" nowrap="nowrap">
                <nobr>
-                  <rw:DecorativeImage resource="{res.spinnerManilla}" styleName="{res.styles.spinner}"/>
+                  <g:Image resource="{res.spinnerManilla}" styleName="{res.styles.spinner}"/>
                   <g:Label ui:field="label_" styleName="{res.styles.label}" wordWrap="false"/>
                </nobr>
             </td>

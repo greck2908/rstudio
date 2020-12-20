@@ -1,7 +1,7 @@
 /*
  * ProgressSpinner.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,7 +14,6 @@
  */
 package org.rstudio.core.client.widget;
 
-import com.google.gwt.aria.client.Roles;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.HTMLPanel;
 
@@ -70,23 +69,15 @@ public class ProgressSpinner extends Composite
       // initialize canvas
       canvas_.setCoordinateSpaceWidth(COORD_SIZE);
       canvas_.setCoordinateSpaceHeight(COORD_SIZE);
-
-      Roles.getImgRole().set(canvas_.getElement());
-      Roles.getImgRole().setAriaLabelProperty(canvas_.getElement(), "Busy");
    }
    
    @Override
    public void setVisible(boolean visible)
    {
       if (visible)
-      {
-         requestStopAnimating_ = false;
          startAnimating();
-      }
       else
-      {
          stopAnimating();
-      }
       
       super.setVisible(visible);
    }

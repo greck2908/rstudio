@@ -1,7 +1,7 @@
 /*
  * SessionViewPdf.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,8 +15,8 @@
 
 #include "SessionViewPdf.hpp"
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/Exec.hpp>
 
 #include <core/http/Util.hpp>
@@ -39,7 +39,7 @@ void handleViewPdf(const http::Request& request, http::Response* pResponse)
 {
    // get the file path
    FilePath filePath(request.queryParamValue("path"));
-   if (!filePath.exists() || !module_context::isPathViewAllowed(filePath))
+   if (!filePath.exists())
    {
       pResponse->setNotFoundError(request);
       return;
@@ -66,7 +66,7 @@ void handlePdfJs(const http::Request& request, http::Response* pResponse)
       return;
    }
 
-   core::FilePath pdfJsResource = options().rResourcesPath().completeChildPath(path);
+   core::FilePath pdfJsResource = options().rResourcesPath().childPath(path);
    if (pdfJsResource.exists())
    {
       pResponse->setCacheableFile(pdfJsResource, request);
@@ -78,8 +78,7 @@ void handlePdfJs(const http::Request& request, http::Response* pResponse)
 
 std::string createViewPdfUrl(const core::FilePath& filePath)
 {
-   return "view_pdf?path=" + http::util::urlEncode(
-      filePath.getAbsolutePath(),
+   return "view_pdf?path=" + http::util::urlEncode(filePath.absolutePath(),
                                                    true);
 }
 
@@ -88,7 +87,7 @@ Error initialize()
    // install rpc methods
    using boost::bind;
    using namespace module_context;
-   ExecBlock initBlock;
+   ExecBlock initBlock ;
    initBlock.addFunctions()
       (bind(registerUriHandler, "/view_pdf", handleViewPdf))
       (bind(registerUriHandler, kPdfJsPath, handlePdfJs))

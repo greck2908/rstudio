@@ -1,7 +1,7 @@
 /*
  * NotebookWorkingDir.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,7 @@
 
 #include <r/RExec.hpp>
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 
 #include <session/SessionSourceDatabase.hpp>
 #include <session/SessionModuleContext.hpp>
@@ -57,22 +57,22 @@ Error DirCapture::connectDir(const std::string& docId,
       source_database::getPath(docId, &docPath);
       if (!docPath.empty())
       {
-         workingDir_ = module_context::resolveAliasedPath(docPath).getParent();
+         workingDir_ = module_context::resolveAliasedPath(docPath).parent();
       }
    }
 
-   if (!workingDir_.isEmpty())
+   if (!workingDir_.empty())
    {
       // if we have a working directory, switch to it, and save directory we're
       // changing from (so we can detect changes)
       FilePath currentDir = FilePath::safeCurrentPath(workingDir_);
       if (currentDir != workingDir_)
       {
-         Error error = FilePath::makeCurrent(workingDir_.getAbsolutePath());
+         Error error = FilePath::makeCurrent(workingDir_.absolutePath());
          if (error)
             return error;
       }
-      prevWorkingDir_ = currentDir.getAbsolutePath();
+      prevWorkingDir_ = currentDir.absolutePath();
    }
 
    NotebookCapture::connect();
@@ -94,15 +94,15 @@ void DirCapture::disconnect()
 
 void DirCapture::onExprComplete()
 {
-   if (!warned_ && !workingDir_.isEmpty())
+   if (!warned_ && !workingDir_.empty())
    {
       // raise a warning when changing a working directory inside the notebook
       // (this leads to unexpected behavior)
       FilePath currentDir = FilePath::safeCurrentPath(workingDir_);
       if (!currentDir.isEquivalentTo(workingDir_))
       {
-         r::exec::warning("The working directory was changed to " +
-                             currentDir.getAbsolutePath() + " inside a notebook chunk. The "
+         r::exec::warning("The working directory was changed to " + 
+               currentDir.absolutePath() + " inside a notebook chunk. The "
                "working directory will be reset when the chunk is finished "
                "running. Use the knitr root.dir option in the setup chunk " 
                "to change the working directory for notebook chunks.\n");

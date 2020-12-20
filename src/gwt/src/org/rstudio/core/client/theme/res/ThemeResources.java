@@ -1,7 +1,7 @@
 /*
  * ThemeResources.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -294,9 +294,6 @@ public interface ThemeResources extends ClientBundle
    
    @Source("user_2x.png")
    ImageResource user();
-   
-   @Source("refreshWorkspaceMonitored_2x.png")
-   ImageResource refreshWorkspaceMonitored2x();
    
    @Source("refreshWorkspaceUnmonitored_2x.png")
    ImageResource refreshWorkspaceUnmonitored2x();

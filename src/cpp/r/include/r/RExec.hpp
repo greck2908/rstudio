@@ -1,7 +1,7 @@
 /*
  * RExec.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,7 +24,7 @@
 #include <boost/scoped_ptr.hpp>
 #include <boost/function.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/system/System.hpp>
 
 #include <r/RSexp.hpp> 
@@ -43,7 +43,7 @@ namespace core {
 namespace rstudio {
 namespace r {
 namespace exec {
-
+   
 // safe (no r error longjump) execution of abritrary nullary function
 core::Error executeSafely(boost::function<void()> function);
 
@@ -60,8 +60,8 @@ public:
    void operator()() { *pReturn_ = function_(); }
      
 private:
-   boost::function<T()> function_;
-   T* pReturn_;
+   boost::function<T()> function_ ;
+   T* pReturn_ ;
 };
  
 // safe (no r error longjump) execution of abritrary nullary function w/ return
@@ -72,19 +72,7 @@ core::Error executeSafely(boost::function<T()> function, T* pReturn)
    return executeSafely(target);
 }
 
-// flags that can be set during evaluation
-enum EvalFlags
-{
-   EvalFlagsNone             = 0,
-   EvalFlagsSuppressWarnings = 1,
-   EvalFlagsSuppressMessages = 2
-};
-
-inline EvalFlags operator|(EvalFlags lhs, EvalFlags rhs)
-{
-   return static_cast<EvalFlags>(static_cast<int>(lhs) | static_cast<int>(rhs));
-}
-
+   
 // parse and evaluate expressions  
 core::Error executeStringUnsafe(const std::string& str, 
                                 SEXP* pSEXP, 
@@ -95,19 +83,17 @@ core::Error executeStringUnsafe(const std::string& str,
                                 sexp::Protect* pProtect);
 
 core::Error executeString(const std::string& str);
-core::Error evaluateString(const std::string& str,
-                           SEXP* pSEXP,
-                           sexp::Protect* pProtect,
-                           EvalFlags flags = EvalFlagsNone);
-
+core::Error evaluateString(const std::string& str, 
+                           SEXP* pSEXP, 
+                           sexp::Protect* pProtect);
 template <typename T>
 core::Error evaluateString(const std::string& str, T* pValue)
 {
    sexp::Protect rProtect;
-   SEXP valueSEXP;
+   SEXP valueSEXP ;
    core::Error error = evaluateString(str, &valueSEXP, &rProtect);
    if (error)
-      return error;
+      return error ;
 
    return sexp::extract(valueSEXP, pValue);
 }
@@ -116,18 +102,82 @@ core::Error evaluateString(const std::string& str, T* pValue)
 class RFunction : boost::noncopyable
 {
 public:
-   
-   template <typename... T>
-   explicit RFunction(const std::string& name, const T&... params)
+   explicit RFunction(const std::string& name)
       : functionSEXP_(R_UnboundValue)
    {
       commonInit(name);
-      initParams(params...);
+   }
+   
+   template <typename ParamType>
+   RFunction(const std::string& name, const ParamType& param)
+      : functionSEXP_(R_UnboundValue)
+   {
+      commonInit(name);
+      addParam(param);
+   }
+  
+   template <typename Param1Type, typename Param2Type>
+   RFunction(const std::string& name, 
+             const Param1Type& param1, 
+             const Param2Type& param2)
+      : functionSEXP_(R_UnboundValue)
+   {
+      commonInit(name);
+      addParam(param1);
+      addParam(param2);
+   }
+   
+   template <typename Param1Type, typename Param2Type, typename Param3Type>
+   RFunction(const std::string& name, 
+             const Param1Type& param1, 
+             const Param2Type& param2,
+             const Param3Type& param3)
+      : functionSEXP_(R_UnboundValue)
+   {
+      commonInit(name);
+      addParam(param1);
+      addParam(param2);
+      addParam(param3);
+   }
+
+   template <typename Param1Type, typename Param2Type,
+             typename Param3Type, typename Param4Type>
+   RFunction(const std::string& name,
+             const Param1Type& param1,
+             const Param2Type& param2,
+             const Param3Type& param3,
+             const Param4Type& param4)
+      : functionSEXP_(R_UnboundValue)
+   {
+      commonInit(name);
+      addParam(param1);
+      addParam(param2);
+      addParam(param3);
+      addParam(param4);
+   }
+   
+   template <typename Param1Type, typename Param2Type,
+             typename Param3Type, typename Param4Type,
+             typename Param5Type>
+   RFunction(const std::string& name,
+             const Param1Type& param1,
+             const Param2Type& param2,
+             const Param3Type& param3,
+             const Param4Type& param4,
+             const Param5Type& param5)
+      : functionSEXP_(R_UnboundValue)
+   {
+      commonInit(name);
+      addParam(param1);
+      addParam(param2);
+      addParam(param3);
+      addParam(param4);
+      addParam(param5);
    }
    
    explicit RFunction(SEXP functionSEXP);
    
-   ~RFunction();
+   virtual ~RFunction() ;
    
    // COPYING: boost::noncopyable
    
@@ -159,23 +209,7 @@ public:
       params_.push_back(Param(name, paramSEXP));
       return *this;
    }
-   
-   template <typename T>
-   RFunction& addUtf8Param(const T& param)
-   {
-      return addUtf8Param(std::string(), param);
-   }
-   
-   template <typename T>
-   RFunction& addUtf8Param(const std::string& name, const T& param)
-   {
-      r::sexp::Protect protect;
-      SEXP paramSEXP = sexp::createUtf8(param, &protect);
-      preserver_.add(paramSEXP);
-      params_.push_back(Param(name, paramSEXP));
-      return *this;
-   }
-   
+                        
    core::Error call(SEXP evalNS = R_GlobalEnv, bool safely = true);
    core::Error callUnsafe();
 
@@ -195,42 +229,17 @@ public:
    {
       // call the function
       sexp::Protect rProtect;
-      SEXP resultSEXP;
-      core::Error error = call(evalNS, &resultSEXP, &rProtect);
+      SEXP resultSEXP ;
+      core::Error error = call(evalNS, &resultSEXP, &rProtect);  
       if (error)
-         return error;
+         return error ;
       
       // convert result to c++ accessible type
-      return sexp::extract(resultSEXP, pValue);
-   }
-
-   template <typename T>
-   core::Error callUtf8(T* pValue)
-   {
-      // call the function
-      sexp::Protect rProtect;
-      SEXP resultSEXP;
-      core::Error error = call(R_GlobalEnv, &resultSEXP, &rProtect);
-      if (error)
-         return error;
-
-      // convert result to c++ accessible type
-      return sexp::extract(resultSEXP, pValue, true);
+      return sexp::extract(resultSEXP, pValue) ;
    }
    
 private:
    void commonInit(const std::string& functionName);
-   
-   void initParams()
-   {
-   }
-   
-   template <typename T, typename... Rest>
-   void initParams(const T& param, const Rest&... rest)
-   {
-      addParam(std::string(), param);
-      initParams(rest...);
-   }
    
 private:
    // preserve SEXPs
@@ -249,10 +258,10 @@ private:
          : name(name), valueSEXP(valueSEXP)
       {
       }
-      std::string name;
-      SEXP valueSEXP;
+      std::string name ;
+      SEXP valueSEXP ;
    };
-   std::vector<Param> params_;
+   std::vector<Param> params_ ;
 };
 
 void warning(const std::string& warning);
@@ -290,7 +299,7 @@ void errorCall(SEXP call, const std::string& message);
 std::string getErrorMessage();
 
 bool interruptsPending();
-void setInterruptsPending(bool pending);
+void setInterruptsPending(bool pending); 
 void checkUserInterrupt();
 
    
@@ -300,7 +309,7 @@ public:
    IgnoreInterruptsScope();
    virtual ~IgnoreInterruptsScope();
 private:
-   bool previousInterruptsSuspended_;
+   bool previousInterruptsSuspended_ ;
    boost::scoped_ptr<core::system::SignalBlocker> pSignalBlocker_;
 };
 
@@ -327,10 +336,6 @@ private:
 
 
 class InterruptException {};
-
-// track whether the session was interrupted
-bool getWasInterrupted();
-void setWasInterrupted(bool wasInterrupted);
 
 } // namespace exec   
 } // namespace r

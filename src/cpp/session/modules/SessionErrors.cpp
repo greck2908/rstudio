@@ -1,7 +1,7 @@
 /*
  * SessionErrors.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,7 @@
 
 #include <algorithm>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Exec.hpp>
 #include <core/json/JsonRpc.hpp>
 
@@ -24,8 +24,7 @@
 
 #include <boost/bind.hpp>
 #include <session/SessionModuleContext.hpp>
-#include <session/prefs/UserPrefs.hpp>
-#include <session/prefs/UserState.hpp>
+#include <session/SessionUserSettings.hpp>
 #include "SessionErrors.hpp"
 #include "SessionBreakpoints.hpp"
 
@@ -37,7 +36,7 @@ namespace modules {
 namespace errors {
 namespace {
 
-void enqueErrorHandlerChanged(const std::string& type)
+void enqueErrorHandlerChanged(int type)
 {
    json::Object errorHandlerType;
    errorHandlerType["type"] = type;
@@ -46,11 +45,16 @@ void enqueErrorHandlerChanged(const std::string& type)
    module_context::enqueClientEvent(errorHandlerChanged);
 }
 
-Error setErrHandler(const std::string& type, bool inMyCode,
+Error setErrHandler(int type, bool inMyCode,
                     boost::shared_ptr<SEXP> pErrorHandler)
 {
    // when setting the error handler to "custom", just leave it as it was
-   if (type == kErrorHandlerTypeCustom)
+   if (type == ERRORS_CUSTOM)
+      return Success();
+
+   // this feature requires the source reference attribute; don't try to set
+   // the error handler if we don't have that.
+   if (!breakpoints::haveSrcrefAttribute())
       return Success();
 
    Error error = r::exec::RFunction(
@@ -63,16 +67,16 @@ Error setErrHandler(const std::string& type, bool inMyCode,
    return Success();
 }
 
-Error setErrHandlerType(const std::string& type,
+Error setErrHandlerType(int type,
                         boost::shared_ptr<SEXP> pErrorHandler)
 {
    Error error = setErrHandler(type,
-                               prefs::userPrefs().handleErrorsInUserCodeOnly(),
+                               userSettings().handleErrorsInUserCodeOnly(),
                                pErrorHandler);
    if (error)
       return error;
 
-   prefs::userState().setErrorHandlerType(type);
+   userSettings().setErrorHandlerType(type);
    enqueErrorHandlerChanged(type);
    return Success();
 }
@@ -81,7 +85,7 @@ Error setErrHandlerType(boost::shared_ptr<SEXP> pErrorHandler,
                         const json::JsonRpcRequest& request,
                         json::JsonRpcResponse* pResponse)
 {
-   std::string type;
+   int type = 0;
    Error error = json::readParams(request.params, &type);
    if (error)
       return error;
@@ -93,15 +97,15 @@ Error initializeErrManagement(boost::shared_ptr<SEXP> pErrorHandler,
                               boost::shared_ptr<bool> pHandleUserErrorsOnly)
 {
    SEXP currentHandler = r::options::getOption("error");
-   *pHandleUserErrorsOnly = prefs::userPrefs().handleErrorsInUserCodeOnly();
+   *pHandleUserErrorsOnly = userSettings().handleErrorsInUserCodeOnly();
    // This runs after ~/.RProfile, so don't change the error handler if
    // there's already one assigned, or if we're aware of a custom error
    // handler.
    if (currentHandler == R_NilValue &&
-       prefs::userState().errorHandlerType() != kErrorHandlerTypeCustom)
-      setErrHandlerType(prefs::userState().errorHandlerType(), pErrorHandler);
+       userSettings().errorHandlerType() != ERRORS_CUSTOM)
+      setErrHandlerType(userSettings().errorHandlerType(), pErrorHandler);
    else
-      prefs::userState().setErrorHandlerType(kErrorHandlerTypeCustom);
+      userSettings().setErrorHandlerType(ERRORS_CUSTOM);
    return Success();
 }
 
@@ -117,7 +121,7 @@ void detectHandlerChange(boost::shared_ptr<SEXP> pErrorHandler,
    SEXP currentHandler = r::options::getOption("error");
    if (currentHandler != *pErrorHandler)
    {
-      std::string handlerType;
+      int handlerType = -1;
       if (currentHandler != R_NilValue &&
           r::sexp::isLanguage(currentHandler))
       {
@@ -129,7 +133,7 @@ void detectHandlerChange(boost::shared_ptr<SEXP> pErrorHandler,
          if (typeSEXP != nullptr && !r::sexp::isNull(typeSEXP))
          {
             Error error = r::sexp::extract(typeSEXP, &handlerType);
-            if (!error && handlerType == prefs::userState().errorHandlerType())
+            if (!error && handlerType == userSettings().errorHandlerType())
             {
                // the SEXP is different but the attribute matches; update our
                // SEXP so we don't keep detecting a change
@@ -141,40 +145,39 @@ void detectHandlerChange(boost::shared_ptr<SEXP> pErrorHandler,
       *pErrorHandler = currentHandler;
 
       // attempt to figure out what error handler type is in use, if any
-      if (handlerType.empty())
+      if (handlerType < 0)
       {
          handlerType = (currentHandler == R_NilValue) ?
-                        kErrorHandlerTypeMessage :
-                        kErrorHandlerTypeCustom;
+                        ERRORS_MESSAGE :
+                        ERRORS_CUSTOM;
       }
       if (recordSetting)
-         prefs::userState().setErrorHandlerType(handlerType);
+         userSettings().setErrorHandlerType(handlerType);
 
       // the notebook error handler is transient, so don't send it to the 
       // client
-      if (handlerType != kErrorHandlerTypeNotebook)
+      if (handlerType != ERRORS_NOTEBOOK)
          enqueErrorHandlerChanged(handlerType);
    }
 }
 
-void onUserSettingsChanged(const std::string& pref,
-                           boost::shared_ptr<SEXP> pErrorHandler,
+void onUserSettingsChanged(boost::shared_ptr<SEXP> pErrorHandler,
                            boost::shared_ptr<bool> pHandleUserErrorsOnly)
 {
    // check to see if the setting for 'handle errors in user code only'
    // has been changed since we last looked at it; if it has, switch the
    // error handler in a corresponding way
-   if (pref != kErrorHandlerType)
-      return;
+   bool handleUserErrorsOnly = userSettings().handleErrorsInUserCodeOnly();
+   if (handleUserErrorsOnly != *pHandleUserErrorsOnly)
+   {
+      Error error = setErrHandler(userSettings().errorHandlerType(),
+                                  handleUserErrorsOnly,
+                                  pErrorHandler);
+      if (error)
+         LOG_ERROR(error);
 
-   bool handleUserErrorsOnly = prefs::userPrefs().handleErrorsInUserCodeOnly();
-   Error error = setErrHandler(prefs::userState().errorHandlerType(),
-                               handleUserErrorsOnly,
-                               pErrorHandler);
-   if (error)
-      LOG_ERROR(error);
-
-   *pHandleUserErrorsOnly = handleUserErrorsOnly;
+      *pHandleUserErrorsOnly = handleUserErrorsOnly;
+   }
 }
 
 } // anonymous namespace
@@ -182,7 +185,7 @@ void onUserSettingsChanged(const std::string& pref,
 json::Value errorStateAsJson()
 {
    json::Object state;
-   state["error_handler_type"] = prefs::userState().errorHandlerType();
+   state["error_handler_type"] = userSettings().errorHandlerType();
    return std::move(state);
 }
 
@@ -202,8 +205,7 @@ Error initialize()
                                          pErrorHandler, false));
    events().onDeferredInit.connect(bind(detectHandlerChange,
                                         pErrorHandler, true));
-   prefs::userState().onChanged.connect(bind(onUserSettingsChanged,
-                                         _2,
+   userSettings().onChanged.connect(bind(onUserSettingsChanged,
                                          pErrorHandler,
                                          pHandleUserErrorsOnly));
 

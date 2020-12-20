@@ -1,7 +1,7 @@
 /*
  * PosixFileScanner.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,9 +18,9 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/BoostThread.hpp>
 
 #include "config.h"
@@ -124,16 +124,8 @@ Error scanFiles(const tree<FileInfo>::iterator_base& fromNode,
    // iterate over the names
    for (const std::string& name : names)
    {
-      // check for interrupt (mark as expected to suppress logging)
-      if (boost::this_thread::interruption_requested())
-      {
-         Error error = core::systemError(boost::system::errc::interrupted, ERROR_LOCATION);
-         error.setExpected();
-         return error;
-      }
-
       // compute the path
-      std::string path = rootPath.completeChildPath(name).getAbsolutePath();
+      std::string path = rootPath.childPath(name).absolutePath();
 
       // get the attributes
       struct stat st;

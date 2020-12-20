@@ -1,7 +1,7 @@
 /*
  * SessionRPubs.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,7 +21,7 @@
 #include <boost/shared_ptr.hpp>
 #include <boost/enable_shared_from_this.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Exec.hpp>
 #include <core/Log.hpp>
 #include <core/Settings.hpp>
@@ -34,11 +34,12 @@
 #include <r/RSexp.hpp>
 #include <r/RRoutines.hpp>
 
+#include <session/SessionUserSettings.hpp>
 #include <session/SessionModuleContext.hpp>
 
 #include <session/projects/SessionProjects.hpp>
 
-using namespace rstudio::core;
+using namespace rstudio::core ;
 
 namespace rstudio {
 namespace session {
@@ -50,7 +51,7 @@ namespace {
 void getUploadIdSettings(Settings* pSettings)
 {
    FilePath rpubsUploadIds =
-      module_context::scopedScratchPath().completePath("rpubs_upload_ids");
+         module_context::scopedScratchPath().complete("rpubs_upload_ids");
    Error error = pSettings->initialize(rpubsUploadIds);
    if (error)
       LOG_ERROR(error);
@@ -64,11 +65,11 @@ std::string pathIdentifier(const FilePath& filePath)
    if (projectContext.hasProject() &&
        filePath.isWithin(projectContext.directory()))
    {
-      path = filePath.getRelativePath(projectContext.directory());
+      path = filePath.relativePath(projectContext.directory());
    }
    else
    {
-      path = filePath.getAbsolutePath();
+      path = filePath.absolutePath();
    }
 
    // urlencode so we can use it as a key
@@ -156,13 +157,13 @@ private:
                                " file='%5%', "
                                " row.names=FALSE);");
 
-      std::string htmlPath = utf8ToSystem(htmlFile.getAbsolutePath());
-      std::string outputPath = utf8ToSystem(csvOutputFile_.getAbsolutePath());
+      std::string htmlPath = utf8ToSystem(htmlFile.absolutePath());
+      std::string outputPath = utf8ToSystem(csvOutputFile_.absolutePath());
 
       // we may not have an original R Markdown document for this publish
       // event (and that's fine)
       std::string rmdPath = originalRmd == FilePath() ? "" :
-         utf8ToSystem(originalRmd.getAbsolutePath());
+         utf8ToSystem(originalRmd.absolutePath());
 
       std::string escapedTitle = string_utils::jsLiteralEscape(title);
       std::string escapedHtmlPath = string_utils::jsLiteralEscape(htmlPath);
@@ -179,7 +180,7 @@ private:
       // options
       core::system::ProcessOptions options;
       options.terminateChildren = true;
-      options.workingDir = htmlFile.getParent();
+      options.workingDir = htmlFile.parent();
 
       // callbacks
       core::system::ProcessCallbacks cb;
@@ -193,8 +194,7 @@ private:
                                 RPubsUpload::shared_from_this(), _1);
 
       // execute
-      processSupervisor().runProgram(
-         rProgramPath.getAbsolutePath(),
+      processSupervisor().runProgram(rProgramPath.absolutePath(),
                                      args,
                                      options,
                                      cb);
@@ -254,7 +254,7 @@ private:
 
    void terminateWithError(const Error& error)
    {
-      terminateWithError(error.getSummary());
+      terminateWithError(error.summary());
    }
 
    void terminateWithError(const std::string& error)
@@ -424,7 +424,7 @@ Error initialize()
 {
    using boost::bind;
    using namespace module_context;
-   ExecBlock initBlock;
+   ExecBlock initBlock ;
    initBlock.addFunctions()
       (bind(registerRpcMethod, "rpubs_is_published", rpubsIsPublished))
       (bind(registerRpcMethod, "rpubs_upload", rpubsUpload))

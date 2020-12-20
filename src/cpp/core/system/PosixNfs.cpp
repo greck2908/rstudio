@@ -1,7 +1,7 @@
 /*
  * PosixNfs.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,8 +18,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 
 namespace rstudio {
 namespace core {
@@ -40,23 +40,22 @@ core::Error statWithCacheClear(const core::FilePath& path,
       *pCleared = false;
 
    // get the file's initial attributes (may be stale)
-   if (::stat(path.getAbsolutePath().c_str(), pSt) == -1)
+   if (::stat(path.absolutePath().c_str(), pSt) == -1)
    {
       Error error = systemError(errno, ERROR_LOCATION);
-      error.addProperty("path", path.getAbsolutePath());
+      error.addProperty("path", path.absolutePath());
       return error;
    }
    
    // attempt to chown to the same user id--this method of clearing the 
    // cache has the fewest side effects (but isn't guaranteed to succeed for
    // permissions-related reasons)
-   if (::chown(
-      path.getAbsolutePath().c_str(), pSt->st_uid,
+   if (::chown(path.absolutePath().c_str(), pSt->st_uid,
                static_cast<gid_t>(-1)) != 0)
    {
       // failed, fall back on open/closing the file (note that this drops other
       // fcntl locks this process holds for the file so isn't our first choice)
-      int fd = ::open(path.getAbsolutePath().c_str(), O_RDONLY);
+      int fd = ::open(path.absolutePath().c_str(), O_RDONLY); 
       if (fd == -1) 
          return core::Success();
       int result = ::close(fd);
@@ -65,7 +64,7 @@ core::Error statWithCacheClear(const core::FilePath& path,
    }
  
    // we've successfully busted the cache, get the updated attributes
-   if (::stat(path.getAbsolutePath().c_str(), pSt) == 0)
+   if (::stat(path.absolutePath().c_str(), pSt) == 0)
    {
       if (pCleared)
          *pCleared = true;

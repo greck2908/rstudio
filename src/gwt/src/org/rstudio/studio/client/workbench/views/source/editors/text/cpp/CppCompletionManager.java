@@ -1,7 +1,7 @@
 /*
  * CppCompletionManager.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,7 +23,8 @@ import org.rstudio.core.client.command.KeyboardHelper;
 import org.rstudio.core.client.command.KeyboardShortcut;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.common.filetypes.FileTypeRegistry;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefsAccessor;
 import org.rstudio.studio.client.workbench.snippets.SnippetHelper;
 import org.rstudio.studio.client.workbench.views.console.shell.assist.CompletionManager;
 import org.rstudio.studio.client.workbench.views.console.shell.assist.CompletionUtils;
@@ -51,7 +52,7 @@ public class CppCompletionManager implements CompletionManager
    {
       hideCompletionPopup();
    }
-
+   
    public CppCompletionManager(DocDisplay docDisplay,
                                InitCompletionFilter initFilter,
                                CppCompletionContext completionContext)
@@ -62,7 +63,7 @@ public class CppCompletionManager implements CompletionManager
       completionContext_ = completionContext;
       snippets_ = new SnippetHelper((AceEditor) docDisplay_, completionContext.getDocPath());
       handlers_ = new HandlerRegistrations();
-
+      
       handlers_.add(docDisplay_.addClickHandler(new ClickHandler()
       {
          public void onClick(ClickEvent event)
@@ -71,39 +72,39 @@ public class CppCompletionManager implements CompletionManager
          }
       }));
    }
-
+ 
    @Inject
-   void initialize(CppServerOperations server,
+   void initialize(CppServerOperations server, 
                    FileTypeRegistry fileTypeRegistry,
-                   UserPrefs uiPrefs)
+                   UIPrefs uiPrefs)
    {
       server_ = server;
       fileTypeRegistry_ = fileTypeRegistry;
-      userPrefs_ = uiPrefs;
-      suggestionTimer_ = new SuggestionTimer(this, userPrefs_);
+      uiPrefs_ = uiPrefs;
+      suggestionTimer_ = new SuggestionTimer(this, uiPrefs_);
    }
-
+   
    // close the completion popup (if any)
    @Override
    public void close()
    {
       terminateCompletionRequest();
    }
-
+   
    @Override
    public void detach()
    {
       handlers_.removeHandler();
       snippets_.detach();
    }
-
+   
    // perform completion at the current cursor location
    @Override
    public void codeCompletion()
    {
       if (shouldComplete(null))
       {
-         suggestCompletions(true);
+         suggestCompletions(true); 
       }
    }
 
@@ -113,22 +114,22 @@ public class CppCompletionManager implements CompletionManager
    {
       // no implementation here yet since we don't have access
       // to C/C++ help (we could implement this via using libclang
-      // to parse doxygen though)
+      // to parse doxygen though)   
    }
 
    // find the definition of the function at the current cursor location
    @Override
    public void goToDefinition()
-   {
+   {  
       completionContext_.cppCompletionOperation(new CppCompletionOperation(){
 
          @Override
          public void execute(String docPath, int line, int column)
          {
             server_.goToCppDefinition(
-                  docPath,
-                  line,
-                  column,
+                  docPath, 
+                  line, 
+                  column, 
                   new CppCompletionServerRequestCallback<CppSourceLocation>(
                         "Finding definition...") {
                      @Override
@@ -136,8 +137,8 @@ public class CppCompletionManager implements CompletionManager
                      {
                         if (loc != null)
                         {
-                           fileTypeRegistry_.editFile(loc.getFile(),
-                                 loc.getPosition());
+                           fileTypeRegistry_.editFile(loc.getFile(), 
+                                 loc.getPosition());  
                         }
                      }
                   });
@@ -145,22 +146,22 @@ public class CppCompletionManager implements CompletionManager
 
       });
    }
-
+  
    // return false to indicate key not handled
    @Override
    public boolean previewKeyDown(NativeEvent event)
    {
       suggestionTimer_.cancel();
-
-      // if there is no completion request active then
-      // check for a key-combo that triggers completion or
+      
+      // if there is no completion request active then 
+      // check for a key-combo that triggers completion or 
       // navigation / help
       int modifier = KeyboardShortcut.getModifierValue(event);
       if ((request_ == null) || request_.isTerminated())
-      {
-         // check for user completion key combo
+      {  
+         // check for user completion key combo 
          if (CompletionUtils.isCompletionRequest(event, modifier) &&
-             shouldComplete(event))
+             shouldComplete(event)) 
          {
             return suggestCompletions(true);
          }
@@ -169,13 +170,13 @@ public class CppCompletionManager implements CompletionManager
          {
             return snippets_.attemptSnippetInsertion(true);
          }
-         else if (event.getKeyCode() == KeyCodes.KEY_F1
+         else if (event.getKeyCode() == 112 // F1
                   && modifier == KeyboardShortcut.NONE)
          {
             goToHelp();
             return true;
          }
-         else if (event.getKeyCode() == KeyCodes.KEY_F2
+         else if (event.getKeyCode() == 113 // F2
                   && modifier == KeyboardShortcut.NONE)
          {
             goToDefinition();
@@ -188,19 +189,19 @@ public class CppCompletionManager implements CompletionManager
       }
       // otherwise handle keys within the completion popup
       else
-      {
+      {   
          // get the key code
          int keyCode = event.getKeyCode();
-
+         
          // bail on modifier keys
          if (KeyboardHelper.isModifierKey(keyCode))
             return false;
-
+         
          // if there is no popup then bail
          CppCompletionPopupMenu popup = getCompletionPopup();
          if ((popup == null) || !popup.isVisible())
             return false;
-
+         
          // allow emacs-style navigation of popup entries
          if (modifier == KeyboardShortcut.CTRL)
          {
@@ -210,38 +211,38 @@ public class CppCompletionManager implements CompletionManager
             case KeyCodes.KEY_N: return popup.selectNext();
             }
          }
-
+             
          // backspace triggers completion if the popup is visible
          if (keyCode == KeyCodes.KEY_BACKSPACE)
          {
             deferredSuggestCompletions(false, false);
             return false;
          }
-
+         
          // tab accepts the current selection (popup handles Enter)
          else if (keyCode == KeyCodes.KEY_TAB)
          {
             popup.acceptSelected();
             return true;
          }
-
+         
          // allow '.' when showing file completions
          else if (popup.getCompletionPosition().getScope() == CompletionPosition.Scope.File &&
                   KeyboardHelper.isPeriodKeycode(keyCode))
          {
             return false;
          }
-
+         
          // non c++ identifier keys (that aren't navigational) close the popup
          else if (!CppCompletionUtils.isCppIdentifierKey(event))
          {
             terminateCompletionRequest();
             return false;
          }
-
+         
          // otherwise leave it alone
          else
-         {
+         {   
             return false;
          }
       }
@@ -255,7 +256,7 @@ public class CppCompletionManager implements CompletionManager
 
       // don't do implicit completions if the user has set completion to manual
       // (but always do them if the completion popup is visible)
-      if (userPrefs_.codeCompletion().getValue() != UserPrefs.CODE_COMPLETION_MANUAL ||
+      if (uiPrefs_.codeComplete().getValue() != UIPrefsAccessor.COMPLETION_MANUAL ||
             isCompletionPopupVisible())
       {
          deferredSuggestCompletions(false, true);
@@ -263,56 +264,56 @@ public class CppCompletionManager implements CompletionManager
 
       return false;
    }
-
-   private void deferredSuggestCompletions(final boolean explicit,
+   
+   private void deferredSuggestCompletions(final boolean explicit, 
                                            final boolean canDelay)
    {
       Scheduler.get().scheduleDeferred(new ScheduledCommand() {
          @Override
          public void execute()
          {
-            suggestCompletions(explicit, canDelay);
+            suggestCompletions(explicit, canDelay);  
          }
       });
    }
-
+   
    private boolean suggestCompletions(final boolean explicit)
    {
       return suggestCompletions(explicit, false);
    }
-
+   
    private boolean suggestCompletions(final boolean explicit, boolean canDelay)
    {
       suggestionTimer_.cancel();
-
+      
       // check for completions disabled
       if (!completionContext_.isCompletionEnabled())
          return false;
-
+      
       // check for no selection
-      InputEditorSelection selection = docDisplay_.getSelection();
+      InputEditorSelection selection = docDisplay_.getSelection() ;
       if (selection == null)
          return false;
-
+      
       // check for contiguous selection
       if (!docDisplay_.isSelectionCollapsed())
-         return false;
-
-      // calculate explicit value for getting completion position (if a
+         return false;    
+  
+      // calculate explicit value for getting completion position (if a 
       // previous request was explicit then count this as explicit)
-      boolean positionExplicit = explicit ||
+      boolean positionExplicit = explicit || 
                                  ((request_ != null) && request_.isExplicit());
-
+      
       // see if we even have a completion position
-      boolean alwaysComplete = userPrefs_.codeCompletion().getValue() ==
-                                            UserPrefs.CODE_COMPLETION_ALWAYS;
-      int autoChars = userPrefs_.codeCompletionCharacters().getValue();
-      final CompletionPosition completionPosition =
+      boolean alwaysComplete = uiPrefs_.codeComplete().getValue() ==
+                                            UIPrefsAccessor.COMPLETION_ALWAYS;
+      int autoChars = uiPrefs_.alwaysCompleteCharacters().getValue();
+      final CompletionPosition completionPosition = 
             CppCompletionUtils.getCompletionPosition(docDisplay_,
                                                      positionExplicit,
                                                      alwaysComplete,
                                                      autoChars);
-
+      
       if (completionPosition == null)
       {
          terminateCompletionRequest();
@@ -324,7 +325,7 @@ public class CppCompletionManager implements CompletionManager
       {
          request_.updateUI(false);
       }
-      else if (canDelay &&
+      else if (canDelay && 
                completionPosition.getScope() == CompletionPosition.Scope.Global)
       {
          suggestionTimer_.schedule(completionPosition);
@@ -333,18 +334,18 @@ public class CppCompletionManager implements CompletionManager
       {
          performCompletionRequest(completionPosition, explicit);
       }
-
+      
       return true;
    }
 
    private void performCompletionRequest(
          final CompletionPosition completionPosition, final boolean explicit)
-   {
+   {  
       terminateCompletionRequest();
-
-      final Invalidation.Token invalidationToken =
+      
+      final Invalidation.Token invalidationToken = 
             completionRequestInvalidation_.getInvalidationToken();
-
+      
       completionContext_.withUpdatedDoc(new CommandWith2Args<String, String>() {
 
          @Override
@@ -352,7 +353,7 @@ public class CppCompletionManager implements CompletionManager
          {
             if (invalidationToken.isInvalid())
                return;
-
+            
             request_ = new CppCompletionRequest(
                docPath,
                docId,
@@ -371,13 +372,13 @@ public class CppCompletionManager implements CompletionManager
          }
       });
    }
-
+   
    private static class SuggestionTimer
    {
-      SuggestionTimer(CppCompletionManager manager, UserPrefs uiPrefs)
+      SuggestionTimer(CppCompletionManager manager, UIPrefs uiPrefs)
       {
          manager_ = manager;
-         userPrefs_ = uiPrefs;
+         uiPrefs_ = uiPrefs;
          timer_ = new Timer()
          {
             @Override
@@ -387,45 +388,45 @@ public class CppCompletionManager implements CompletionManager
             }
          };
       }
-
+      
       public void schedule(CompletionPosition completionPosition)
       {
          completionPosition_ = completionPosition;
-         timer_.schedule(userPrefs_.codeCompletionDelay().getValue());
+         timer_.schedule(uiPrefs_.alwaysCompleteDelayMs().getValue());
       }
-
+      
       public void cancel()
       {
          timer_.cancel();
       }
-
+      
       private final CppCompletionManager manager_;
-      private final UserPrefs userPrefs_;
+      private final UIPrefs uiPrefs_;
       private final Timer timer_;
       private CompletionPosition completionPosition_;
    }
-
-
+   
+     
    private CppCompletionPopupMenu getCompletionPopup()
    {
       CppCompletionPopupMenu popup = request_ != null ?
             request_.getCompletionPopup() : null;
       return popup;
    }
-
+   
    private void hideCompletionPopup()
    {
       CppCompletionPopupMenu popup = getCompletionPopup();
       if (popup != null)
          popup.hide();
    }
-
+   
    private boolean isCompletionPopupVisible()
    {
       CppCompletionPopupMenu popup = getCompletionPopup();
       return (popup != null) && popup.isVisible();
    }
-
+   
    private void terminateCompletionRequest()
    {
       suggestionTimer_.cancel();
@@ -441,19 +442,19 @@ public class CppCompletionManager implements CompletionManager
    {
       return initFilter_ == null || initFilter_.shouldComplete(event);
    }
-
+   
    private CppServerOperations server_;
-   private UserPrefs userPrefs_;
+   private UIPrefs uiPrefs_;
    private FileTypeRegistry fileTypeRegistry_;
    private final DocDisplay docDisplay_;
    private final CppCompletionContext completionContext_;
    private CppCompletionRequest request_;
    private SuggestionTimer suggestionTimer_;
-   private final InitCompletionFilter initFilter_;
+   private final InitCompletionFilter initFilter_ ;
    private final Invalidation completionRequestInvalidation_ = new Invalidation();
    private final SnippetHelper snippets_;
-
+   
    private final HandlerRegistrations handlers_;
-
+  
 
 }

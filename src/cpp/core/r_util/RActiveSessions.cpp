@@ -1,7 +1,7 @@
 /*
  * RActiveSessions.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -41,7 +41,7 @@ namespace {
 void ActiveSession::writeProperty(const std::string& name,
                                  const std::string& value) const
 {
-   FilePath propertyFile = propertiesPath_.completeChildPath(name);
+   FilePath propertyFile = propertiesPath_.childPath(name);
    Error error = core::writeStringToFile(propertyFile, value);
    if (error)
       LOG_ERROR(error);
@@ -50,7 +50,7 @@ void ActiveSession::writeProperty(const std::string& name,
 std::string ActiveSession::readProperty(const std::string& name) const
 {
    using namespace rstudio::core;
-   FilePath readPath = propertiesPath_.completeChildPath(name);
+   FilePath readPath = propertiesPath_.childPath(name);
    if (readPath.exists())
    {
       std::string value;
@@ -79,7 +79,7 @@ Error ActiveSessions::create(const std::string& project,
    while (id.empty())
    {
       std::string candidateId = core::r_util::generateScopeId();
-      dir = storagePath_.completeChildPath(kSessionDirPrefix + candidateId);
+      dir = storagePath_.childPath(kSessionDirPrefix + candidateId);
       if (!dir.exists())
          id = candidateId;
    }
@@ -97,11 +97,8 @@ Error ActiveSessions::create(const std::string& project,
    activeSession.setLastUsed();
    activeSession.setRunning(false);
 
-   // return the id if requested
-   if (pId != nullptr)
-   {
-      *pId = id;
-   }
+   // return the id
+   *pId = id;
    return Success();
 }
 
@@ -110,7 +107,28 @@ namespace {
 bool compareActivityLevel(boost::shared_ptr<ActiveSession> a,
                           boost::shared_ptr<ActiveSession> b)
 {
-   return *a > *b;
+   if (a->executing() == b->executing())
+   {
+      if (a->running() == b->running())
+      {
+         if (a->lastUsed() == b->lastUsed())
+         {
+            return a->id() > b->id();
+         }
+         else
+         {
+            return a->lastUsed() > b->lastUsed();
+         }
+      }
+      else
+      {
+         return a->running();
+      }
+   }
+   else
+   {
+      return a->executing();
+   }
 }
 
 } // anonymous namespace
@@ -124,7 +142,7 @@ std::vector<boost::shared_ptr<ActiveSession> > ActiveSessions::list(
 
    // enumerate children and check for sessions
    std::vector<FilePath> children;
-   Error error = storagePath_.getChildren(children);
+   Error error = storagePath_.children(&children);
    if (error)
    {
       LOG_ERROR(error);
@@ -133,18 +151,14 @@ std::vector<boost::shared_ptr<ActiveSession> > ActiveSessions::list(
    std::string prefix = kSessionDirPrefix;
    for (const FilePath& child : children)
    {
-      if (boost::algorithm::starts_with(child.getFilename(), prefix))
+      if (boost::algorithm::starts_with(child.filename(), prefix))
       {
-         std::string id = child.getFilename().substr(prefix.length());
+         std::string id = child.filename().substr(prefix.length());
          boost::shared_ptr<ActiveSession> pSession = get(id);
          if (!pSession->empty())
          {
             if (pSession->validate(userHomePath, projectSharingEnabled))
             {
-               // Cache the sort conditions to ensure compareActivityLevel will provide a strict weak ordering.
-               // Otherwise, the conditions on which we sort (e.g. lastUsed()) can be updated on disk during a sort
-               // causing an occasional segfault.
-               pSession->cacheSortConditions();
                sessions.push_back(pSession);
             }
             else
@@ -177,7 +191,7 @@ size_t ActiveSessions::count(const FilePath& userHomePath,
 
 boost::shared_ptr<ActiveSession> ActiveSessions::get(const std::string& id) const
 {
-   FilePath scratchPath = storagePath_.completeChildPath(kSessionDirPrefix + id);
+   FilePath scratchPath = storagePath_.childPath(kSessionDirPrefix + id);
    if (scratchPath.exists())
       return boost::shared_ptr<ActiveSession>(new ActiveSession(id,
                                                                 scratchPath));
@@ -203,7 +217,7 @@ GlobalActiveSessions::list() const
       return sessions; // no active sessions exist
 
    std::vector<FilePath> sessionFiles;
-   Error error = activeSessionsDir.getChildren(sessionFiles);
+   Error error = activeSessionsDir.children(&sessionFiles);
    if (error)
    {
       LOG_ERROR(error);
@@ -221,7 +235,7 @@ GlobalActiveSessions::list() const
 boost::shared_ptr<GlobalActiveSession>
 GlobalActiveSessions::get(const std::string& id) const
 {
-   FilePath sessionFile = rootPath_.completeChildPath(id);
+   FilePath sessionFile = rootPath_.childPath(id);
    if (!sessionFile.exists())
       return boost::shared_ptr<GlobalActiveSession>();
 

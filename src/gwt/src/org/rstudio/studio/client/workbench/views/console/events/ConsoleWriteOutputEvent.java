@@ -1,7 +1,7 @@
 /*
  * ConsoleWriteOutputEvent.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,20 +14,15 @@
  */
 package org.rstudio.studio.client.workbench.views.console.events;
 
-import com.google.gwt.event.shared.EventHandler;
 import org.rstudio.studio.client.workbench.views.console.model.ConsoleText;
 
 import com.google.gwt.event.shared.GwtEvent;
 
-public class ConsoleWriteOutputEvent extends GwtEvent<ConsoleWriteOutputEvent.Handler>
+public class ConsoleWriteOutputEvent extends GwtEvent<ConsoleWriteOutputHandler>
 {
-   public static final Type<Handler> TYPE = new Type<>();
-
-   public interface Handler extends EventHandler
-   {
-      void onConsoleWriteOutput(ConsoleWriteOutputEvent event);
-   }
-
+   public static final GwtEvent.Type<ConsoleWriteOutputHandler> TYPE =
+      new GwtEvent.Type<ConsoleWriteOutputHandler>();
+   
    public ConsoleWriteOutputEvent(ConsoleText output)
    {
       output_ = output;
@@ -44,13 +39,13 @@ public class ConsoleWriteOutputEvent extends GwtEvent<ConsoleWriteOutputEvent.Ha
    }
    
    @Override
-   protected void dispatch(Handler handler)
+   protected void dispatch(ConsoleWriteOutputHandler handler)
    {
       handler.onConsoleWriteOutput(this);
    }
 
    @Override
-   public Type<Handler> getAssociatedType()
+   public GwtEvent.Type<ConsoleWriteOutputHandler> getAssociatedType()
    {
       return TYPE;
    }

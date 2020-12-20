@@ -1,7 +1,7 @@
 /*
  * RExec.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,7 +16,7 @@
 #define R_INTERNAL_FUNCTIONS
 #include <r/RExec.hpp>
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/Log.hpp>
 #include <core/StringUtils.hpp>
 #include <core/system/Environment.hpp>
@@ -39,7 +39,7 @@ LibExtern int UserBreak;
 #endif
 }
 
-using namespace rstudio::core;
+using namespace rstudio::core ;
 
 namespace rstudio {
 namespace r {
@@ -47,8 +47,6 @@ namespace r {
 namespace exec {
    
 namespace {
-
-bool s_wasInterrupted;
 
 // create a scope for disabling any installed error handlers (e.g. recover)
 // we need to do this so that recover isn't invoked while we are running
@@ -108,7 +106,7 @@ Error parseString(const std::string& str, SEXP* pSEXP, sexp::Protect* pProtect)
    {
       Error error(errc::ExpressionParsingError, ERROR_LOCATION);
       error.addProperty("code", str);
-      return error;
+      return error;      
    }
    else
    {
@@ -125,56 +123,43 @@ enum EvalType {
    EvalDirect  // use Rf_eval directly
 };
 Error evaluateExpressionsUnsafe(SEXP expr,
-                                SEXP envir,
+                                SEXP env,
                                 SEXP* pSEXP,
                                 sexp::Protect* pProtect,
                                 EvalType evalType)
 {
-   // detect if an error occurred (only relevant for EvalTry)
-   int errorOccurred = 0;
+   int er=0;
+   int i=0,l;
    
    // if we have an entire expression list, evaluate its contents one-by-one 
    // and return only the last one
-   if (TYPEOF(expr) == EXPRSXP) 
+   if (TYPEOF(expr)==EXPRSXP) 
    {
-      DisableDebugScope disableStepInto(envir);
-
-      for (int i = 0, n = LENGTH(expr); i < n; i++)
+      DisableDebugScope disableStepInto(env);
+      l = LENGTH(expr);
+      while (i<l) 
       {
          if (evalType == EvalTry)
-         {
-            SEXP result = R_tryEval(VECTOR_ELT(expr, i), envir, &errorOccurred);
-            if (errorOccurred == 0)
-               *pSEXP = result;
-         }
+            *pSEXP = R_tryEval(VECTOR_ELT(expr, i), env, &er);
          else
-         {
-            *pSEXP = Rf_eval(VECTOR_ELT(expr, i), envir);
-         }
+            *pSEXP = Rf_eval(VECTOR_ELT(expr, i), env);
+         i++;
       }
-   }
-   
-   // otherwise, evaluate a single expression / call
+   } 
+   // evaluate single expression
    else
    {
-      DisableDebugScope disableStepInto(envir);
-      
+      DisableDebugScope disableStepInto(R_GlobalEnv);
       if (evalType == EvalTry)
-      {
-         SEXP result = R_tryEval(expr, envir, &errorOccurred);
-         if (errorOccurred == 0)
-            *pSEXP = result;
-      }
+         *pSEXP = R_tryEval(expr, R_GlobalEnv, &er);
       else
-      {
-         *pSEXP = Rf_eval(expr, envir);
-      }
+         *pSEXP = Rf_eval(expr, R_GlobalEnv);
    }
    
    // protect the result
    pProtect->add(*pSEXP);
    
-   if (errorOccurred)
+   if (er)
    {
       // get error message -- note this results in a recursive call to
       // evaluate expressions during the fetching of the error. if this 
@@ -216,8 +201,8 @@ void topLevelExec(void *data)
 struct SEXPTopLevelExecContext
 {
    boost::function<SEXP()> function;
-   SEXP* pReturnSEXP;
-};
+   SEXP* pReturnSEXP ;
+};  
    
 void SEXPTopLevelExec(void *data)
 {
@@ -250,9 +235,9 @@ core::Error executeSafely(boost::function<SEXP()> function, SEXP* pSEXP)
    DisableErrorHandlerScope disableErrorHandler;
    DisableDebugScope disableStepInto(R_GlobalEnv);
 
-   SEXPTopLevelExecContext context;
-   context.function = function;
-   context.pReturnSEXP = pSEXP;
+   SEXPTopLevelExecContext context ;
+   context.function = function ;
+   context.pReturnSEXP = pSEXP ;
    Rboolean success = R_ToplevelExec(SEXPTopLevelExec, (void*)&context);
    if (!success)
    {
@@ -287,27 +272,19 @@ Error executeStringUnsafe(const std::string& str,
 Error executeString(const std::string& str)
 {
    sexp::Protect rProtect;
-   SEXP ignoredSEXP;
+   SEXP ignoredSEXP ;
    return evaluateString(str, &ignoredSEXP, &rProtect);
 }
    
 Error evaluateString(const std::string& str, 
                      SEXP* pSEXP, 
-                     sexp::Protect* pProtect,
-                     EvalFlags flags)
+                     sexp::Protect* pProtect)
 {
    // refresh source if necessary (no-op in production)
    r::sourceManager().reloadIfNecessary();
    
-   // surround the string with try in silent mode so we can capture error text
-   std::string rCode = "base::try(" + str + ", silent = TRUE)";
-   
-   // suppress warnings if requested
-   if (flags & EvalFlagsSuppressWarnings)
-      rCode = "base::suppressWarnings(" + rCode + ")";
-   
-   if (flags & EvalFlagsSuppressMessages)
-      rCode = "base::suppressMessages(" + rCode + ")";
+   // surrond the string with try in silent mode so we can capture error text
+   std::string rCode = "base::try(" + str + ", TRUE)";
 
    // parse expression
    SEXP ps;
@@ -328,7 +305,7 @@ Error evaluateString(const std::string& str,
    {
       // get error message (merely log on failure so we can continue
       // and return the real error)
-      std::string errorMsg;
+      std::string errorMsg ;
       Error extractError = sexp::extract(*pSEXP, &errorMsg);
       if (extractError)
          LOG_ERROR(extractError);
@@ -376,7 +353,7 @@ void RFunction::commonInit(const std::string& functionName)
    }
    else
    {
-      name = functionName_;
+      name = functionName_; 
    }
    
    // lookup function
@@ -393,7 +370,7 @@ Error RFunction::callUnsafe()
 Error RFunction::call(SEXP evalNS, bool safely)
 {
    sexp::Protect rProtect;
-   SEXP ignoredResultSEXP;
+   SEXP ignoredResultSEXP ;
    return call(evalNS, safely, &ignoredResultSEXP, &rProtect);
 }
 
@@ -421,7 +398,7 @@ Error RFunction::call(SEXP evalNS, bool safely, SEXP* pResultSEXP,
    }
    
    // create the call object (LANGSXP) with the correct number of elements
-   SEXP callSEXP;
+   SEXP callSEXP ;
    pProtect->add(callSEXP = Rf_allocVector(LANGSXP, 1 + params_.size()));
    SET_TAG(callSEXP, R_NilValue); // just like do_ascall() does 
    
@@ -454,11 +431,11 @@ Error RFunction::call(SEXP evalNS, bool safely, SEXP* pResultSEXP,
 
 FilePath rBinaryPath()
 {
-   FilePath binPath = FilePath(R_HomeDir()).completePath("bin");
+   FilePath binPath = FilePath(R_HomeDir()).complete("bin");
 #ifdef _WIN32
-   return binPath.completePath("Rterm.exe");
+   return binPath.complete("Rterm.exe");
 #else
-   return binPath.completePath("R");
+   return binPath.complete("R");
 #endif
 }
    
@@ -473,7 +450,7 @@ Error system(const std::string& command, std::string* pOutput)
    if (error)
    {
       // if it is NoDataAvailable this means empty output
-      if (error == r::errc::NoDataAvailableError)
+      if (error.code() == r::errc::NoDataAvailableError)
       {
          pOutput->clear();
          return Success();
@@ -492,27 +469,27 @@ Error system(const std::string& command, std::string* pOutput)
 
 void error(const std::string& message)   
 {
-   Rf_error("%s", message.c_str());
+   Rf_error(message.c_str());
 }
 
 void errorCall(SEXP call, const std::string& message)
 {
-   Rf_errorcall(call, "%s", message.c_str());
+   Rf_errorcall(call, message.c_str());
 }
    
 std::string getErrorMessage()
 {
-   std::string errMessage;
+   std::string errMessage ;
    Error callError = RFunction("geterrmessage").call(&errMessage);
    if (callError)
-      LOG_ERROR(callError);
+      LOG_ERROR(callError);   
    return errMessage;
 }
    
 
 void warning(const std::string& warning)
 {
-   Rf_warning("%s", warning.c_str());
+   Rf_warning(warning.c_str());
 }
 
 void message(const std::string& message)
@@ -533,8 +510,6 @@ bool interruptsPending()
    
 void setInterruptsPending(bool pending)
 {
-   setWasInterrupted(pending);
-   
 #ifdef _WIN32
    UserBreak = pending ? 1 : 0;
 #else
@@ -544,7 +519,7 @@ void setInterruptsPending(bool pending)
 
 void checkUserInterrupt()
 {   
-   R_CheckUserInterrupt();
+   R_CheckUserInterrupt();  
 }
    
 IgnoreInterruptsScope::IgnoreInterruptsScope()
@@ -613,15 +588,6 @@ DisableDebugScope::~DisableDebugScope()
    }
 }
 
-bool getWasInterrupted()
-{
-   return s_wasInterrupted;
-}
-
-void setWasInterrupted(bool wasInterrupted)
-{
-   s_wasInterrupted = wasInterrupted;
-}
 
 } // namespace exec   
 } // namespace r

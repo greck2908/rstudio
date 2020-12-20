@@ -1,7 +1,7 @@
 /*
  * ProjectPopupMenu.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,7 +14,6 @@
  */
 package org.rstudio.studio.client.application.ui;
 
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.command.AppCommand;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.theme.res.ThemeResources;
@@ -38,6 +37,7 @@ import org.rstudio.studio.client.workbench.model.SessionInfo;
 
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.JsArray;
+import com.google.gwt.core.client.Scheduler;
 import com.google.gwt.dom.client.Document;
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.resources.client.ClientBundle;
@@ -49,19 +49,11 @@ import com.google.inject.Inject;
 
 public class ProjectPopupMenu extends ToolbarPopupMenu
 {
-   /**
-    *
-    * @param sessionInfo
-    * @param commands
-    * @param instance suffix appended to element identifier to disambiguate multiple
-    *                 instances of this control in the UI
-    */
-   public ProjectPopupMenu(SessionInfo sessionInfo, Commands commands, String instance)
+   public ProjectPopupMenu(SessionInfo sessionInfo, Commands commands)
    {
       RStudioGinjector.INSTANCE.injectMembers(this);
       
       commands_ = commands;
-      instance_ = instance;
       
       activeProjectFile_ = sessionInfo.getActiveProjectFile();
    }
@@ -76,7 +68,8 @@ public class ProjectPopupMenu extends ToolbarPopupMenu
       server_ = server;
       events_ = events;
       mruList_ = mruList;
-      allowSharedProjects_ = session.getSessionInfo().getAllowOpenSharedProjects();
+      allowSharedProjects_ = 
+            session.getSessionInfo().getAllowOpenSharedProjects();
       editionInfo_ = editionInfo;
    }
    
@@ -94,18 +87,14 @@ public class ProjectPopupMenu extends ToolbarPopupMenu
                 new ImageResource2x(RESOURCES.projectMenu2x()),
                 this, 
                 true);
-         ElementIds.assignElementId(toolbarButton_, ElementIds.PROJECT_MENUBUTTON + "_" + instance_);
-
+          
          if (activeProjectFile_ != null)
          {
             toolbarButton_.setTitle(activeProjectFile_);
           
             // also set the doc title so the browser tab carries the project
             if (!Desktop.isDesktop())
-            {
-               // put project title first so it isn't cut off when there are many tabs
-               Document.get().setTitle(buttonText + " \u00b7 " + editionInfo_.editionName());
-            }
+               Document.get().setTitle(editionInfo_.editionName() + " - " + buttonText);
          }
         
           if (activeProjectFile_ == null)
@@ -260,10 +249,16 @@ public class ProjectPopupMenu extends ToolbarPopupMenu
                   null, details.getName(), false, null, 
                   commands_.openHtmlExternal().getImageResource(), 
                   ProjectMRUList.NEW_SESSION_DESC);
-            addItem(new MenuItem(menuHtml, true, () ->
-            {
-               ProjectMRUList.openProjectFromMru(events_, details.getProjectFile());
-            }));
+            addItem(new MenuItem(menuHtml, true,
+                  new Scheduler.ScheduledCommand()
+                  {
+                     @Override
+                     public void execute()
+                     {
+                        ProjectMRUList.openProjectFromMru(events_, 
+                              details.getProjectFile());
+                     }
+                  }));
          }
          
          // if there are more shared projects on the server than those we 
@@ -282,15 +277,15 @@ public class ProjectPopupMenu extends ToolbarPopupMenu
       callback.onPopupMenu(this);
    }
 
-   private static final Resources RESOURCES = GWT.create(Resources.class);
+   private static final Resources RESOURCES =  
+                              (Resources) GWT.create(Resources.class);
    private static final int MAX_SHARED_PROJECTS = 5;
    private static final int MAX_MRU_ENTRIES = 10;
    private final String activeProjectFile_;
    private ToolbarMenuButton toolbarButton_ = null;
 
    private ProjectMRUList mruList_;
-   private final Commands commands_;
-   private final String instance_;
+   private Commands commands_;
    private EventBus events_;
    private ProjectsServerOperations server_;
    private boolean allowSharedProjects_ = false;

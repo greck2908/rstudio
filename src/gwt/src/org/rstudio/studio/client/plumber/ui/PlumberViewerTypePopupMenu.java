@@ -1,7 +1,7 @@
 /*
  * PlumberViewerTypePopupMenu.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,13 +14,12 @@
  */
 package org.rstudio.studio.client.plumber.ui;
 
-import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.widget.ToolbarPopupMenu;
 import org.rstudio.studio.client.common.plumber.model.PlumberServerOperations;
+import org.rstudio.studio.client.plumber.model.PlumberViewerType;
 import org.rstudio.studio.client.server.ServerError;
 import org.rstudio.studio.client.server.ServerRequestCallback;
 import org.rstudio.studio.client.workbench.commands.Commands;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 
 import com.google.inject.Inject;
 
@@ -46,19 +45,20 @@ public class PlumberViewerTypePopupMenu extends ToolbarPopupMenu
    {
       final ToolbarPopupMenu menu = this;
       server_.getPlumberViewerType(
-            new ServerRequestCallback<String>()
+            new ServerRequestCallback<PlumberViewerType>()
             {
                @Override
-               public void onResponseReceived(String viewerType)
+               public void onResponseReceived(PlumberViewerType response)
                {
+                  int viewerType = response.getViewerType();
                   commands_.plumberRunInPane().setChecked(false);
                   commands_.plumberRunInViewer().setChecked(false);
                   commands_.plumberRunInBrowser().setChecked(false);
-                  if (StringUtil.equals(viewerType, UserPrefs.PLUMBER_VIEWER_TYPE_PANE))
+                  if (PlumberViewerType.PLUMBER_VIEWER_PANE == viewerType)
                      commands_.plumberRunInPane().setChecked(true);
-                  if (StringUtil.equals(viewerType, UserPrefs.PLUMBER_VIEWER_TYPE_WINDOW))
+                  if (PlumberViewerType.PLUMBER_VIEWER_WINDOW == viewerType)
                      commands_.plumberRunInViewer().setChecked(true);
-                  if (StringUtil.equals(viewerType, UserPrefs.PLUMBER_VIEWER_TYPE_BROWSER))
+                  if (PlumberViewerType.PLUMBER_VIEWER_BROWSER == viewerType)
                      commands_.plumberRunInBrowser().setChecked(true);
                   callback.onPopupMenu(menu);
                }

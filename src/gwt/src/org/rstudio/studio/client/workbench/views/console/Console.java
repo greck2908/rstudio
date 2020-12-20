@@ -1,7 +1,7 @@
 /*
  * Console.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -27,11 +27,14 @@ import org.rstudio.core.client.widget.FocusContext;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.events.BusyEvent;
+import org.rstudio.studio.client.workbench.events.BusyHandler;
 import org.rstudio.studio.client.workbench.events.ZoomPaneEvent;
 import org.rstudio.studio.client.workbench.views.console.ConsolePane.ConsoleMode;
 import org.rstudio.studio.client.workbench.views.console.events.ConsoleActivateEvent;
 import org.rstudio.studio.client.workbench.views.console.events.ConsolePromptEvent;
+import org.rstudio.studio.client.workbench.views.console.events.ConsolePromptHandler;
 import org.rstudio.studio.client.workbench.views.console.events.SendToConsoleEvent;
+import org.rstudio.studio.client.workbench.views.console.events.SendToConsoleHandler;
 import org.rstudio.studio.client.workbench.views.environment.events.DebugModeChangedEvent;
 import org.rstudio.studio.client.workbench.views.jobs.events.JobProgressEvent;
 import org.rstudio.studio.client.workbench.views.jobs.model.LocalJobProgress;
@@ -54,62 +57,93 @@ public class Console
       ConsolePane.ConsoleMode mode();
       void showProgress(LocalJobProgress progress);
    }
-
+   
    @Inject
    public Console(final Display view, EventBus events, Commands commands)
-   {
+   {    
       view_ = view;
       events_ = events;
 
-      events.addHandler(SendToConsoleEvent.TYPE, event ->
+      events.addHandler(SendToConsoleEvent.TYPE, new SendToConsoleHandler()
       {
-         if (event.shouldRaise())
-            view.bringToFront();
+         public void onSendToConsole(SendToConsoleEvent event)
+         {
+            if (event.shouldRaise())
+               view.bringToFront();
+         }
       });
 
       ((Binder) GWT.create(Binder.class)).bind(commands, this);
 
       interruptFadeInHelper_ = new DelayFadeInHelper(
             view_.getConsoleInterruptButton().asWidget());
-      events.addHandler(BusyEvent.TYPE, event ->
+      events.addHandler(BusyEvent.TYPE, new BusyHandler()
       {
-         if (event.isBusy())
+         @Override
+         public void onBusy(BusyEvent event)
          {
-            interruptFadeInHelper_.beginShow();
+            if (event.isBusy())
+            {
+               interruptFadeInHelper_.beginShow();
+            }
          }
       });
-
+      
       profilerFadeInHelper_ = new DelayFadeInHelper(
             view_.getProfilerInterruptButton().asWidget());
-      events.addHandler(RprofEvent.TYPE, event ->
+      events.addHandler(RprofEvent.TYPE, new RprofEvent.Handler()
       {
-         switch (event.getEventType())
+         @Override
+         public void onRprofEvent(RprofEvent event)
          {
-            case START:
-               view.enterMode(ConsoleMode.Profiler);
-               profilerFadeInHelper_.beginShow();
-               break;
-            case STOP:
-               view.leaveMode(ConsoleMode.Profiler);
-               profilerFadeInHelper_.hide();
-               break;
-            default:
-               break;
+            switch (event.getEventType())
+            {
+               case START:
+                  view.enterMode(ConsoleMode.Profiler);
+                  profilerFadeInHelper_.beginShow();
+                  break;
+               case STOP:
+                  view.leaveMode(ConsoleMode.Profiler);
+                  profilerFadeInHelper_.hide();
+                  break;
+               default:
+                  break;
+            }
          }
       });
 
-      events.addHandler(ConsolePromptEvent.TYPE, event -> interruptFadeInHelper_.hide());
-
-      events.addHandler(DebugModeChangedEvent.TYPE, event ->
+      events.addHandler(ConsolePromptEvent.TYPE, new ConsolePromptHandler()
       {
-         if (event.debugging())
-            view.enterMode(ConsoleMode.Debug);
-         else
-            view.leaveMode(ConsoleMode.Debug);
+         @Override
+         public void onConsolePrompt(ConsolePromptEvent event)
+         {
+            interruptFadeInHelper_.hide();
+         }
       });
-
-      events.addHandler(ConsoleActivateEvent.TYPE, event -> activateConsole(event.getFocusWindow()));
-
+      
+      events.addHandler(DebugModeChangedEvent.TYPE, 
+            new DebugModeChangedEvent.Handler()
+      { 
+         @Override
+         public void onDebugModeChanged(DebugModeChangedEvent event)
+         {
+            if (event.debugging())
+               view.enterMode(ConsoleMode.Debug);
+            else
+               view.leaveMode(ConsoleMode.Debug);
+         }
+      });
+      
+      events.addHandler(ConsoleActivateEvent.TYPE, 
+                        new ConsoleActivateEvent.Handler()
+      {
+         @Override
+         public void onConsoleActivate(ConsoleActivateEvent event)
+         {
+            activateConsole(event.getFocusWindow());
+         }
+      });
+      
       events.addHandler(JobProgressEvent.TYPE, (JobProgressEvent event) ->
       {
          if (event.hasProgress())
@@ -121,7 +155,7 @@ public class Console
             view.leaveMode(ConsoleMode.Job);
       });
    }
-
+   
    @Handler
    void onActivateConsole()
    {
@@ -134,40 +168,40 @@ public class Console
       final FocusContext focusContext = new FocusContext();
       if (!focusWindow)
          focusContext.record();
-
+      
       if (focusWindow)
          WindowEx.get().focus();
-
+      
       view_.bringToFront();
       view_.focus();
       view_.ensureCursorVisible();
-
+      
       // the above code seems to always leave focus in the console
       // (haven't been able to sort out why). this ensure it's restored
       // if that's what the caller requested.
       if (!focusWindow) 
       {
          new Timer() {
-
+   
             @Override
             public void run()
             {
                focusContext.restore(); 
             }
          }.schedule(100);
-      }
+      }    
    }
-
+   
    @Handler
    public void onLayoutZoomConsole()
    {
       onActivateConsole();
       events_.fireEvent(new ZoomPaneEvent("Console"));
    }
-
+   
    public Display getDisplay()
    {
-      return view_;
+      return view_ ;
    }
 
    private final DelayFadeInHelper interruptFadeInHelper_;

@@ -1,7 +1,7 @@
 /*
  * RSessionContext.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,7 +23,7 @@
 #include <boost/algorithm/string/regex.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/Settings.hpp>
 #include <core/FileSerializer.hpp>
 
@@ -42,7 +42,7 @@
 #include <core/system/PosixUser.hpp>
 #endif
 
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 #include <core/system/Environment.hpp>
 
 #include "config.h"
@@ -108,13 +108,6 @@ SessionScope SessionScope::jupyterNotebookSession(const std::string& id)
    return SessionScope(ProjectId(kJupyterNotebookId), id);
 }
 
-SessionScope SessionScope::vscodeSession(const std::string& id)
-{
-   // note: project ID is currently unused as it is meaningless
-   // in the context of external workbenches
-   return SessionScope(ProjectId(kVSCodeId), id);
-}
-
 bool SessionScope::isProjectNone() const
 {
    return project_.id() == kProjectNoneId;
@@ -140,19 +133,14 @@ bool SessionScope::isJupyterNotebook() const
    return project_.id() == kJupyterNotebookId;
 }
 
-bool SessionScope::isVSCode() const
-{
-   return project_.id() == kVSCodeId;
-}
-
 std::string SessionScope::workbench() const
 {
-   if (isJupyter())
-      return isJupyterLab() ? kWorkbenchJupyterLab : kWorkbenchJupyterNotebook;
-   else if (isVSCode())
-      return kWorkbenchVSCode;
-   else
+   if (!isJupyter())
       return kWorkbenchRStudio;
+   else if (isJupyterLab())
+      return kWorkbenchJupyterLab;
+   else
+      return kWorkbenchJupyterNotebook;
 }
 
 // This function is intended to tell us whether a given path corresponds to an
@@ -172,7 +160,7 @@ bool isSharedPath(const std::string& projectPath,
       return false;
 
    struct stat st;
-   if (::stat(projectDir.getAbsolutePath().c_str(), &st) == 0)
+   if (::stat(projectDir.absolutePath().c_str(), &st) == 0)
    {
       // not shared if we own the directory
       if (st.st_uid == ::geteuid())
@@ -182,8 +170,8 @@ bool isSharedPath(const std::string& projectPath,
       if (st.st_mode & (S_IROTH | S_IWOTH | S_IXOTH)) 
          return false;
 
-      core::system::User user;
-      error = core::system::User::getCurrentUser(user);
+      core::system::user::User user;
+      error = core::system::user::currentUser(&user);
       if (error)
       {
          LOG_ERROR(error);
@@ -191,7 +179,7 @@ bool isSharedPath(const std::string& projectPath,
       }
 
       // not shared if our group owns the directory 
-      if (st.st_gid == user.getGroupId())
+      if (st.st_gid == user.groupId)
          return false;
 
 #ifndef __APPLE__
@@ -209,7 +197,7 @@ bool isSharedPath(const std::string& projectPath,
    else
    {
       error = systemError(errno, ERROR_LOCATION);
-      error.addProperty("path", projectDir.getAbsolutePath());
+      error.addProperty("path", projectDir.absolutePath());
       LOG_ERROR(error);
    }
 
@@ -257,7 +245,7 @@ SessionScopeState validateSessionScope(const SessionScope& scope,
          return ScopeMissingProject;
 
       // record path to project file
-      *pProjectFilePath = projectPath.getAbsolutePath();
+      *pProjectFilePath = projectPath.absolutePath();
    }
    else
    {
@@ -440,6 +428,7 @@ std::string generateScopeId()
    reserved.push_back(kJupyterNotebookId);
 
    // a few more for future expansion
+   reserved.push_back("3c9ab5a7");
    reserved.push_back("f468a750");
    reserved.push_back("6ae9dc1b");
    reserved.push_back("1d717df9");

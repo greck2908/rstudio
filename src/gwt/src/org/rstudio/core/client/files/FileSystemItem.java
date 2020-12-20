@@ -1,7 +1,7 @@
 /*
  * FileSystemItem.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -55,11 +55,11 @@ public class FileSystemItem extends JavaScriptObject
          path = path + "/";
 
       var fileEntry = new Object();
-      fileEntry.path = path;
-      fileEntry.dir = dir;
+      fileEntry.path = path ;
+      fileEntry.dir = dir ;
       fileEntry.length = length;
       fileEntry.lastModified = lastModified;
-      return fileEntry;
+      return fileEntry ;
    }-*/;
 
    public final native String getPath() /*-{
@@ -93,7 +93,7 @@ public class FileSystemItem extends JavaScriptObject
       String filename = getNameFromPath(path);
       if (filename.endsWith(".nb.html"))
          return ".nb.html";
-
+      
       int lastDotIndex = filename.lastIndexOf('.');
       if (lastDotIndex != -1)
          return filename.substring(lastDotIndex);
@@ -112,7 +112,7 @@ public class FileSystemItem extends JavaScriptObject
 
    public final Date getLastModified()
    {
-      Double lastModified = getLastModifiedNative();
+      Double lastModified = new Double(getLastModifiedNative());
       return new Date(lastModified.longValue());
    }
 
@@ -145,7 +145,7 @@ public class FileSystemItem extends JavaScriptObject
    {
       String path = getPath();
       if (path.length() == 0)
-         return name;
+         return name ;
       else
          return path + "/" + name;
    }
@@ -218,7 +218,7 @@ public class FileSystemItem extends JavaScriptObject
       else if (lowerExt.equals(".jpg") || lowerExt.equals(".jpeg") ||
                lowerExt.equals(".gif") || lowerExt.equals(".bmp")  ||
                lowerExt.equals(".tiff")   || lowerExt.equals(".tif") ||
-               lowerExt.equals(".png") || lowerExt.equals(".webp"))
+               lowerExt.equals(".png"))
       {
          return FileIcon.IMAGE_ICON;
       }
@@ -238,7 +238,7 @@ public class FileSystemItem extends JavaScriptObject
       String reportedMimeType = getMimeTypeInternal();
       if (reportedMimeType != null)
          return reportedMimeType;
-
+      
       String ext = getExtension().toLowerCase();
       if (ext.length() > 0)
       {
@@ -326,20 +326,9 @@ public class FileSystemItem extends JavaScriptObject
    public final native boolean exists() /*-{
       return this.exists;
    }-*/;
-
+   
    private final native String getMimeTypeInternal() /*-{
       return this.mime_type;
-   }-*/;
-
-   // NOTE: This isn't really the proper place to tag this metadata
-   // but it was the least intrusive way to propagate this state through
-   // all plumbing used when attempting to open a file.
-   public final native void setFocusOnNavigate(boolean focusOnNavigate) /*-{
-      this.focus_on_navigate = focusOnNavigate;
-   }-*/;
-
-   public final native boolean focusOnNavigate() /*-{
-      return this.focus_on_navigate || false;
    }-*/;
 
    // NOTE: should be synced with mime type database in FilePath.cpp
@@ -392,9 +381,7 @@ public class FileSystemItem extends JavaScriptObject
       MIME_TYPES.put( "shtml", "text/html" );
       MIME_TYPES.put( "tsv",   "text/tab-separated-values" );
       MIME_TYPES.put( "tab",   "text/tab-separated-values" );
-      MIME_TYPES.put( "cl",    "text/plain");
       MIME_TYPES.put( "dcf",   "text/debian-control-file" );
-      MIME_TYPES.put( "i",     "text/plain");
       MIME_TYPES.put( "ini",   "text/plain" );
       MIME_TYPES.put( "txt",   "text/plain" );
       MIME_TYPES.put( "mml",   "text/mathml" );
@@ -406,20 +393,17 @@ public class FileSystemItem extends JavaScriptObject
       MIME_TYPES.put( "q",     "text/x-r-source");
       MIME_TYPES.put( "rd",    "text/x-r-doc");
       MIME_TYPES.put( "rnw",   "text/x-r-sweave");
-      MIME_TYPES.put( "rtex",  "text/x-r-sweave");
       MIME_TYPES.put( "rmd",   "text/x-r-markdown");
       MIME_TYPES.put( "rhtml", "text/x-r-html");
       MIME_TYPES.put( "rpres", "text/x-r-presentation");
       MIME_TYPES.put( "rout",  "text/plain");
       MIME_TYPES.put( "po",    "text/plain");
       MIME_TYPES.put( "pot",   "text/plain");
-      MIME_TYPES.put( "ps1",   "text/plain");
       MIME_TYPES.put( "rst",   "text/plain");
       MIME_TYPES.put( "gitignore",   "text/plain");
       MIME_TYPES.put( "rbuildignore","text/plain");
       MIME_TYPES.put( "rprofile", "text/x-r-source");
       MIME_TYPES.put( "rprofvis", "text/x-r-profile");
-      MIME_TYPES.put( "vcxproj", "text/xml");
 
       MIME_TYPES.put( "tif",   "image/tiff" );
       MIME_TYPES.put( "tiff",  "image/tiff" );

@@ -1,7 +1,7 @@
 /*
  * DesktopWebView.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -35,11 +35,6 @@ public:
                     QWidget *parent = nullptr,
                     bool allowExternalNavigate = false);
 
-   explicit WebView(QWebEngineProfile *profile,
-                    QUrl baseUrl = QUrl(),
-                    QWidget *parent = nullptr,
-                    bool allowExternalNavigate = false);
-
    void setBaseUrl(const QUrl& baseUrl);
    QUrl baseUrl();
 
@@ -47,16 +42,13 @@ public:
    void prepareForWindow(const PendingWindow& pendingWnd);
 
    bool event(QEvent* event) override;
-   void childEvent(QChildEvent *event) override;
 
    WebPage* webPage() const { return pWebPage_; }
 
    void contextMenuEvent(QContextMenuEvent* event) override;
-   void mouseNavigateButtonClick(QMouseEvent* pMouseEvent);
 
 Q_SIGNALS:
   void onCloseWindowShortcut();
-  void onClose();
 
 public Q_SLOTS:
 
@@ -65,15 +57,11 @@ protected:
                              QNetworkReply* pReply);
    void keyPressEvent(QKeyEvent* pEvent) override;
    void closeEvent(QCloseEvent* pEv) override;
-   void dragEnterEvent(QDragEnterEvent *e) override;
-   void dropEvent(QDropEvent *e) override;
 
 protected Q_SLOTS:
    void openFile(QString file);
 
 private:
-   void init();
-
    QUrl baseUrl_;
    WebPage* pWebPage_;
 };

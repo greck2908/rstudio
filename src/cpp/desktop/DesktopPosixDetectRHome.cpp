@@ -1,7 +1,7 @@
 /*
  * DesktopPosixDetectRHome.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -51,25 +51,21 @@ bool prepareEnvironment(Options& options)
       rWhichRPath = FilePath(whichROverride);
 
 #ifdef Q_OS_MAC
-# ifdef RSTUDIO_PACKAGE_BUILD
-   FilePath rLdScriptPath = options.scriptsPath().completePath("session/r-ldpath");
+   FilePath rLdScriptPath = options.scriptsPath().complete("session/r-ldpath");
    if (!rLdScriptPath.exists())
    {
       FilePath executablePath;
       Error error = core::system::executablePath(nullptr, &executablePath);
       if (error)
          LOG_ERROR(error);
-      rLdScriptPath = executablePath.getParent().completePath("r-ldpath");
+      rLdScriptPath = executablePath.parent().complete("r-ldpath");
    }
-# else
-   FilePath rLdScriptPath = options.scriptsPath().completePath("../session/r-ldpath");
-# endif
 #else
    // determine rLdPaths script location
    FilePath supportingFilePath = options.supportingFilePath();
-   FilePath rLdScriptPath = supportingFilePath.completePath("bin/r-ldpath");
+   FilePath rLdScriptPath = supportingFilePath.complete("bin/r-ldpath");
    if (!rLdScriptPath.exists())
-      rLdScriptPath = supportingFilePath.completePath("session/r-ldpath");
+      rLdScriptPath = supportingFilePath.complete("session/r-ldpath");
 #endif
    // attempt to detect R environment
    std::string rScriptPath, rVersion, errMsg;

@@ -1,7 +1,7 @@
 /*
  * BuildToolsMakefilePanel.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -13,6 +13,7 @@
  *
  */
 
+
 package org.rstudio.studio.client.projects.ui.prefs.buildtools;
 
 import org.rstudio.studio.client.projects.model.RProjectConfig;
@@ -21,17 +22,19 @@ import org.rstudio.studio.client.projects.model.RProjectOptions;
 import com.google.gwt.dom.client.Style;
 import com.google.gwt.dom.client.Style.Unit;
 
+
 public class BuildToolsMakefilePanel extends BuildToolsPanel
 {
    public BuildToolsMakefilePanel()
    {
       pathSelector_ = new DirectorySelector("Makefile directory:");
       add(pathSelector_);
-
+        
       txtMakefileArgs_ = new AdditionalArguments("Additional arguments:");
       Style style = txtMakefileArgs_.getElement().getStyle();
       style.setMarginTop(2, Unit.PX);
       add(txtMakefileArgs_);
+      
    }
 
    @Override
@@ -39,8 +42,9 @@ public class BuildToolsMakefilePanel extends BuildToolsPanel
    {
       RProjectConfig config = options.getConfig();
       pathSelector_.setText(config.getMakefilePath());
-
+      
       txtMakefileArgs_.setText(options.getBuildOptions().getMakefileArgs());
+      
    }
 
    @Override
@@ -48,8 +52,9 @@ public class BuildToolsMakefilePanel extends BuildToolsPanel
    {
       RProjectConfig config = options.getConfig();
       config.setMakefilePath(pathSelector_.getText());
-
-      options.getBuildOptions().setMakefileArgs(txtMakefileArgs_.getText().trim());
+      
+      options.getBuildOptions().setMakefileArgs(
+                                          txtMakefileArgs_.getText().trim());
    }
 
    private PathSelector pathSelector_;

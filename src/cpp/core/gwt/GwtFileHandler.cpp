@@ -1,7 +1,7 @@
 /*
  * GwtFileHandler.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,7 @@
 #include <boost/regex.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/RegexUtils.hpp>
 #include <core/text/TemplateFilter.hpp>
 #include <core/system/System.hpp>
@@ -34,18 +34,14 @@ namespace gwt {
    
 namespace {
    
-struct FileRequestOptions
-{
-   std::string wwwLocalPath;
-   std::string baseUri;
-   core::http::UriFilterFunction mainPageFilter;
-   std::string initJs;
-   std::string gwtPrefix;
-   bool useEmulatedStack;
-   std::string frameOptions;
-};
 
-void handleFileRequest(const FileRequestOptions& options,
+void handleFileRequest(const std::string& wwwLocalPath,
+                       const std::string& baseUri,
+                       core::http::UriFilterFunction mainPageFilter,
+                       const std::string& initJs,
+                       const std::string& gwtPrefix,
+                       bool useEmulatedStack,
+                       const std::string& frameOptions,
                        const http::Request& request, 
                        http::Response* pResponse)
 {
@@ -56,14 +52,14 @@ void handleFileRequest(const FileRequestOptions& options,
       uri.erase(pos);
             
    // request for one-character short of root location redirects to root
-   if (uri == options.baseUri.substr(0, options.baseUri.size()-1))
+   if (uri == baseUri.substr(0, baseUri.size()-1))
    {
-      pResponse->setMovedPermanently(request, options.baseUri);
+      pResponse->setMovedPermanently(request, baseUri);
       return;
    }
    
    // request for a URI not within our location scope
-   if (uri.find(options.baseUri) != 0)
+   if (uri.find(baseUri) != 0)
    {
       pResponse->setNotFoundError(request);
       return;
@@ -71,20 +67,20 @@ void handleFileRequest(const FileRequestOptions& options,
    
    // auto-append index.htm to request for root location
    const char * const kIndexFile = "index.htm";
-   if (uri == options.baseUri)
+   if (uri == baseUri)
       uri += kIndexFile;
    
    // if this is main page and we have a filter then then give it a crack
    // at the request
-   std::string mainPage = options.baseUri + kIndexFile;
+   std::string mainPage = baseUri + kIndexFile;
    if (uri == mainPage)
    {
       // run filter if we have one
-      if (options.mainPageFilter)
+      if (mainPageFilter)
       {
          // if the filter returns false it means we should stop processing
-         if (!options.mainPageFilter(request, pResponse))
-            return;
+         if (!mainPageFilter(request, pResponse))
+            return ;
       }
 
       // apply browser compatibility headers
@@ -92,9 +88,9 @@ void handleFileRequest(const FileRequestOptions& options,
    }
    
    // get the requested file 
-   std::string relativePath = uri.substr(options.baseUri.length());
-   FilePath filePath = http::util::requestedFile(options.wwwLocalPath, relativePath);
-   if (filePath.isEmpty())
+   std::string relativePath = uri.substr(baseUri.length());
+   FilePath filePath = http::util::requestedFile(wwwLocalPath, relativePath);
+   if (filePath.empty())
    {
       pResponse->setNotFoundError(request);
       return;
@@ -124,24 +120,18 @@ void handleFileRequest(const FileRequestOptions& options,
    {
       // check for emulated stack
       std::map<std::string,std::string> vars;
-      bool useEmulatedStack = options.useEmulatedStack ||
+      useEmulatedStack = useEmulatedStack ||
                          (request.queryParamValue("emulatedStack") == "1");
       vars["compiler_stack_mode"] = useEmulatedStack ? "emulated" : "native";
 
-      // polyfill for IE11 (only)
-      std::string polyfill = "<script type=\"text/javascript\" language=\"javascript\" src=\"js/core-js/minified.js\"></script>\n";
-      if (regex_utils::match(request.userAgent(), boost::regex(".*Trident.*"))) {
-         vars["head_tags"] = polyfill;
-      } else {
-         vars["head_tags"] = std::string();
-      }
-
       // check for initJs
-      if (!options.initJs.empty())
-         vars["head_tags"] = vars["head_tags"] + "<script>" + options.initJs + "</script>";
+      if (!initJs.empty())
+         vars["head_tags"] = "<script>" + initJs + "</script>";
+      else
+         vars["head_tags"] = std::string();
 
       // gwt prefix
-      vars["gwt_prefix"] = options.gwtPrefix;
+      vars["gwt_prefix"] = gwtPrefix;
 
 #ifndef RSTUDIO_SERVER
       vars["viewport_tag"] = R"(<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />)";
@@ -149,23 +139,31 @@ void handleFileRequest(const FileRequestOptions& options,
       vars["viewport_tag"] = std::string();
 #endif
 
-      // read existing CSRF token
-      std::string csrfToken = request.cookieValue(kCSRFTokenCookie);
+      // read existing CSRF token 
+      std::string csrfToken = request.cookieValue("csrf-token");
+      if (csrfToken.empty())
+      {
+         // no CSRF token set up yet; we usually set this at login but it's normal for it to not be
+         // set when using proxied authentication. generate and apply a new token.
+         csrfToken = core::system::generateUuid();
+         core::http::setCSRFTokenCookie(request, boost::optional<boost::gregorian::days>(), csrfToken, pResponse);
+      }
       vars["csrf_token"] = string_utils::htmlEscape(csrfToken, true /* isAttribute */);
 
       // don't allow main page to be framed by other domains (clickjacking
       // defense)
-      pResponse->setFrameOptionHeaders(options.frameOptions);
+      pResponse->setFrameOptionHeaders(frameOptions);
 
       // return the page
       pResponse->setNoCacheHeaders();
       pResponse->setFile(filePath, request, text::TemplateFilter(vars));
    }
+   
    // case: normal cacheable file
    else
    {
-      // since these are application components we force revalidation (default behavior of
-      // setCacheableFile)
+      // since these are application components we force revalidation
+      pResponse->setCacheWithRevalidationHeaders();
       pResponse->setCacheableFile(filePath, request);
    }
 }
@@ -181,11 +179,14 @@ http::UriHandlerFunction fileHandlerFunction(
                                        bool useEmulatedStack,
                                        const std::string& frameOptions)
 {
-   FileRequestOptions options { wwwLocalPath, baseUri, mainPageFilter, initJs,
-                                gwtPrefix, useEmulatedStack, frameOptions };
-
    return boost::bind(handleFileRequest,
-                      options,
+                      wwwLocalPath,
+                      baseUri,
+                      mainPageFilter,
+                      initJs,
+                      gwtPrefix,
+                      useEmulatedStack,
+                      frameOptions,
                       _1,
                       _2);
 }

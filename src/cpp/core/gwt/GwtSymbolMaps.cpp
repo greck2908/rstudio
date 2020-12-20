@@ -1,7 +1,7 @@
 /*
  * GwtSymbolMaps.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -27,7 +27,7 @@
 
 #include <core/Thread.hpp>
 #include <core/RegexUtils.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 #include <core/FileSerializer.hpp>
 
 // NOTE: this is a port of the following GWT class:
@@ -62,7 +62,7 @@ ReadCollectionAction parseSymbolMapLine(
       return ReadCollectionIgnoreLine;
 
    // HACK: workaround the fact that std::map uses const for the Key
-   std::string* pFirst = const_cast<std::string*>(&(pMapEntry->first));
+   std::string* pFirst = const_cast<std::string*>(&(pMapEntry->first)) ;
    *pFirst = line.substr(0, commaPos);
 
    pMapEntry->second = line.substr(commaPos+1);
@@ -158,7 +158,7 @@ struct SymbolMaps::Impl
       std::set<std::string> symbolsLeftToFind = requiredSymbols;
 
       // read it from disk if it exists
-      FilePath mapPath = symbolMapsPath.completeChildPath(strongName + ".symbolMap");
+      FilePath mapPath = symbolMapsPath.childPath(strongName + ".symbolMap");
       if (mapPath.exists())
       {
          Error error = readCollectionFromFile

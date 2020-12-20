@@ -1,7 +1,7 @@
 /*
  * SessionRnwWeave.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -30,10 +30,9 @@
 #include <r/RJson.hpp>
 #include <r/session/RSessionUtils.hpp>
 
+#include <session/SessionUserSettings.hpp>
 #include <session/projects/SessionProjects.hpp>
 #include <session/SessionModuleContext.hpp>
-
-#include <session/prefs/UserPrefs.hpp>
 
 #include "SessionRnwConcordance.hpp"
 #include "SessionCompilePdfSupervisor.hpp"
@@ -267,7 +266,7 @@ public:
                                     const std::string& driver) const
    {
       std::string format = "require(knitr); ";
-      if (prefs::userPrefs().alwaysEnableRnwConcordance())
+      if (userSettings().alwaysEnableRnwCorcordance())
          format += "opts_knit$set(concordance = TRUE); ";
       format += "knit('%1%'";
       std::string cmd = boost::str(boost::format(format) % file);
@@ -429,7 +428,7 @@ std::string weaveTypeForFile(const core::tex::TexMagicComments& magicComments)
    if (projects::projectContext().hasProject())
       return projects::projectContext().config().defaultSweaveEngine;
    else
-      return prefs::userPrefs().defaultSweaveEngine();
+      return userSettings().defaultSweaveEngine();
 }
 
 std::string driverForFile(const core::tex::TexMagicComments& magicComments)
@@ -521,15 +520,15 @@ void runWeave(const core::FilePath& rnwPath,
    if (error)
    {
       LOG_ERROR(error);
-      onCompleted(Result::error(error.getSummary()));
+      onCompleted(Result::error(error.summary()));
       return;
    }
 
    // R exe path differs by platform
 #ifdef _WIN32
-   FilePath rBinPath = rBin.completePath("Rterm.exe");
+   FilePath rBinPath = rBin.complete("Rterm.exe");
 #else
-   FilePath rBinPath = rBin.completePath("R");
+   FilePath rBinPath = rBin.complete("R");
 #endif
 
    // determine the active sweave engine
@@ -544,7 +543,7 @@ void runWeave(const core::FilePath& rnwPath,
    if (pRnwWeave)
    {
       std::vector<std::string> args = pRnwWeave->commandArgs(
-                                                         rnwPath.getFilename(),
+                                                         rnwPath.filename(),
                                                          encoding,
                                                          driver);
 
@@ -553,14 +552,14 @@ void runWeave(const core::FilePath& rnwPath,
                rBinPath,
                args,
                core::system::Options(),
-               rnwPath.getParent(),
+               rnwPath.parent(),
                onOutput,
                boost::bind(onWeaveProcessExit,
                                  pRnwWeave, _1, _2, rnwPath, onCompleted));
       if (error)
       {
          LOG_ERROR(error);
-         onCompleted(Result::error(error.getSummary()));
+         onCompleted(Result::error(error.summary()));
       }
    }
    else

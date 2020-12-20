@@ -1,7 +1,7 @@
 /*
  * PlotsChangedEvent.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,40 +14,35 @@
  */
 package org.rstudio.studio.client.workbench.views.plots.events;
 
-import com.google.gwt.event.shared.EventHandler;
 import com.google.gwt.event.shared.GwtEvent;
 import org.rstudio.studio.client.workbench.views.plots.model.PlotsState;
 
-public class PlotsChangedEvent extends GwtEvent<PlotsChangedEvent.Handler>
+public class PlotsChangedEvent extends GwtEvent<PlotsChangedHandler>
 {
-   public static final GwtEvent.Type<Handler> TYPE = new GwtEvent.Type<>();
-
+   public static final GwtEvent.Type<PlotsChangedHandler> TYPE =
+      new GwtEvent.Type<PlotsChangedHandler>();
+     
    public PlotsChangedEvent(PlotsState plotsState)
    {
       plotsState_ = plotsState;
    }
-
+   
    public PlotsState getPlotsState()
    {
       return plotsState_;
    }
-
+   
    @Override
-   protected void dispatch(Handler handler)
+   protected void dispatch(PlotsChangedHandler handler)
    {
       handler.onPlotsChanged(this);
    }
 
    @Override
-   public GwtEvent.Type<Handler> getAssociatedType()
+   public GwtEvent.Type<PlotsChangedHandler> getAssociatedType()
    {
       return TYPE;
    }
-
-   public interface Handler extends EventHandler
-   {
-      void onPlotsChanged(PlotsChangedEvent event);
-   }
-
-   private final PlotsState plotsState_;
+   
+   private PlotsState plotsState_;
 }

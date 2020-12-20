@@ -1,7 +1,7 @@
 /*
  * HyperlinkLabel.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,6 @@
 package org.rstudio.core.client.widget;
 
 import com.google.gwt.aria.client.Roles;
-import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.event.dom.client.KeyCodes;
 import com.google.gwt.event.dom.client.KeyPressEvent;
 import com.google.gwt.event.dom.client.KeyPressHandler;
@@ -27,7 +26,6 @@ import com.google.gwt.event.shared.HandlerRegistration;
 import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.ui.Label;
 
-import org.rstudio.core.client.Debug;
 import org.rstudio.core.client.HandlerRegistrations;
 import org.rstudio.core.client.theme.res.ThemeStyles;
 
@@ -56,16 +54,10 @@ public class HyperlinkLabel extends Label
       this(caption, null);
    }
    
+   // must call this before the element is loaded
    public void setClickHandler(Command clickHandler)
    {
       clickHandler_ = clickHandler;
-      registerClickHandler();
-   }
-
-   @Override
-   public HandlerRegistration addClickHandler(ClickHandler handler) {
-      Debug.logWarning("HyperlinkLabel: for keyboard support use setClickHandler instead of addClickHandler");
-      return super.addClickHandler(handler);
    }
 
    private class MouseHandlers implements MouseOverHandler,
@@ -107,23 +99,11 @@ public class HyperlinkLabel extends Label
    {
       releaseOnUnload_.add(addMouseOverHandler(mouseHandlers_));
       releaseOnUnload_.add(addMouseOutHandler(mouseHandlers_));
-      registerClickHandler();
-   }
-
-   @Override
-   protected void onUnload()
-   {
-      releaseOnUnload_.removeHandler();
-   }
-
-   private void registerClickHandler()
-   {
-      if (isAttached() && clickHandler_ != null)
+      if (clickHandler_ != null)
       {
-         releaseOnUnload_.add(super.addClickHandler(event -> click()));
+         releaseOnUnload_.add(addClickHandler(event -> click()));
 
-         releaseOnUnload_.add(addKeyPressHandler(event ->
-         {
+         releaseOnUnload_.add(addKeyPressHandler(event -> {
             char charCode = event.getCharCode();
             if (charCode == KeyCodes.KEY_ENTER || charCode == KeyCodes.KEY_SPACE)
             {
@@ -145,8 +125,8 @@ public class HyperlinkLabel extends Label
       clickHandler_.execute();
    }
 
-   private final MouseHandlers mouseHandlers_ = new MouseHandlers();
-   private Command clickHandler_;
+   private MouseHandlers mouseHandlers_ = new MouseHandlers();
+   private Command clickHandler_ ;
    private final HandlerRegistrations releaseOnUnload_ = new HandlerRegistrations();
 
    private boolean alwaysUnderline_ = false;

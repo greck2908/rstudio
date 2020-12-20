@@ -1,7 +1,7 @@
 /*
  * WidgetHandlerRegistration.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,6 +14,7 @@
  */
 package org.rstudio.core.client;
 
+import com.google.gwt.event.logical.shared.AttachEvent;
 import com.google.gwt.event.shared.HandlerRegistration;
 import com.google.gwt.user.client.ui.Widget;
 
@@ -28,11 +29,15 @@ public abstract class WidgetHandlerRegistration
 {
    public WidgetHandlerRegistration(Widget widget)
    {
-      widget.addAttachHandler(attachEvent ->
+      widget.addAttachHandler(new AttachEvent.Handler()
       {
-         unregister();
-         if (attachEvent.isAttached())
-            register();
+         @Override
+         public void onAttachOrDetach(AttachEvent event)
+         {
+            unregister();
+            if (event.isAttached())
+               register();
+         }
       });
 
       if (widget.isAttached())

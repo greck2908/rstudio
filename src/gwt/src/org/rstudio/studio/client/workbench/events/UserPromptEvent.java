@@ -1,7 +1,7 @@
 /*
  * UserPromptEvent.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,40 +15,35 @@
 
 package org.rstudio.studio.client.workbench.events;
 
-import com.google.gwt.event.shared.EventHandler;
 import com.google.gwt.event.shared.GwtEvent;
 import org.rstudio.studio.client.workbench.model.UserPrompt;
 
-public class UserPromptEvent extends GwtEvent<UserPromptEvent.Handler>
+public class UserPromptEvent extends GwtEvent<UserPromptHandler>
 {
-   public static final GwtEvent.Type<Handler> TYPE = new GwtEvent.Type<>();
-
-   public interface Handler extends EventHandler
-   {
-      void onUserPrompt(UserPromptEvent event);
-   }
-
+   public static final GwtEvent.Type<UserPromptHandler> TYPE =
+      new GwtEvent.Type<UserPromptHandler>();
+   
    public UserPromptEvent(UserPrompt userPrompt)
    {
       userPrompt_ = userPrompt;
    }
-
+   
    public UserPrompt getUserPrompt()
    {
       return userPrompt_;
    }
-
+   
    @Override
-   protected void dispatch(Handler handler)
+   protected void dispatch(UserPromptHandler handler)
    {
       handler.onUserPrompt(this);
    }
 
    @Override
-   public GwtEvent.Type<Handler> getAssociatedType()
+   public GwtEvent.Type<UserPromptHandler> getAssociatedType()
    {
       return TYPE;
    }
-
+   
    private final UserPrompt userPrompt_;
 }

@@ -1,7 +1,7 @@
 /*
  * DataItem.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -42,7 +42,7 @@ public class DataItem extends JavaScriptObject
       dataItem.variables = variables;
       dataItem.contentUrl = contentUrl;
       dataItem.preview = preview;
-      return dataItem;
+      return dataItem ;
    }-*/;
 
    public final String getURI()

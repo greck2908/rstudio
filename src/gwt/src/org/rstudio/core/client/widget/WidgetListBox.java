@@ -1,7 +1,7 @@
 /*
  * WidgetListBox.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,12 +17,9 @@ package org.rstudio.core.client.widget;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.google.gwt.aria.client.Id;
-import com.google.gwt.aria.client.Roles;
-import com.google.gwt.aria.client.SelectedValue;
-import com.google.gwt.user.client.DOM;
 import org.rstudio.core.client.events.HasSelectionCommitHandlers;
 import org.rstudio.core.client.events.SelectionCommitEvent;
+import org.rstudio.core.client.events.SelectionCommitHandler;
 import org.rstudio.core.client.theme.res.ThemeResources;
 
 import com.google.gwt.core.shared.GWT;
@@ -52,11 +49,10 @@ import com.google.gwt.user.client.ui.VerticalPanel;
 import com.google.gwt.user.client.ui.Widget;
 
 // A list box that can contain arbitrary GWT widgets as options.
-public class WidgetListBox<T extends Widget>
-   extends FocusPanel
+public class WidgetListBox<T extends Widget> 
+   extends FocusPanel 
    implements HasChangeHandlers,
-              HasSelectionCommitHandlers<T>,
-              CanSetControlId
+              HasSelectionCommitHandlers<T>
 {
    private class ClickableHTMLPanel extends HTMLPanel
       implements HasClickHandlers
@@ -87,18 +83,17 @@ public class WidgetListBox<T extends Widget>
       @Source("WidgetListBox.css")
       ListStyle listStyle();
    }
-
+   
    public WidgetListBox()
    {
       super();
-
+      
       resources_ = GWT.create(Resources.class);
       style_ = resources_.listStyle();
       style_.ensureInjected();
 
       // add styles to our own widget
       addStyleName(style_.outerPanel());
-      Roles.getListboxRole().set(getElement());
 
       // create the panel that will host the widgets
       panel_ = new VerticalPanel();
@@ -109,7 +104,7 @@ public class WidgetListBox<T extends Widget>
       scrollPanel_.add(panel_);
       scrollPanel_.addStyleName(style_.scrollPanel());
       add(scrollPanel_);
-
+     
       emptyTextLabel_ = new Label();
       emptyTextBox_ = new VerticalPanel();
       emptyTextBox_.addStyleName(style_.scrollPanel());
@@ -140,35 +135,27 @@ public class WidgetListBox<T extends Widget>
    @Override
    public HandlerRegistration addChangeHandler(final ChangeHandler handler)
    {
-      return handlerManager_.addHandler(ChangeEvent.getType(), handler);
+      return handlerManager_.addHandler(ChangeEvent.getType(), handler);    
    }
-
+   
 
    @Override
    public HandlerRegistration addSelectionCommitHandler(
-         SelectionCommitEvent.Handler<T> handler)
+         SelectionCommitHandler<T> handler)
    {
       return addHandler(handler, SelectionCommitEvent.getType());
    }
-
-   public void setAriaLabel(String label)
-   {
-      Roles.getListboxRole().setAriaLabelProperty(getElement(), label);
-   }
-
+   
    public void addItem(T item)
    {
       addItem(item, true);
    }
-
+   
    public void addItem(final T item, boolean atEnd)
    {
       // wrap the widget in a panel that can receive click events, indicate
       // selection, etc.
       final ClickableHTMLPanel panel = new ClickableHTMLPanel();
-      Roles.getOptionRole().set(panel.getElement());
-      panel.getElement().setId(DOM.createUniqueId());
-
       panel.addClickHandler(new ClickHandler()
       {
          @Override
@@ -177,7 +164,7 @@ public class WidgetListBox<T extends Widget>
             setSelectedIndex(panel_.getWidgetIndex(panel), true);
          }
       });
-
+      
       panel.addDomHandler(new DoubleClickHandler()
       {
          @Override
@@ -186,7 +173,7 @@ public class WidgetListBox<T extends Widget>
             SelectionCommitEvent.fire(WidgetListBox.this, item);
          }
       }, DoubleClickEvent.getType());
-
+      
       panel.add(item);
 
       // add the panel to our root layout panel
@@ -204,9 +191,9 @@ public class WidgetListBox<T extends Widget>
          options_.add(panel);
       }
 
-      panel.getElement().getStyle().setPadding(itemPaddingValue_,
+      panel.getElement().getStyle().setPadding(itemPaddingValue_, 
                                                itemPaddingUnit_);
-
+      
       panel.addStyleName(style_.anyItem());
       panel.addStyleName(ThemeResources.INSTANCE.themeStyles().handCursor());
 
@@ -215,10 +202,10 @@ public class WidgetListBox<T extends Widget>
          setSelectedIndex(0);
       else if (!atEnd && getSelectedIndex() == 1 && options_.size() > 1)
          setSelectedIndex(0, true);
-
+      
       updateEmptyText();
    }
-
+   
    public void setSelectedIndex(int itemIdx)
    {
       setSelectedIndex(itemIdx, false);
@@ -228,13 +215,9 @@ public class WidgetListBox<T extends Widget>
    {
       String selectedStyle = resources_.listStyle().selectedItem();
       panel_.getWidget(selectedIdx_).removeStyleName(selectedStyle);
-      Roles.getOptionRole().setAriaSelectedState(panel_.getWidget(selectedIdx_).getElement(), SelectedValue.FALSE);
       selectedIdx_ = itemIdx;
       panel_.getWidget(selectedIdx_).addStyleName(selectedStyle);
       panel_.getWidget(selectedIdx_).getElement().scrollIntoView();
-      Roles.getOptionRole().setAriaSelectedState(panel_.getWidget(selectedIdx_).getElement(), SelectedValue.TRUE);
-      Roles.getListboxRole().setAriaActivedescendantProperty(getElement(),
-            Id.of(panel_.getWidget(selectedIdx_).getElement().getId()));
       if (fireEvent)
       {
          DomEvent.fireNativeEvent(Document.get().createChangeEvent(),
@@ -246,7 +229,7 @@ public class WidgetListBox<T extends Widget>
    {
       return selectedIdx_;
    }
-
+   
    public T getItemAtIdx(int idx)
    {
       if (idx < items_.size())
@@ -255,28 +238,28 @@ public class WidgetListBox<T extends Widget>
       }
       return null;
    }
-
+   
    public List<T> getItems()
    {
       return items_;
    }
-
+   
    public T getSelectedItem()
    {
       return getItemAtIdx(getSelectedIndex());
    }
-
+   
    public int getItemCount()
    {
       return items_.size();
    }
-
+   
    public void setItemPadding(double val, Style.Unit unit)
    {
       itemPaddingValue_ = val;
       itemPaddingUnit_ = unit;
    }
-
+   
    public void clearItems()
    {
       panel_.clear();
@@ -285,7 +268,7 @@ public class WidgetListBox<T extends Widget>
       selectedIdx_ = 0;
       updateEmptyText();
    }
-
+   
    public void removeItem(int idx)
    {
       panel_.remove(idx);
@@ -295,19 +278,13 @@ public class WidgetListBox<T extends Widget>
          selectedIdx_ = 0;
       updateEmptyText();
    }
-
+   
    public void setEmptyText(String text)
    {
       emptyTextLabel_.setText(text);
       updateEmptyText();
    }
-
-   @Override
-   public void setElementId(String id)
-   {
-      getElement().setId(id);
-   }
-
+   
    private void updateEmptyText()
    {
       if (emptyTextBox_.getParent() == this && items_.size() > 0)
@@ -321,7 +298,7 @@ public class WidgetListBox<T extends Widget>
          add(emptyTextBox_);
       }
    }
-
+   
    private int selectedIdx_ = 0;
 
    private ScrollPanel scrollPanel_;
@@ -333,7 +310,7 @@ public class WidgetListBox<T extends Widget>
 
    private Resources resources_;
    private ListStyle style_;
-
+   
    private double itemPaddingValue_ = 5;
    private Style.Unit itemPaddingUnit_ = Style.Unit.PX;
 

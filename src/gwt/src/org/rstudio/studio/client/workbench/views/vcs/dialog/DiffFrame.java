@@ -1,7 +1,7 @@
 /*
  * DiffFrame.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -25,7 +25,6 @@ import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.ui.*;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.theme.res.ThemeResources;
-import org.rstudio.core.client.widget.DecorativeImage;
 import org.rstudio.core.client.widget.HyperlinkLabel;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.common.filetypes.FileIcon;
@@ -93,7 +92,7 @@ public class DiffFrame extends Composite
          
          viewFileHyperlink_.setClickHandler(viewFileClickHandler);
          viewFileHyperlink_.setAlwaysUnderline(false);
-         viewFileHyperlink_.setText("View file @ " + commitId.substring(0, 8));
+         viewFileHyperlink_.setText("View file @ " + commitId);
          viewFileHyperlink_.addStyleName(RES.styles().viewFileHyperlink());
       }
       
@@ -112,7 +111,7 @@ public class DiffFrame extends Composite
    @UiField
    Image fileIcon_;
    @UiField
-   DecorativeImage separatorImage_;
+   Image separatorImage_;
    @UiField
    HyperlinkLabel viewFileHyperlink_;
    

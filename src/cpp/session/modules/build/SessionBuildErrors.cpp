@@ -1,7 +1,7 @@
 /*
  * SessionBuildErrors.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,8 +22,8 @@
 #include <boost/format.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/Error.hpp>
+#include <core/SafeConvert.hpp>
 #include <core/FileSerializer.hpp>
 
 #include <r/RExec.hpp>
@@ -31,7 +31,7 @@
 #include <session/SessionModuleContext.hpp>
 #include <session/projects/SessionProjects.hpp>
 
-using namespace rstudio::core;
+using namespace rstudio::core ;
 
 namespace rstudio {
 namespace session {  
@@ -43,9 +43,9 @@ namespace {
 
 bool isRSourceFile(const FilePath& filePath)
 {
-   return (filePath.getExtensionLowerCase() == ".q" ||
-           filePath.getExtensionLowerCase() == ".s" ||
-           filePath.getExtensionLowerCase() == ".r");
+   return (filePath.extensionLowerCase() == ".q" ||
+           filePath.extensionLowerCase() == ".s" ||
+           filePath.extensionLowerCase() == ".r");
 }
 
 bool isMatchingFile(const std::vector<std::string>& lines,
@@ -67,7 +67,7 @@ FilePath scanForRSourceFile(const FilePath& basePath,
                             const std::string& nextLineContents)
 {
    std::vector<FilePath> children;
-   Error error = basePath.getChildren(children);
+   Error error = basePath.children(&children);
    if (error)
    {
       LOG_ERROR(error);
@@ -127,7 +127,7 @@ std::vector<module_context::SourceMarker> parseRErrors(
                                                    diagLine,
                                                    match[5],
                   match[7]);
-            if (!rSrcFile.isEmpty())
+            if (!rSrcFile.empty())
             {
                // create error and add it
                SourceMarker err(SourceMarker::Error,
@@ -203,7 +203,7 @@ std::vector<module_context::SourceMarker> parseGccErrors(
          if (FilePath::isRootPath(file))
             filePath = FilePath(file);
          else
-            filePath = basePath.completeChildPath(file);
+            filePath = basePath.childPath(file);
 
          // skip if the file doesn't exist
          if (!filePath.exists())
@@ -222,7 +222,7 @@ std::vector<module_context::SourceMarker> parseGccErrors(
          // source file within the package
          if (!pkgInclude.empty())
          {
-            std::string path = filePath.getAbsolutePath();
+            std::string path = filePath.absolutePath();
             size_t pos = path.find(pkgInclude);
             if (pos != std::string::npos)
             {
@@ -232,14 +232,14 @@ std::vector<module_context::SourceMarker> parseGccErrors(
 
                // does this file exist? if so substitute it
                FilePath includePath = projectContext().buildTargetPath()
-                                                      .completeChildPath("inst/include/" + relativePath);
+                     .childPath("inst/include/" + relativePath);
                if (includePath.exists())
                   filePath = includePath;
             }
          }
 
          // don't show warnings from Makeconf
-         if (filePath.getFilename() == "Makeconf")
+         if (filePath.filename() == "Makeconf")
             continue;
 
          // create marker and add it
@@ -266,7 +266,7 @@ std::vector<module_context::SourceMarker> parseTestThatErrors(
 
    try
    {
-      FilePath basePathResolved = module_context::resolveAliasedPath(basePath.getAbsolutePath());
+      FilePath basePathResolved = module_context::resolveAliasedPath(basePath.absolutePath());
 
       boost::regex re("\\[[0-9]+m([^:\\n]+):([0-9]+): ?([^:\\n]+): ([^\\n]*)\\[[0-9]+m");
 
@@ -294,7 +294,7 @@ std::vector<module_context::SourceMarker> parseTestThatErrors(
          }
 
          message = match[4];
-         FilePath testFilePath = basePathResolved.completePath(file);
+         FilePath testFilePath = basePathResolved.complete(file);
 
          std::string column = "0";
          SourceMarker err(module_context::sourceMarkerTypeFromString(marker),
@@ -321,10 +321,10 @@ std::vector<module_context::SourceMarker> parseShinyTestErrors(
 
    try
    {
-      FilePath basePathResolved = module_context::resolveAliasedPath(basePath.getAbsolutePath());
+      FilePath basePathResolved = module_context::resolveAliasedPath(basePath.absolutePath());
 
       std::vector<std::string> failed;
-      r::exec::RFunction rFunc(".rs.readShinytestResultRds", rdsPath.getAbsolutePath());
+      r::exec::RFunction rFunc(".rs.readShinytestResultRds", rdsPath.absolutePath());
       Error error = rFunc.call(&failed);
       if (error) 
          LOG_ERROR(error);
@@ -338,18 +338,10 @@ std::vector<module_context::SourceMarker> parseShinyTestErrors(
          std::string column = "0";
          type = "failure";
          message = std::string("Differences detected in " + file + ".");
-
-         // ask the shinytest package where the tests live (this location varies between versions of
-         // the shinytest package
-         std::string testsDir;
-         r::exec::RFunction findTests(".rs.findShinyTestsDir", 
-               basePathResolved.getAbsolutePath());
-         error = findTests.call(&testsDir);
-         if (error)
-            LOG_ERROR(error);
+         FilePath testFilePath = basePathResolved.complete("tests").complete(file + ".R");
 
          SourceMarker err(module_context::sourceMarkerTypeFromString(type),
-                          FilePath(testsDir).completePath(file + ".R"),
+                          testFilePath,
                           core::safe_convert::stringTo<int>(line, 1),
                           core::safe_convert::stringTo<int>(column, 1),
                           core::html_utils::HTML(message),

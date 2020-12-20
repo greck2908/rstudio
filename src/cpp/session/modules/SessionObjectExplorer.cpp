@@ -1,7 +1,7 @@
 /*
  * SessionObjectExplorer.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,7 +20,7 @@
 #include <boost/bind.hpp>
 
 #include <core/Algorithm.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Exec.hpp>
 
 #include <r/RExec.hpp>
@@ -42,7 +42,13 @@ const char * const kExplorerCacheDir = "explorer-cache";
 
 FilePath explorerCacheDir() 
 {
-   return module_context::sessionScratchPath().completeChildPath(kExplorerCacheDir);
+   return module_context::sessionScratchPath()
+         .childPath(kExplorerCacheDir);
+}
+
+std::string explorerCacheDirSystem()
+{
+   return string_utils::utf8ToSystem(explorerCacheDir().absolutePath());
 }
 
 void removeOrphanedCacheItems()
@@ -70,7 +76,7 @@ void removeOrphanedCacheItems()
    for (const FilePath& docPath : docPaths)
    {
       Document pDoc(new SourceDocument());
-      Error error = source_database::get(docPath.getFilename(), false, pDoc);
+      Error error = source_database::get(docPath.filename(), false, pDoc);
       if (error)
       {
          LOG_ERROR(error);
@@ -81,7 +87,7 @@ void removeOrphanedCacheItems()
    
    // list objects in explorer cache
    std::vector<FilePath> cachedFiles;
-   error = explorerCacheDir().getChildren(cachedFiles);
+   error = explorerCacheDir().children(&cachedFiles);
    if (error)
    {
       LOG_ERROR(error);
@@ -92,7 +98,7 @@ void removeOrphanedCacheItems()
    // source document available
    for (const FilePath& cacheFile : cachedFiles)
    {
-      std::string id = cacheFile.getFilename();
+      std::string id = cacheFile.filename();
       
       bool foundId = false;
       for (Document pDoc : documents)
@@ -120,7 +126,7 @@ void onShutdown(bool terminatedNormally)
    
    using namespace r::exec;
    Error error = RFunction(".rs.explorer.saveCache")
-         .addUtf8Param(explorerCacheDir())
+         .addParam(explorerCacheDirSystem())
          .call();
    
    if (error)
@@ -147,7 +153,7 @@ void onDocPendingRemove(boost::shared_ptr<source_database::SourceDocument> pDoc)
    if (id.empty())
       return;
    
-   FilePath cachePath = explorerCacheDir().completeChildPath(id);
+   FilePath cachePath = explorerCacheDir().childPath(id);
    error = cachePath.removeIfExists();
    if (error)
    {
@@ -157,7 +163,7 @@ void onDocPendingRemove(boost::shared_ptr<source_database::SourceDocument> pDoc)
    
    // also attempt to remove from R cache
    using namespace r::exec;
-   error = RFunction(".rs.explorer.removeCacheEntry")
+   error = RFunction(".rs.explorer.removeCachedObject")
          .addParam(id)
          .call();
    
@@ -180,7 +186,7 @@ void onDeferredInit(bool)
    
    using namespace r::exec;
    error = RFunction(".rs.explorer.restoreCache")
-         .addUtf8Param(explorerCacheDir())
+         .addParam(explorerCacheDirSystem())
          .call();
    
    if (error)
@@ -249,7 +255,7 @@ SEXP rs_objectAttributes(SEXP objectSEXP)
 SEXP rs_explorerCacheDir()
 {
    r::sexp::Protect protect;
-   return r::sexp::createUtf8(explorerCacheDir(), &protect);
+   return r::sexp::create(explorerCacheDirSystem(), &protect);
 }
 
 } // end anonymous namespace

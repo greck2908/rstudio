@@ -1,7 +1,7 @@
 /*
  * ConsoleIOMain.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,7 +24,7 @@
 
 #define BOOST_THREAD_USE_LIB
 #include <core/BoostThread.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 
 using namespace rstudio;
 using namespace rstudio::core;

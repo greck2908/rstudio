@@ -1,7 +1,7 @@
 /*
  * SelectionCommitEvent.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,27 +14,22 @@
  */
 package org.rstudio.core.client.events;
 
-import com.google.gwt.event.shared.EventHandler;
 import com.google.gwt.event.shared.GwtEvent;
 
-public class SelectionCommitEvent<I> extends GwtEvent<SelectionCommitEvent.Handler<I>>
+public class SelectionCommitEvent<I> extends GwtEvent<SelectionCommitHandler<I>>
 {
-   private static Type<Handler<?>> TYPE;
+   private static Type<SelectionCommitHandler<?>> TYPE;
 
-   public static <I> void fire(HasSelectionCommitHandlers<I> source, I selectedItem)
-   {
-     if (TYPE != null)
-     {
+   public static <I> void fire(HasSelectionCommitHandlers<I> source, I selectedItem) {
+     if (TYPE != null) {
        SelectionCommitEvent<I> event = new SelectionCommitEvent<I>(selectedItem);
        source.fireEvent(event);
      }
    }
 
-   public static Type<Handler<?>> getType()
-   {
-     if (TYPE == null)
-     {
-       TYPE = new Type<>();
+   public static Type<SelectionCommitHandler<?>> getType() {
+     if (TYPE == null) {
+       TYPE = new Type<SelectionCommitHandler<?>>();
      }
      return TYPE;
    }
@@ -43,11 +38,10 @@ public class SelectionCommitEvent<I> extends GwtEvent<SelectionCommitEvent.Handl
 
    /**
     * Creates a new selection event.
-    *
+    * 
     * @param selectedItem selected item
     */
-   protected SelectionCommitEvent(I selectedItem)
-   {
+   protected SelectionCommitEvent(I selectedItem) {
      this.selectedItem = selectedItem;
    }
 
@@ -55,29 +49,21 @@ public class SelectionCommitEvent<I> extends GwtEvent<SelectionCommitEvent.Handl
    // field itself does not, so we have to do an unsafe cast here.
    @SuppressWarnings({ "unchecked", "rawtypes" })
    @Override
-   public final Type<Handler<I>> getAssociatedType()
-   {
+   public final Type<SelectionCommitHandler<I>> getAssociatedType() {
      return (Type) TYPE;
    }
 
    /**
     * Gets the selected item.
-    *
+    * 
     * @return the selected item
     */
-   public I getSelectedItem()
-   {
+   public I getSelectedItem() {
      return selectedItem;
    }
 
    @Override
-   protected void dispatch(Handler<I> handler)
-   {
+   protected void dispatch(SelectionCommitHandler<I> handler) {
      handler.onSelectionCommit(this);
-   }
-
-   public interface Handler<I> extends EventHandler
-   {
-      void onSelectionCommit(SelectionCommitEvent<I> event);
    }
 }

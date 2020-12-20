@@ -1,7 +1,7 @@
 /*
  * SessionDiagnostics.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -28,15 +28,15 @@
 
 #include <core/Debug.hpp>
 #include <core/Exec.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/YamlUtil.hpp>
 
 #include <session/SessionRUtil.hpp>
+#include <session/SessionUserSettings.hpp>
 #include <session/SessionModuleContext.hpp>
 #include <session/SessionSourceDatabase.hpp>
 #include <session/projects/SessionProjects.hpp>
-#include <session/prefs/UserPrefs.hpp>
 
 #include "shiny/SessionShiny.hpp"
 
@@ -418,12 +418,12 @@ Error getAllAvailableRSymbols(const FilePath& filePath,
    
    if (projects::projectContext().isPackageProject() && filePath.isWithin(projDir))
    {
-      DEBUG("- Package file: '" << filePath.getAbsolutePath() << "'");
+      DEBUG("- Package file: '" << filePath.absolutePath() << "'");
       error = getAvailableSymbolsForPackage(filePath, documentId, pSymbols);
    }
    else
    {
-      DEBUG("- Project file: '" << filePath.getAbsolutePath() << "'");
+      DEBUG("- Project file: '" << filePath.absolutePath() << "'");
       error = getAvailableSymbolsForProject(filePath, documentId, pSymbols);
    }
    
@@ -432,13 +432,13 @@ Error getAllAvailableRSymbols(const FilePath& filePath,
    // Add common 'testing' packages, based on the DESCRIPTION's
    // 'Imports' and 'Suggests' fields, and use that if we're within a
    // common 'test'ing directory.
-   if (filePath.isWithin(projDir.completeChildPath("inst")) ||
-       filePath.isWithin(projDir.completeChildPath("tests")))
+   if (filePath.isWithin(projDir.childPath("inst")) ||
+       filePath.isWithin(projDir.childPath("tests")))
    {
       addTestPackageSymbols(pSymbols);
    }
    
-   if (filePath.isWithin(projects::projectContext().directory().completeChildPath("tests/testthat")))
+   if (filePath.isWithin(projects::projectContext().directory().childPath("tests/testthat")))
    {
       PackageSymbolRegistry& registry = packageSymbolRegistry();
       registry.fillNamespaceSymbols("testthat", pSymbols, false);
@@ -447,7 +447,7 @@ Error getAllAvailableRSymbols(const FilePath& filePath,
    // If the file is named 'server.R', 'ui.R' or 'app.R', we'll implicitly
    // assume that it depends on Shiny.
    std::string basename = boost::algorithm::to_lower_copy(
-            filePath.getFilename());
+            filePath.filename());
    
    if (basename == "server.r" ||
        basename == "ui.r" ||
@@ -532,7 +532,7 @@ void parseLintOptionGlobals(const std::string& text, FileLocalLintOptions* pOpti
    std::string::const_iterator end = text.end();
    
    ParsedCSVLine parsed = parseCsvLine(begin + 1, end, true);
-   for (const std::string& element : parsed.first)
+   for (const std::string element : parsed.first)
    {
       pOptions->globals.insert(string_utils::trimWhitespace(element));
    }
@@ -564,7 +564,7 @@ void parseLintOption(const std::string& text, FileLocalLintOptions* pOptions)
 FileLocalLintOptions parseLintOptions(const std::vector<std::string>& lintText)
 {
    FileLocalLintOptions options;
-   for (const std::string& text : lintText)
+   for (const std::string text : lintText)
    {
       parseLintOption(text, &options);
    }
@@ -595,7 +595,7 @@ void applyOptions(const FileLocalLintOptions& fileOptions,
    }
 }
 
-#define kLintComment L"(?:^|\\n)#+\\s+\\!diagnostics"
+const char * const kLintComment = "(?:^|\\n)#+\\s+\\!diagnostics";
 
 void setFileLocalParseOptions(const std::wstring& rCode,
                               ParseOptions* pOptions,
@@ -604,7 +604,7 @@ void setFileLocalParseOptions(const std::wstring& rCode,
    using namespace string_utils;
    
    // Extract all of the lint commands.
-   boost::wregex reLintComments(kLintComment);
+   boost::regex reLintComments(kLintComment);
    std::vector<std::string> lintCommands;
    boost::wsmatch match;
    
@@ -614,10 +614,7 @@ void setFileLocalParseOptions(const std::wstring& rCode,
    {
       std::wstring::const_iterator matchBegin = match[0].second;
       std::wstring::const_iterator matchEnd   = std::find(matchBegin, end, L'\n');
-      
-      std::string command = string_utils::trimWhitespace(
-               string_utils::wideToUtf8(
-                  std::wstring(matchBegin, matchEnd)));
+      std::string command = string_utils::trimWhitespace(std::string(matchBegin, matchEnd));
       
       if (command == "off")
       {
@@ -644,22 +641,22 @@ ParseResults parse(const std::wstring& rCode,
    ParseOptions options;
    
    options.setLintRFunctions(
-            prefs::userPrefs().diagnosticsInRFunctionCalls());
+            userSettings().lintRFunctionCalls());
    
    options.setCheckArgumentsToRFunctionCalls(
-            prefs::userPrefs().checkArgumentsToRFunctionCalls());
+            userSettings().checkArgumentsToRFunctionCalls());
    
    options.setCheckUnexpectedAssignmentInFunctionCall(
-            prefs::userPrefs().checkUnexpectedAssignmentInFunctionCall());
+            userSettings().checkUnexpectedAssignmentInFunctionCall());
    
    options.setWarnIfVariableIsDefinedButNotUsed(
-            isExplicit && prefs::userPrefs().warnVariableDefinedButNotUsed());
+            isExplicit && userSettings().warnIfVariableDefinedButNotUsed());
    
    options.setWarnIfNoSuchVariableInScope(
-            prefs::userPrefs().warnIfNoSuchVariableInScope());
+            userSettings().warnIfNoSuchVariableInScope());
    
    options.setRecordStyleLint(
-            prefs::userPrefs().styleDiagnostics());
+            userSettings().enableStyleDiagnostics());
    
    bool noLint = false;
    setFileLocalParseOptions(rCode, &options, &noLint);
@@ -905,12 +902,12 @@ void onNAMESPACEchanged()
    if (!projects::projectContext().hasProject())
       return;
    
-   FilePath NAMESPACE(projects::projectContext().directory().completePath("NAMESPACE"));
+   FilePath NAMESPACE(projects::projectContext().directory().complete("NAMESPACE"));
    if (!NAMESPACE.exists())
       return;
    
    RFunction parseNamespace(".rs.parseNamespaceImports");
-   parseNamespace.addParam(NAMESPACE.getAbsolutePath());
+   parseNamespace.addParam(NAMESPACE.absolutePath());
    
    r::sexp::Protect protect;
    SEXP result;
@@ -947,7 +944,7 @@ void onNAMESPACEchanged()
 void onFilesChanged(const std::vector<core::system::FileChangeEvent>& events)
 {
    std::string namespacePath =
-      projects::projectContext().directory().completePath("NAMESPACE").getAbsolutePath();
+         projects::projectContext().directory().complete("NAMESPACE").absolutePath();
    
    for (const core::system::FileChangeEvent& event : events)
    {
@@ -960,7 +957,7 @@ void onFilesChanged(const std::vector<core::system::FileChangeEvent>& events)
 void afterSessionInitHook(bool newSession)
 {
    if (projects::projectContext().hasProject() &&
-      projects::projectContext().directory().completePath("NAMESPACE").exists())
+       projects::projectContext().directory().complete("NAMESPACE").exists())
    {
       onNAMESPACEchanged();
    }
@@ -977,7 +974,7 @@ bool collectLint(int depth,
                  const FilePath& path,
                  std::map<FilePath, LintItems>* pLint)
 {
-   if (path.getExtensionLowerCase() != ".r")
+   if (path.extensionLowerCase() != ".r")
       return true;
    
    std::string contents;
@@ -1010,7 +1007,7 @@ SEXP rs_lintDirectory(SEXP directorySEXP)
       return R_NilValue;
    
    std::map<FilePath, LintItems> lint;
-   Error error = dirPath.getChildrenRecursive(
+   Error error = dirPath.childrenRecursive(
             boost::bind(collectLint, _1, _2, &lint));
    if (error)
    {

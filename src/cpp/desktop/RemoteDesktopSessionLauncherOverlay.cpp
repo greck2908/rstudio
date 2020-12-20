@@ -1,7 +1,7 @@
 /*
  * RemoteDesktopSessionLauncherOverlay.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2019 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,22 +20,7 @@ using namespace rstudio::core;
 namespace rstudio {
 namespace desktop {
 
-void RemoteDesktopSessionLauncher::launchFirstSession(const core::FilePath& installPath,
-                                                      bool devMode,
-                                                      const QStringList& arguments)
-{
-}
-
-std::map<std::string, QNetworkCookie> RemoteDesktopSessionLauncher::getCookies()
-{
-   return std::map<std::string, QNetworkCookie>();
-}
-
-void RemoteDesktopSessionLauncher::onLaunchError(QString message)
-{
-}
-
-void RemoteDesktopSessionLauncher::onLaunchFirstSession()
+void RemoteDesktopSessionLauncher::launchFirstSession()
 {
 }
 
@@ -63,12 +48,12 @@ void RemoteDesktopSessionLauncher::showUserSignInPage(const http::Response& resp
 {
 }
 
-WorkspacesRequestState RemoteDesktopSessionLauncher::getWorkspacesUrl()
+Error RemoteDesktopSessionLauncher::getWorkspacesUrl(std::string* pUrl)
 {
-   return WorkspacesRequestState();
+   return Success();
 }
 
-Error RemoteDesktopSessionLauncher::getSessionInfo(SessionInfo* pSessionInfo)
+Error RemoteDesktopSessionLauncher::getSessionUrl(std::string* pSessionUrl)
 {
    return Success();
 }
@@ -78,10 +63,6 @@ void RemoteDesktopSessionLauncher::handleLaunchError(const Error& error)
 }
 
 void RemoteDesktopSessionLauncher::closeAllSatellites()
-{
-}
-
-void RemoteDesktopSessionLauncher::closeOnSignOut()
 {
 }
 

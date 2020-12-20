@@ -1,7 +1,7 @@
 /*
  * FormLabel.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,7 +14,6 @@
  */
 package org.rstudio.core.client.widget;
 
-import com.google.gwt.aria.client.Roles;
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.user.client.DOM;
 import com.google.gwt.user.client.ui.Label;
@@ -25,7 +24,7 @@ import org.rstudio.core.client.StringUtil;
  * A label associated with a form control. Use in UiBinder-created labels where 
  * the association must be set manually after UI is generated.
  */
-public class FormLabel extends Label implements CanSetControlId
+public class FormLabel extends Label
 {
    public static String NoForId = null;
 
@@ -40,7 +39,7 @@ public class FormLabel extends Label implements CanSetControlId
     */
    public FormLabel(String text)
    {
-      super(false, text, NoForId);
+      super(text, NoForId);
    }
 
   /**
@@ -57,51 +56,13 @@ public class FormLabel extends Label implements CanSetControlId
    }
 
    /**
-    * Creates a label to associate with a form control via <code>setFor</code>
-    * @param text the new label's text
-    * @param wordWrap <code>false</code> to disable word wrapping
-    */
-   public FormLabel(String text, boolean wordWrap)
-   {
-      super(text, NoForId, wordWrap);
-   }
-
-   /**
     * Create a label to associate with an existing form control
     * @param text label text
     * @param forId the form controls id
     */
    public FormLabel(String text, String forId)
    {
-      this(false, text, forId);
-   }
-
-   /**
-    * Creates a label with the specified text, which is associated with
-    * the specified form control.
-    *
-    * @param inline true if inline display, false for block
-    * @param text the new label's text
-    * @param forId id of element associated with this label
-    */
-   public FormLabel(boolean inline, String text, String forId)
-   {
-      super(inline, text, forId);
-   }
-
-   /**
-    * Creates a label with the specified text, which is associated with
-    * the specified form control.
-    *
-    * @param inline true if inline display, false for block
-    * @param text the new label's text
-    * @param el labeled element; if the element does not already have an id attribute,
-    *           one will be generated and assigned to it
-    */
-   public FormLabel(boolean inline, String text, Element el)
-   {
-      super(inline, text, NoForId);
-      setFor(el);
+      super(text, forId);
    }
 
    /**
@@ -112,7 +73,7 @@ public class FormLabel extends Label implements CanSetControlId
     */
    public FormLabel(String text, Widget w)
    {
-      super(false, text, NoForId);
+      super(text, NoForId);
       setFor(w);
    }
 
@@ -124,7 +85,7 @@ public class FormLabel extends Label implements CanSetControlId
     */
    public FormLabel(String text, Element el)
    {
-      super(false, text, NoForId);
+      super(text, NoForId);
       setFor(el);
    }
 
@@ -144,8 +105,7 @@ public class FormLabel extends Label implements CanSetControlId
     * Associate this label with the given element. If the element does not
     * have an id attribute, a unique one will be generated and assigned to it.
     * @param el
-    */
-   public void setFor(Element el)
+    */   public void setFor(Element el)
    {
       if (el == null)
          return;
@@ -167,24 +127,5 @@ public class FormLabel extends Label implements CanSetControlId
    public void setFor(String controlId)
    {
       getElement().setAttribute("for", controlId);
-   }
-
-   /**
-    * @param display directly set display attribute of the label element
-    */
-   public void setDisplay(String display)
-   {
-      getElement().getStyle().setProperty("display", display);
-   }
-
-   public void setAriaHidden(boolean hidden)
-   {
-      Roles.getTextboxRole().setAriaHiddenState(getElement(), hidden);
-   }
-
-   @Override
-   public void setElementId(String id)
-   {
-      getElement().setId(id);
    }
 }

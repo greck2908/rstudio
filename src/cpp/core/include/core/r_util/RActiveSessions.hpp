@@ -1,7 +1,7 @@
 /*
  * RActiveSessions.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,12 +19,12 @@
 
 #include <boost/noncopyable.hpp>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/Log.hpp>
 #include <core/Settings.hpp>
 #include <core/DateTime.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 
 #include <core/r_util/RSessionContext.hpp>
 #include <core/r_util/RProjectFile.hpp>
@@ -50,7 +50,7 @@ private:
       if (error)
          LOG_ERROR(error);
 
-      propertiesPath_ = scratchPath_.completeChildPath("properites");
+      propertiesPath_ = scratchPath_.childPath("properites");
       error = propertiesPath_.ensureDirectory();
       if (error)
          LOG_ERROR(error);
@@ -58,7 +58,7 @@ private:
 
 public:
 
-   bool empty() const { return scratchPath_.isEmpty(); }
+   bool empty() const { return scratchPath_.empty(); }
 
    std::string id() const { return id_; }
 
@@ -122,12 +122,28 @@ public:
 
    double lastUsed() const
    {
-      return timestampProperty("last-used");
+      if (!empty())
+      {
+         std::string value = readProperty("last-used");
+         if (!value.empty())
+            return safe_convert::stringTo<double>(value, 0);
+         else
+            return 0;
+      }
+      else
+      {
+         return 0;
+      }
    }
 
    void setLastUsed()
    {
-      setTimestampProperty("last-used");
+      if (!empty())
+      {
+         double now = date_time::millisecondsSinceEpoch();
+         std::string value = safe_convert::numberToString(now);
+         writeProperty("last-used", value);
+      }
    }
 
    bool executing() const
@@ -227,7 +243,6 @@ public:
       }
    }
 
-   // historical note: this will be displayed as the session name
    std::string label()
    {
       if (!empty())
@@ -236,7 +251,6 @@ public:
          return std::string();
    }
 
-   // historical note: this will be displayed as the session name
    void setLabel(const std::string& label)
    {
       if (!empty())
@@ -261,11 +275,11 @@ public:
 
    uintmax_t suspendSize()
    {
-      FilePath suspendPath = scratchPath_.completePath("suspended-session-data");
+      FilePath suspendPath = scratchPath_.complete("suspended-session-data");
       if (!suspendPath.exists())
          return 0;
 
-      return suspendPath.getSizeRecursive();
+      return suspendPath.sizeRecursive();
    }
 
    core::Error destroy()
@@ -304,82 +318,15 @@ public:
         // if we got this far the scope is valid, do one final check for
         // trying to open a shared project if sharing is disabled
         if (!projectSharingEnabled &&
-            r_util::isSharedPath(projectPath.getAbsolutePath(), userHomePath))
+            r_util::isSharedPath(projectPath.absolutePath(), userHomePath))
            return false;
       }
 
       // validated!
       return true;
    }
-   
-   bool operator>(const ActiveSession& rhs) const
-   {
-      if (sortConditions_.executing_ == rhs.sortConditions_.executing_)
-      {
-         if (sortConditions_.running_ == rhs.sortConditions_.running_)
-         {
-            if (sortConditions_.lastUsed_ == rhs.sortConditions_.lastUsed_)
-               return id() > rhs.id();
 
-            return sortConditions_.lastUsed_ > rhs.sortConditions_.lastUsed_;
-         }
-
-         return sortConditions_.running_;
-      }
-      
-      return sortConditions_.executing_;
-   }
-
- private:
-   struct SortConditions
-   {
-      SortConditions() :
-         executing_(false),
-         running_(false),
-         lastUsed_(0)
-      {
-         
-      }
-
-      bool executing_;
-      bool running_;
-      double lastUsed_;
-   };
-
-   void cacheSortConditions()
-   {
-      sortConditions_.executing_ = executing();
-      sortConditions_.running_ = running();
-      sortConditions_.lastUsed_ = lastUsed();
-   }
- 
-
-   void setTimestampProperty(const std::string& property)
-   {
-      if (!empty())
-      {
-         double now = date_time::millisecondsSinceEpoch();
-         std::string value = safe_convert::numberToString(now);
-         writeProperty(property, value);
-      }
-   }
-
-   double timestampProperty(const std::string& property) const
-   {
-      if (!empty())
-      {
-         std::string value = readProperty(property);
-         if (!value.empty())
-            return safe_convert::stringTo<double>(value, 0);
-         else
-            return 0;
-      }
-      else
-      {
-         return 0;
-      }
-   }
-
+private:
 
    void setRunning(bool running)
    {
@@ -397,7 +344,6 @@ private:
    std::string id_;
    FilePath scratchPath_;
    FilePath propertiesPath_;
-   SortConditions sortConditions_;
 };
 
 
@@ -406,7 +352,7 @@ class ActiveSessions : boost::noncopyable
 public:
    explicit ActiveSessions(const FilePath& rootStoragePath)
    {
-      storagePath_ = rootStoragePath.completeChildPath("sessions/active");
+      storagePath_ = rootStoragePath.childPath("sessions/active");
       Error error = storagePath_.ensureDirectory();
       if (error)
          LOG_ERROR(error);

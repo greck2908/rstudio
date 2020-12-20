@@ -1,7 +1,7 @@
 /*
  * ServerSessionProxy.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -28,7 +28,7 @@
 namespace rstudio {
 namespace core {
    class Error;
-}
+} 
 }
 
 namespace rstudio {
@@ -43,8 +43,7 @@ struct RequestType
       Content,
       Events,
       ClientInit,
-      Jupyter,
-      VSCode
+      Jupyter
    };
 };
 
@@ -52,27 +51,18 @@ typedef boost::function<void (const core::http::Response&,
                               const std::string& baseAddress,
                               boost::shared_ptr<core::http::IAsyncClient>)> LocalhostResponseHandler;
 
-typedef boost::function<void(const boost::shared_ptr<core::http::IAsyncClient>&)> ClientHandler;
-
 core::Error initialize();
 
 core::Error runVerifyInstallationSession();
 
 void proxyContentRequest(
       const std::string& username,
-      boost::shared_ptr<core::http::AsyncConnection> ptrConnection);
-
-bool proxyUploadRequest(
-      const std::string& username,
-      const std::string& userIdentifier,
-      boost::shared_ptr<core::http::AsyncConnection> ptrConnection,
-      const std::string& formData,
-      bool keepGoing);
+      boost::shared_ptr<core::http::AsyncConnection> ptrConnection) ;
 
 void proxyRpcRequest(
       const std::string& username,
       const std::string& userIdentifier,
-      boost::shared_ptr<core::http::AsyncConnection> ptrConnection);
+      boost::shared_ptr<core::http::AsyncConnection> ptrConnection) ;
 
 void proxyEventsRequest(
       const std::string& username,
@@ -86,17 +76,12 @@ void proxyLocalhostRequest(
 void proxyJupyterRequest(
       const std::string& username,
       boost::shared_ptr<core::http::AsyncConnection> ptrConnection);
-
-void proxyVSCodeRequest(
-      const std::string& username,
-      boost::shared_ptr<core::http::AsyncConnection> ptrConnection);
    
 bool requiresSession(const core::http::Request& request);
 
 typedef boost::function<bool(
     boost::shared_ptr<core::http::AsyncConnection>,
-    const core::r_util::SessionContext&,
-    const ClientHandler&
+    const core::r_util::SessionContext&
     )> ProxyFilter;
 void setProxyFilter(ProxyFilter filter);
 

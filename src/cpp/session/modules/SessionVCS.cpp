@@ -1,7 +1,7 @@
 /*
  * SessionVCS.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,7 +24,6 @@
 #include <session/SessionModuleContext.hpp>
 #include <session/projects/SessionProjects.hpp>
 #include <session/SessionConsoleProcess.hpp>
-#include <session/prefs/UserPrefs.hpp>
 
 #include "vcs/SessionVCSUtils.hpp"
 
@@ -134,28 +133,22 @@ class NullFileDecorationContext : public FileDecorationContext
 } // anonymous namespace
 
 boost::shared_ptr<FileDecorationContext> fileDecorationContext(
-      const core::FilePath& rootDir,
-      bool implicit)
+                                            const core::FilePath& rootDir)
 {
-   if (implicit && !prefs::userPrefs().vcsAutorefresh())
+   if (git::isWithinGitRoot(rootDir))
    {
       return boost::shared_ptr<FileDecorationContext>(
-               new NullFileDecorationContext());
-   }
-   else if (git::isWithinGitRoot(rootDir))
-   {
-      return boost::shared_ptr<FileDecorationContext>(
-               new git::GitFileDecorationContext(rootDir));
+                           new git::GitFileDecorationContext(rootDir));
    }
    else if (svn::isSvnEnabled())
    {
       return boost::shared_ptr<FileDecorationContext>(
-               new svn::SvnFileDecorationContext(rootDir));
+                           new svn::SvnFileDecorationContext(rootDir));
    }
    else
    {
       return boost::shared_ptr<FileDecorationContext>(
-               new NullFileDecorationContext());
+                           new NullFileDecorationContext());
    }
 }
 
@@ -197,7 +190,7 @@ FilePath getTrueHomeDir()
 
 FilePath defaultSshKeyDir()
 {
-   return getTrueHomeDir().completeChildPath(".ssh");
+   return getTrueHomeDir().childPath(".ssh");
 }
 
 void enqueueRefreshEvent()
@@ -215,7 +208,7 @@ core::Error initialize()
    // http endpoints
    using boost::bind;
    using namespace module_context;
-   ExecBlock initBlock;
+   ExecBlock initBlock ;
    initBlock.addFunctions()
       (bind(registerRpcMethod, "vcs_clone", vcsClone));
    Error error = initBlock.execute();
@@ -226,7 +219,7 @@ core::Error initialize()
    const projects::ProjectContext& projContext = projects::projectContext();
    FilePath workingDir = projContext.directory();
 
-   if (!session::options().allowVcs() || !prefs::userPrefs().vcsEnabled() || workingDir.isEmpty())
+   if (!session::options().allowVcs() || !userSettings().vcsEnabled() || workingDir.empty())
       return Success();
 
 

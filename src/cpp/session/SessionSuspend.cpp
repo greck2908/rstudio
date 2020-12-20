@@ -1,7 +1,7 @@
 /*
  * SessionSuspend.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -47,7 +47,7 @@ bool s_rSessionResumed = false;
 // the presence of s_forceSuspend = 1)
 bool disallowSuspend() 
 { 
-   return false;
+   return false; 
 }
 
 bool sessionResumed()
@@ -77,7 +77,7 @@ bool suspendSession(bool force, int status)
    r::session::ensureDeserialized();
 
    // perform the suspend (does not return if successful)
-   return r::session::suspend(force, status, session::options().envVarSaveBlacklist());
+   return r::session::suspend(force, status);
 }
 
 void suspendIfRequested(const boost::function<bool()>& allowSuspend)

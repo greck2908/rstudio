@@ -1,7 +1,7 @@
 /*
  * MiscellaneousTests.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,7 +24,7 @@
 #include <core/collection/LruCache.hpp>
 #include <core/collection/Position.hpp>
 #include <core/http/Request.hpp>
-#include <shared_core/json/Json.hpp>
+#include <core/json/Json.hpp>
 
 #include <core/system/Types.hpp>
 
@@ -265,8 +265,8 @@ test_context("Options")
       options.push_back({"abc", std::string()});
       options.push_back({"abc=", std::string()});
 
-      core::json::Array optionsArray = core::json::Array(options);
-      core::system::Options options2 = optionsArray.toStringPairList();
+      core::json::Array optionsArray = core::json::toJsonArray(options);
+      core::system::Options options2 = core::json::optionsFromJson(optionsArray);
 
       for (size_t i = 0; i < options.size(); ++i)
       {

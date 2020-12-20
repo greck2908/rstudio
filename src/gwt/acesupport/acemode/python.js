@@ -1,7 +1,7 @@
 /*
  * python.js
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * The Initial Developer of the Original Code is
  * Ajax.org B.V.
@@ -64,50 +64,51 @@ oop.inherits(Mode, TextMode);
 
 (function() {
 
-   this.lineCommentStart = "#";
+    this.lineCommentStart = "#";
 
    this.getLanguageMode = function(position)
    {
       return "Python";
    };
 
-   this.getNextLineIndent = function(state, line, tab, row) {
+    this.getNextLineIndent = function(state, line, tab) {
+        var indent = this.$getIndent(line);
 
-      var indent = this.$getIndent(line);
+        var tokenizedLine = this.getTokenizer().getLineTokens(line, state);
+        var tokens = tokenizedLine.tokens;
 
-      // if this line is a comment, use the same indent
-      if (/^\s*[#]/.test(line))
-         return indent;
+        if (tokens.length && tokens[tokens.length-1].type == "comment") {
+            return indent;
+        }
 
-      // detect lines ending with something that should increase indent
-      // (nominally, these are open brackets and ':')
-      if (/[{([:]\s*(?:$|[#])/.test(line))
-         indent += tab;
+        if (state == "start") {
+            var match = line.match(/^.*[\{\(\[\:]\s*$/);
+            if (match) {
+                indent += tab;
+            }
+        }
 
-      // decrease indent following things that 'end' a scope
-      if (/^\s*(?:break|continue|pass|raise|return)\b/.test(line))
-         indent = indent.substring(0, indent.length - tab.length);
+        return indent;
+    };
 
-      return indent;
+    var outdents = {
+        "pass": 1,
+        "return": 1,
+        "raise": 1,
+        "break": 1,
+        "continue": 1
+    };
+    
+    this.checkOutdent = function(state, line, input) {
+        return false;
+    };
 
-   };
+    this.autoOutdent = function(state, doc, row) {
+        return;
+    };
 
-   this.checkOutdent = function(state, line, input) {
-      return false;
-   };
-
-   this.autoOutdent = function(state, doc, row) {
-      return;
-   };
-
-   this.transformAction = function(state, action, editor, session, param) {
-      return false;
-   };
-
-   this.$id = "mode/python";
-
+    this.$id = "mode/python";
 }).call(Mode.prototype);
 
 exports.Mode = Mode;
-
 });

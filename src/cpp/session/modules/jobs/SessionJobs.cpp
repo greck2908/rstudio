@@ -1,7 +1,7 @@
 /*
  * SessionJobs.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,7 @@
 
 #include <string>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Exec.hpp>
 #include <core/system/System.hpp>
 
@@ -78,16 +78,6 @@ SEXP rs_addJob(SEXP nameSEXP, SEXP statusSEXP, SEXP progressUnitsSEXP, SEXP acti
    // return job id
    r::sexp::Protect protect;
    return r::sexp::create(pJob->id(), &protect);
-}
-
-SEXP rs_isJobRunning(SEXP jobSEXP)
-{
-   boost::shared_ptr<Job> pJob;
-   if (!lookupJob(jobSEXP, &pJob))
-      return R_NilValue;
-   
-   r::sexp::Protect protect;
-   return r::sexp::create(!pJob->complete(), &protect);
 }
 
 SEXP rs_removeJob(SEXP jobSEXP)
@@ -221,7 +211,7 @@ SEXP rs_runScriptJob(SEXP path, SEXP name, SEXP encoding, SEXP dir, SEXP importE
    if (workingDir.empty())
    {
       // default working dir to parent directory of script
-      workingDir = scriptPath.getParent().getAbsolutePath();
+      workingDir = scriptPath.parent().absolutePath();
    }
 
    FilePath workingDirPath(workingDir);
@@ -236,7 +226,7 @@ SEXP rs_runScriptJob(SEXP path, SEXP name, SEXP encoding, SEXP dir, SEXP importE
    if (jobName.empty())
    {
       // no name was supplied for the job, so derive one from the filename
-      jobName = scriptFilePath.getFilename();
+      jobName = scriptFilePath.filename();
    }
 
    std::string id;
@@ -255,13 +245,13 @@ SEXP rs_stopScriptJob(SEXP sexpId)
 {
    std::string id = r::sexp::safeAsString(sexpId);
    Error error = stopScriptJob(id);
-   if (error == systemError(boost::system::errc::no_such_file_or_directory, ErrorLocation()))
+   if (error.code() == boost::system::errc::no_such_file_or_directory)
    {
       r::exec::error("The script job '" + id + "' was not found.");
    }
    else if (error)
    {
-      r::exec::error("Error while stopping script job: " + error.getSummary());
+      r::exec::error("Error while stopping script job: " + error.summary());
    }
    return R_NilValue;
 }
@@ -322,13 +312,13 @@ Error runScriptJob(const json::JsonRpcRequest& request,
    if (error)
       return error;
 
-   error = json::readObject(jobSpec, "name", name,
-                                     "path", path,
-                                     "encoding", encoding,
-                                     "code", code,
-                                     "working_dir", workingDir,
-                                     "import_env", importEnv,
-                                     "export_env", exportEnv);
+   error = json::readObject(jobSpec, "name", &name,
+                                     "path", &path,
+                                     "encoding", &encoding,
+                                     "code", &code,
+                                     "working_dir", &workingDir,
+                                     "import_env", &importEnv,
+                                     "export_env", &exportEnv);
    if (error)
       return error;
 
@@ -369,8 +359,8 @@ Error setJobListening(const json::JsonRpcRequest& request,
 {
    // extract job ID
    std::string id;
-   bool listening, bypassLauncherCall;
-   Error error = json::readParams(request.params, &id, &listening, &bypassLauncherCall);
+   bool listening;
+   Error error = json::readParams(request.params, &id, &listening);
    if (error)
       return error;
 
@@ -379,7 +369,7 @@ Error setJobListening(const json::JsonRpcRequest& request,
    if (!lookupJob(id, &pJob))
       return Error(json::errc::ParamInvalid, ERROR_LOCATION);
 
-   if (pJob->type() == JobType::JobTypeLauncher && !bypassLauncherCall)
+   if (pJob->type() == JobType::JobTypeLauncher)
       modules::overlay::streamLauncherOutput(id, listening);
 
    // if listening started, return the output so far
@@ -453,7 +443,6 @@ core::Error initialize()
    // register API handlers
    RS_REGISTER_CALL_METHOD(rs_addJob);
    RS_REGISTER_CALL_METHOD(rs_removeJob);
-   RS_REGISTER_CALL_METHOD(rs_isJobRunning);
    RS_REGISTER_CALL_METHOD(rs_setJobProgress);
    RS_REGISTER_CALL_METHOD(rs_addJobProgress);
    RS_REGISTER_CALL_METHOD(rs_setJobStatus);

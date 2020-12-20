@@ -1,7 +1,7 @@
 /*
  * RpcResponse.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -56,8 +56,8 @@ public class RpcResponse extends JavaScriptObject
     
    public final native static RpcResponse create(RpcError error) /*-{
       var response = new Object();
-      response.error = error;
-      return response;
+      response.error = error ;
+      return response ;
    }-*/;
    
    public final RpcError getError()

@@ -1,7 +1,7 @@
 /*
  * SessionTerminalShellTests.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -37,7 +37,7 @@ test_context("session terminal shell tests")
       expect_true(origCount > 0);
       core::json::Array arr;
       shells.toJson(&arr);
-      expect_true(origCount == arr.getSize());
+      expect_true(origCount == arr.size());
    }
 
    test_that("64-bit Windows has 64-bit command prompt")
@@ -106,7 +106,7 @@ test_context("session terminal shell tests")
 
 
 #else // Posix
-   test_that("Bash on Posix")
+   test_that("One shell (bash) on Posix")
    {
       AvailableTerminalShells shells;
       TerminalShell shell;

@@ -1,15 +1,15 @@
 bibentry("Manual",
          title = "RStudio: Integrated Development Environment for R",
          author = person("RStudio Team"),
-         organization = "RStudio, PBC",
+         organization = "RStudio, Inc.",
          address      = "Boston, MA",
          year         = "${CPACK_COPYRIGHT_YEAR}",
          url          = "http://www.rstudio.com/",
          
          textVersion = 
          paste("RStudio Team (${CPACK_COPYRIGHT_YEAR}). ", 
-               "RStudio: Integrated Development Environment for R. ",
-               "RStudio, PBC, Boston, MA ",
+               "RStudio: Integrated Development for R. ",
+               "RStudio, Inc., Boston, MA ",
                "URL http://www.rstudio.com/.",
                sep=""),
          

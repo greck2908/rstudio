@@ -1,7 +1,7 @@
 /*
  * RenvServerOperations.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,15 +15,11 @@
 package org.rstudio.studio.client.renv.model;
 
 import org.rstudio.studio.client.server.ServerRequestCallback;
-import org.rstudio.studio.client.workbench.projects.RenvAction;
 import org.rstudio.studio.client.workbench.views.buildtools.model.BuildServerOperations;
-
-import com.google.gwt.core.client.JsArray;
 
 import org.rstudio.studio.client.server.Void;
 
 public interface RenvServerOperations extends BuildServerOperations
 {
    void renvInit(String projDir, ServerRequestCallback<Void> requestCallback);
-   void renvActions(String action, ServerRequestCallback<JsArray<RenvAction>> requestCallback);
 }

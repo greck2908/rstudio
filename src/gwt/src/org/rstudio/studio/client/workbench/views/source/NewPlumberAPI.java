@@ -1,7 +1,7 @@
 /*
  * NewPlumberAPI.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,13 +15,11 @@
 package org.rstudio.studio.client.workbench.views.source;
 
 import com.google.gwt.aria.client.Roles;
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.RegexUtil;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.dom.DomUtils;
 import org.rstudio.core.client.js.JsObject;
 import org.rstudio.core.client.regex.Pattern;
-import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.widget.DecorativeImage;
 import org.rstudio.core.client.widget.DirectoryChooserTextBox;
 import org.rstudio.core.client.widget.FormLabel;
@@ -56,35 +54,35 @@ public class NewPlumberAPI extends ModalDialog<NewPlumberAPI.Result>
    public static class Result extends JavaScriptObject
    {
       protected Result() {}
-
-      public static Result create()
+      
+      public static final Result create()
       {
          return create("", "");
       }
-
-      public static native Result create(String appName,
-                                         String appDir)
+      
+      public static final native Result create(String appName,
+                                               String appDir)
       /*-{
          return {
             "name": appName,
             "dir": appDir
          };
       }-*/;
-
+      
       public final native String getAPIName() /*-{ return this["name"]; }-*/;
       public final native String getAPIDir() /*-{ return this["dir"]; }-*/;
    }
-
+   
    private void addTextFieldValidator(HasKeyDownHandlers widget)
    {
       widget.addKeyDownHandler(event -> Scheduler.get().scheduleDeferred(() -> validateAPIName()));
    }
-
+   
    private boolean isValidAPIName(String apiName)
    {
       return RE_VALID_API_NAME.test(apiName);
    }
-
+   
    private void validateAPIName()
    {
       String apiName = apiNameTextBox_.getText().trim();
@@ -93,7 +91,7 @@ public class NewPlumberAPI extends ModalDialog<NewPlumberAPI.Result>
       else
          apiNameTextBox_.addStyleName(RES.styles().invalidAPIName());
    }
-
+   
    private class PlumberAPIClientState extends JSObjectStateValue
    {
       public PlumberAPIClientState()
@@ -121,17 +119,17 @@ public class NewPlumberAPI extends ModalDialog<NewPlumberAPI.Result>
          return result_.cast();
       }
    }
-
-   private void loadAndPersistClientState()
+   
+   private final void loadAndPersistClientState()
    {
       if (clientStateValue_ == null)
          clientStateValue_ = new PlumberAPIClientState();
    }
-
+   
    private String defaultParentDirectory()
    {
       String dir;
-
+      
       // if we're in a project, use the project directory
       if (context_.isProjectActive())
       {
@@ -145,11 +143,11 @@ public class NewPlumberAPI extends ModalDialog<NewPlumberAPI.Result>
                ? "~"
                : cachedDir;
       }
-
+      
       return dir;
-
+      
    }
-
+   
    @Inject
    private void initialize(Session session,
                            GlobalDisplay globalDisplay,
@@ -159,18 +157,19 @@ public class NewPlumberAPI extends ModalDialog<NewPlumberAPI.Result>
       globalDisplay_ = globalDisplay;
       context_ = context;
    }
-
-   public NewPlumberAPI(String caption,
+   
+   public NewPlumberAPI(String caption, 
                         OperationWithInput<Result> operation)
    {
       super(caption, Roles.getDialogRole(), operation);
       RStudioGinjector.INSTANCE.injectMembers(this);
-
+      
       setOkButtonCaption("Create");
-
+      
       loadAndPersistClientState();
-
-      VerticalPanel controls = new VerticalPanel();
+        
+      controls_ = new VerticalPanel();
+      
       // Create individual widgets
       apiNameTextBox_ = new TextBox();
       DomUtils.disableSpellcheck(apiNameTextBox_);
@@ -179,33 +178,31 @@ public class NewPlumberAPI extends ModalDialog<NewPlumberAPI.Result>
       addTextFieldValidator(apiNameTextBox_);
       FormLabel apiNameLabel = new FormLabel("API name:", apiNameTextBox_);
       apiNameLabel.addStyleName(RES.styles().label());
-      controls.add(apiNameLabel);
-      controls.add(apiNameTextBox_);
-      directoryChooserTextBox_ = new DirectoryChooserTextBox(
-         "Create within directory:",
-         ElementIds.TextBoxButtonId.PLUMBER_DIR,
-         null);
+      controls_.add(apiNameLabel);
+      controls_.add(apiNameTextBox_);
+      
+      directoryChooserTextBox_ = new DirectoryChooserTextBox("Create within directory:", null);
       directoryChooserTextBox_.setText(defaultParentDirectory());
-
-      controls.add(new VerticalSpacer("12px"));
-      controls.add(directoryChooserTextBox_);
-
-      controls.add(new VerticalSpacer("20px"));
+  
+      controls_.add(new VerticalSpacer("12px"));
+      controls_.add(directoryChooserTextBox_);
+      
+      controls_.add(new VerticalSpacer("20px"));
+      
       container_ = new HorizontalPanel();
-      DecorativeImage image =
-         new DecorativeImage(new ImageResource2x(NewProjectResources.INSTANCE.plumberAppIcon2x()));
+      DecorativeImage image = new DecorativeImage(NewProjectResources.INSTANCE.plumberAppIcon2x());
       image.addStyleName(RES.styles().image());
       container_.add(image);
-      container_.add(controls);
-
-      HelpLink plumberHelpLink_ = new HelpLink(
-         "Plumber APIs",
-         "about_plumber",
-         false);
+      container_.add(controls_);
+      
+      plumberHelpLink_ = new HelpLink(
+            "Plumber APIs",
+            "about_plumber",
+            false);
       plumberHelpLink_.getElement().getStyle().setMarginTop(4, Unit.PX);
       addLeftWidget(plumberHelpLink_);
    }
-
+   
    @Override
    protected boolean validate(Result result)
    {
@@ -215,17 +212,17 @@ public class NewPlumberAPI extends ModalDialog<NewPlumberAPI.Result>
          String message = appName.isEmpty()
                ? "The API name must not be empty"
                : "Invalid application name";
-
+         
          globalDisplay_.showErrorMessage(
                "Invalid API Name",
                message,
                apiNameTextBox_);
          return false;
       }
-
+      
       return true;
    }
-
+   
    @Override
    protected Widget createMainWidget()
    {
@@ -236,45 +233,49 @@ public class NewPlumberAPI extends ModalDialog<NewPlumberAPI.Result>
    protected Result collectInput()
    {
       String name = apiNameTextBox_.getText().trim();
-
+     
       // don't persist new parent directories if within a project
       String dirToUse = directoryChooserTextBox_.getText().trim();
       String dirToCache = context_.isProjectActive()
             ? result_.getAPIDir()
             : dirToUse;
-
+            
       result_ = Result.create(name, dirToCache);
       return Result.create(name, dirToUse);
    }
-
+   
    @Override
    protected void onUnload()
    {
       super.onUnload();
       session_.persistClientState();
    }
-
-   private final HorizontalPanel container_;
-
-   private final TextBox apiNameTextBox_;
-
-   private final DirectoryChooserTextBox directoryChooserTextBox_;
+   
+   private HorizontalPanel container_;
+   private VerticalPanel controls_;
+   
+   private TextBox apiNameTextBox_;
+   
+   private DirectoryChooserTextBox directoryChooserTextBox_;
+   
+   private HelpLink plumberHelpLink_;
+   
    private static Result result_ = Result.create();
    private static PlumberAPIClientState clientStateValue_;
-
+   
    private static final Pattern RE_VALID_API_NAME = Pattern.create(
          "^\\s*" +
          "[" + RegexUtil.wordCharacter() + "]" +
          "[" + RegexUtil.wordCharacter() + "._-]*" +
          "\\s*$", "");
-
+   
    // Injected ----
    private Session session_;
    private GlobalDisplay globalDisplay_;
    private WorkbenchContext context_;
-
+   
    // Styles ----
-
+   
    public interface Styles extends CssResource
    {
       String image();
@@ -288,8 +289,8 @@ public class NewPlumberAPI extends ModalDialog<NewPlumberAPI.Result>
       @Source("NewPlumberAPI.css")
       Styles styles();
    }
-
-   private static final Resources RES = GWT.create(Resources.class);
+   
+   private static Resources RES = GWT.create(Resources.class);
    static {
       RES.styles().ensureInjected();
    }

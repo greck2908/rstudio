@@ -1,7 +1,7 @@
 /*
  * PreferencesDialogBaseResources.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -36,7 +36,6 @@ public interface PreferencesDialogBaseResources extends ClientBundle
       String nudgeDown();
       String spaced();
       String lessSpaced();
-      String mediumSpaced();
       String extraSpaced();
       String textBoxWithChooser();
       String infoLabel();
@@ -65,5 +64,5 @@ public interface PreferencesDialogBaseResources extends ClientBundle
    @Source("iconPublishing_2x.png")
    ImageResource iconPublishing2x();
    
-   static PreferencesDialogBaseResources INSTANCE = (PreferencesDialogBaseResources)GWT.create(PreferencesDialogBaseResources.class);
+   static PreferencesDialogBaseResources INSTANCE = (PreferencesDialogBaseResources)GWT.create(PreferencesDialogBaseResources.class) ;
 }

@@ -1,7 +1,7 @@
 /*
  * SessionClientEventService.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,7 @@
 
 #include <core/BoostThread.hpp>
 #include <core/Log.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/BoostErrors.hpp>
 #include <core/Thread.hpp>
 #include <core/system/System.hpp>
@@ -45,8 +45,8 @@ const int kLastChanceWaitSeconds = 4;
 
 bool hasEventIdLessThanOrEqualTo(const json::Value& event, int targetId)
 {
-   const json::Object& eventJSON = event.getObject();
-   int eventId = (*eventJSON.find("id")).getValue().getInt();
+   const json::Object& eventJSON = event.get_obj();
+   int eventId = (*eventJSON.find("id")).value().get_int();
    return eventId <= targetId;
 }
          
@@ -54,8 +54,8 @@ bool hasEventIdLessThanOrEqualTo(const json::Value& event, int targetId)
 
 ClientEventService& clientEventService()
 {
-   static ClientEventService instance;
-   return instance;
+   static ClientEventService instance ;
+   return instance ;
 }
 
 Error ClientEventService::start(const std::string& clientId)
@@ -68,20 +68,20 @@ Error ClientEventService::start(const std::string& clientId)
    core::system::SignalBlocker signalBlocker;
    Error error = signalBlocker.blockAll();
    if (error)
-      return error;
+      return error ;
    
    // launch the service thread
    try
    {
       using boost::bind;
-      boost::thread serviceThread(bind(&ClientEventService::run, this));
+      boost::thread serviceThread(bind(&ClientEventService::run, this));       
       serviceThread_ = MOVE_THREAD(serviceThread);
       
       return Success();
    }
    catch(const boost::thread_resource_error& e)
    {
-      return Error(boost::thread_error::ec_from_exception(e), ERROR_LOCATION);
+      return Error(boost::thread_error::ec_from_exception(e), ERROR_LOCATION);       
    }
 }
    
@@ -156,7 +156,7 @@ bool ClientEventService::havePendingClientEvents()
 {
    LOCK_MUTEX(mutex_)
    {
-      return !clientEvents_.isEmpty();
+      return !clientEvents_.empty();
    }
    END_LOCK_MUTEX
 
@@ -208,10 +208,10 @@ void ClientEventService::run()
       int nextEventId = 0;
       
       // accept loop
-      bool stopServer = false;
+      bool stopServer = false ;
       while (!stopServer || clientEventQueue.hasEvents())
       {
-         boost::shared_ptr<HttpConnection> ptrConnection;
+         boost::shared_ptr<HttpConnection> ptrConnection ;
          try
          {
             // wait for up to 1 second for a connection
@@ -307,7 +307,7 @@ void ClientEventService::run()
          catch(const boost::thread_interrupted&)
          {
             // set flag so we terminate on the next accept loop iteration
-            stopServer = true;
+            stopServer = true ;
             
             // NOTE: even if we are interrupted we still want to allow the
             // response to be sent (e.g. need to send the client either
@@ -328,7 +328,7 @@ void ClientEventService::run()
             for (std::vector<ClientEvent>::const_iterator 
                  it = events.begin(); it != events.end(); ++it)
             {
-               json::Object event;
+               json::Object event ;
                it->asJsonObject(nextEventId++, &event);
                addClientEvent(event);
             }

@@ -1,7 +1,7 @@
 /*
  * NewConnectionSnippetHost.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,6 +15,7 @@
 
 package org.rstudio.studio.client.workbench.views.connections.ui;
 
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -26,14 +27,11 @@ import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.theme.res.ThemeResources;
-import org.rstudio.core.client.widget.FormLabel;
-import org.rstudio.core.client.widget.LayoutGrid;
 import org.rstudio.core.client.widget.MessageDialog;
 import org.rstudio.core.client.widget.Operation;
 import org.rstudio.core.client.widget.OperationWithInput;
 import org.rstudio.core.client.widget.ProgressIndicator;
 import org.rstudio.core.client.widget.ThemedButton;
-import org.rstudio.core.client.widget.images.MessageDialogImages;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.DelayedProgressRequestCallback;
@@ -58,6 +56,7 @@ import com.google.gwt.resources.client.ClientBundle;
 import com.google.gwt.resources.client.CssResource;
 import com.google.gwt.safehtml.shared.SafeHtmlBuilder;
 import com.google.gwt.user.client.ui.Composite;
+import com.google.gwt.user.client.ui.Grid;
 import com.google.gwt.user.client.ui.HTML;
 import com.google.gwt.user.client.ui.HasAlignment;
 import com.google.gwt.user.client.ui.HasVerticalAlignment;
@@ -121,7 +120,6 @@ public class NewConnectionSnippetHost extends Composite
          warningPanel.addStyleName(RES.styles().warningPanel());
          Image warningImage = new Image(new ImageResource2x(ThemeResources.INSTANCE.warningSmall2x()));
          warningImage.addStyleName(RES.styles().warningImage());
-         warningImage.setAltText(MessageDialogImages.DIALOG_WARNING_TEXT);
          warningPanel.add(warningImage);
          
          Label label = new Label();
@@ -230,7 +228,7 @@ public class NewConnectionSnippetHost extends Composite
       dlg.showModal();
    }
    
-   private LayoutGrid createParameterizedUI(final NewConnectionInfo info, int maxRows)
+   private Grid createParameterizedUI(final NewConnectionInfo info, int maxRows)
    {
       final ArrayList<NewConnectionSnippetParts> snippetParts = parseSnippet(info.getSnippet());
       int visibleRows = snippetParts.size();
@@ -251,7 +249,7 @@ public class NewConnectionSnippetHost extends Composite
       final ArrayList<NewConnectionSnippetParts> secondarySnippetParts = 
             new ArrayList<NewConnectionSnippetParts>(snippetParts.subList(visibleParams, snippetParts.size()));
 
-      final LayoutGrid connGrid = new LayoutGrid(visibleRows + 1, 4);
+      final Grid connGrid = new Grid(visibleRows + 1, 4);
       connGrid.addStyleName(RES.styles().grid());
 
       if (visibleRows > 0) {
@@ -268,7 +266,7 @@ public class NewConnectionSnippetHost extends Composite
          connGrid.getRowFormatter().setStyleName(idxRow, RES.styles().gridRow());
          
          final String key = snippetParts.get(idxParams).getKey();
-         FormLabel label = new FormLabel(key + ":");
+         Label label = new Label(key + ":");
          label.addStyleName(RES.styles().label());
          connGrid.setWidget(idxRow, 0, label);
          connGrid.getRowFormatter().setVerticalAlign(idxRow, HasVerticalAlignment.ALIGN_TOP);
@@ -297,7 +295,6 @@ public class NewConnectionSnippetHost extends Composite
             textbox.addStyleName(textboxStyle);
             textboxBase = textbox;
          }
-         label.setFor(textboxBase);
          
          connGrid.setWidget(idxRow, 1, textboxBase);
          
@@ -475,13 +472,13 @@ public class NewConnectionSnippetHost extends Composite
       
       parametersPanel_ = new VerticalPanel();
       parametersPanel_.addStyleName(RES.styles().parametersPanel());
-      container.add(parametersPanel_);
+      container.add(parametersPanel_);        
       
-      // add the code panel
+      // add the code panel     
       codePanel_ = new ConnectionCodePanel();
       codePanel_.addStyleName(RES.styles().dialogCodePanel());
 
-      LayoutGrid codeGrid = new LayoutGrid(1, 1);
+      Grid codeGrid = new Grid(1, 1);
       codeGrid.addStyleName(RES.styles().codeGrid());
       codeGrid.setCellPadding(0);
       codeGrid.setCellSpacing(0);

@@ -1,7 +1,7 @@
 /*
  * NotebookPlotReplay.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -60,9 +60,9 @@ public:
       // create the text to send to the process (it'll be read on stdin
       // inside R)
       std::string input;
-      for (const FilePath& snapshot : snapshotFiles)
+      for (const FilePath snapshot : snapshotFiles)
       {
-         input.append(string_utils::utf8ToSystem(snapshot.getAbsolutePath()));
+         input.append(string_utils::utf8ToSystem(snapshot.absolutePath()));
          input.append("\n");
       }
       input.append("\n");
@@ -73,9 +73,9 @@ public:
       FilePath modulesPath = session::options().modulesRSourcePath();
       FilePath sourcesPath = session::options().coreRSourcePath();
 
-      sources.push_back(sourcesPath.completePath("Tools.R"));
-      sources.push_back(modulesPath.completePath("ModuleTools.R"));
-      sources.push_back(modulesPath.completePath("NotebookPlots.R"));
+      sources.push_back(sourcesPath.complete("Tools.R"));
+      sources.push_back(modulesPath.complete("ModuleTools.R"));
+      sources.push_back(modulesPath.complete("NotebookPlots.R"));
 
       // form extra bitmap params 
       std::string extraParams = r::session::graphics::extraBitmapParams();
@@ -124,23 +124,23 @@ private:
             continue;
 
          FilePath chunkBase = png;
-         if (!persistOutput_) chunkBase = png.getParent();
+         if (!persistOutput_) chunkBase = png.parent();
 
          // create the event and send to the client. consider: this makes some
          // assumptions about the way output URLs are formed and some
          // assumptions about cache structure that might be better localized.
          json::Object result;
-         result["chunk_id"] = chunkBase.getParent().getFilename();
+         result["chunk_id"] = chunkBase.parent().filename();
          result["doc_id"] = docId_;
          result["replay_id"] = replayId_;
 
          result["plot_url"] = kChunkOutputPath "/" + 
-            chunkBase.getParent().getParent().getFilename() + "/" + // context ID = folder name
+            chunkBase.parent().parent().filename() + "/" + // context ID = folder name
             docId_ + "/" + 
-            chunkBase.getParent().getFilename() + 
+            chunkBase.parent().filename() + 
             "/" + 
-            (persistOutput_ ? "" : png.getParent().getFilename() + "/") +
-            png.getFilename();
+            (persistOutput_ ? "" : png.parent().filename() + "/") +
+            png.filename();
 
          ClientEvent event(client_events::kChunkPlotRefreshed, result);
          module_context::enqueClientEvent(event);
@@ -224,7 +224,7 @@ Error replayPlotOutput(const json::JsonRpcRequest& request,
 
    // look for snapshot files
    std::vector<FilePath> snapshotFiles;
-   for (const std::string& chunkId : chunkIds)
+   for (const std::string chunkId : chunkIds)
    {
       // find the storage location for this chunk output
       FilePath path = chunkOutputPath(docPath, docId, chunkId, notebookCtxId(),
@@ -234,14 +234,13 @@ Error replayPlotOutput(const json::JsonRpcRequest& request,
 
       // look for snapshot files
       std::vector<FilePath> contents;
-      error = path.getChildren(contents);
+      error = path.children(&contents);
       if (error)
       {
          LOG_ERROR(error);
          continue;
       }
-      
-      for (const FilePath& content : contents)
+      for (const FilePath content : contents)
       {
          if (content.hasExtensionLowerCase(kDisplayListExt))
             snapshotFiles.push_back(content);
@@ -296,14 +295,14 @@ Error replayChunkPlotOutput(const json::JsonRpcRequest& request,
 
    // look for snapshot files
    std::vector<FilePath> contents;
-   error = path.getChildren(contents);
+   error = path.children(&contents);
    if (error)
    {
       LOG_ERROR(error);
       return Success();
    }
 
-   for (const FilePath& content : contents)
+   for (const FilePath content : contents)
    {
       if (content.hasExtensionLowerCase(kDisplayListExt))
          snapshotFiles.push_back(content);
@@ -331,7 +330,7 @@ Error cleanReplayChunkPlotOutput(const json::JsonRpcRequest& request,
    FilePath chunkFilePath = chunkOutputPath(docPath, docId, chunkId, notebookCtxId(),
       ContextSaved);
 
-   FilePath tempFilePath = chunkFilePath.completePath("temp");
+   FilePath tempFilePath = chunkFilePath.complete("temp");
 
    error = tempFilePath.remove();
    if (error)

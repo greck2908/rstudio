@@ -1,7 +1,7 @@
 /*
  * TranslationUnit.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,7 +17,7 @@
 
 #include <gsl/gsl>
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 
 #include <core/libclang/Utils.hpp>
 #include <core/libclang/LibClang.hpp>
@@ -171,7 +171,7 @@ void TranslationUnit::printResourceUsage(std::ostream& ostr, bool detailed) cons
       }
    }
    ostr << "TOTAL MEMORY: " << formatBytes(totalBytes)
-        << " (" << FilePath(getSpelling()).getFilename() << ")" << std::endl;
+        << " (" << FilePath(getSpelling()).filename() << ")" << std::endl;
 
    clang().disposeCXTUResourceUsage(usage);
 }

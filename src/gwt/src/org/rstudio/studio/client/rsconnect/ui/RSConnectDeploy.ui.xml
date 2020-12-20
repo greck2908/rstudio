@@ -6,15 +6,14 @@
     <ui:with field="res" type="org.rstudio.studio.client.rsconnect.ui.RSConnectDeploy.DeployResources" />
     <ui:with field="coreRes" type="org.rstudio.core.client.resources.CoreResources" />
     <ui:with field="themeRes" type="org.rstudio.core.client.theme.res.ThemeResources" />
-    <ui:with field="ElementIds" type="org.rstudio.core.client.ElementIds"/>
     <g:HTMLPanel ui:field="rootPanel_">
-    <rw:DecorativeImage ui:field="deployIllustration_"/>
-    <rw:LayoutGrid><rw:row>
-    <rw:customCell styleName="{res.style.rootCell}">
+    <g:Image ui:field="deployIllustration_"></g:Image>
+    <g:Grid ui:field="mainGrid_"><g:row>
+    <g:customCell styleName="{res.style.rootCell}">
       <g:HTMLPanel>
          <g:VerticalPanel ui:field="filePanel_">
            <g:HTMLPanel>
-             <g:InlineLabel text="Publish Files From:" ui:field="fileListLabel_"/>
+             <g:InlineLabel text="Publish Files From:"></g:InlineLabel>
              <g:InlineLabel styleName="{res.style.deployLabel}" 
                             ui:field="deployLabel_">
              </g:InlineLabel>
@@ -35,25 +34,26 @@
                           visible="false">
             <g:Label text="Publish: "></g:Label>
             <g:HTMLPanel styleName="{res.style.fileList} {res.style.descriptionPanel}">
-               <rw:DecorativeImage ui:field="descriptionImage_"/>
+               <g:Image ui:field="descriptionImage_"></g:Image>
             </g:HTMLPanel>
             <rw:ThemedButton ui:field="previewButton_"
                              text="Preview...">
             </rw:ThemedButton>
          </g:VerticalPanel>
        </g:HTMLPanel>
-     </rw:customCell>
-     <rw:customCell styleName="{res.style.rootCell}">
+     </g:customCell>
+     <g:customCell styleName="{res.style.rootCell}">
       <g:HTMLPanel>
          <g:HorizontalPanel width="100%" ui:field="publishFromPanel_">
-            <rw:FormLabel styleName="{res.style.firstControlLabel}" 
-                     text="Publish From Account:" elementId="{ElementIds.getRscAccountListLabel}"
-                     ui:field="accountListLabel_"/>
-            <rw:HyperlinkLabel styleName="rstudio-HyperlinkLabel {res.style.accountAnchor}"
-                       ui:field="addAccountAnchor_" text="Add New Account"/>
+            <g:Label styleName="{res.style.firstControlLabel}" 
+                     text="Publish From Account:">
+            </g:Label>
+            <g:Anchor styleName="rstudio-HyperlinkLabel {res.style.accountAnchor}" 
+                       ui:field="addAccountAnchor_" text="Add New Account">
+            </g:Anchor>
          </g:HorizontalPanel>
          <rsc:RSConnectAccountList styleName="{res.style.accountList}" 
-                                   ui:field="accountList_" elementId="{ElementIds.getRscAccountList}">
+                                   ui:field="accountList_">
          </rsc:RSConnectAccountList>
          <g:Label styleName="{res.style.firstControlLabel}" 
                   text="Publish To Account:"
@@ -64,8 +64,8 @@
             </rsc:RSConnectAccountEntry>
          </g:HTMLPanel>
          <g:HTMLPanel ui:field="newAppPanel_">
-            <rw:FormLabel styleName="{res.style.controlLabel}" ui:field="nameLabel_" 
-                     text="Title:"></rw:FormLabel>
+            <g:Label styleName="{res.style.controlLabel}" ui:field="nameLabel_" 
+                     text="Title:"></g:Label>
             <rsc:AppNameTextbox styleName="{res.style.gridControl}" 
                                 ui:field="appName_">
             </rsc:AppNameTextbox>
@@ -76,8 +76,9 @@
                                styleName="{res.style.controlLabel}">
                <g:Label text="Update:">
                </g:Label>
-               <rw:HyperlinkLabel stylePrimaryName="rstudio-HyperlinkLabel {res.style.accountAnchor}" 
-                          ui:field="createNewAnchor_" text="Create New"/>
+               <g:Anchor styleName="rstudio-HyperlinkLabel {res.style.accountAnchor}" 
+                          ui:field="createNewAnchor_" text="Create New">
+               </g:Anchor>
             </g:HorizontalPanel>
             <g:HTMLPanel ui:field="appDetailsPanel_" 
                          styleName="{res.style.appDetailsPanel}" 
@@ -107,7 +108,7 @@
             </g:HTMLPanel>
          </g:HTMLPanel>
       </g:HTMLPanel>
-     </rw:customCell>
-   </rw:row></rw:LayoutGrid>
+     </g:customCell>
+   </g:row></g:Grid>
    </g:HTMLPanel>
 </ui:UiBinder> 

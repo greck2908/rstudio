@@ -1,7 +1,7 @@
 /*
  * BrowserUtils.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,7 +17,7 @@
 
 #include <core/BrowserUtils.hpp>
 #include <core/RegexUtils.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 
 using namespace boost::algorithm;
 
@@ -50,14 +50,14 @@ bool hasRequiredBrowserVersion(const std::string& userAgent,
 
 bool isChrome(const std::string& userAgent)
 {
-   return contains(userAgent, "Chrome");
+   return contains(userAgent, "Chrome") || contains(userAgent, "chromeframe");
 }
 
 bool isChromeOlderThan(const std::string& userAgent, double version)
 {
    if (isChrome(userAgent))
    {
-      boost::regex chromeRegEx("(?:Chrome)/(\\d{1,4})");
+      boost::regex chromeRegEx("(?:Chrome|chromeframe)/(\\d{1,4})");
       return !hasRequiredBrowserVersion(userAgent, chromeRegEx, version);
    }
    else
@@ -132,32 +132,14 @@ bool isTridentOlderThan(const std::string& userAgent, double version)
 
 bool hasRequiredBrowser(const std::string& userAgent)
 {
-   if (isChromeOlderThan(userAgent, 69))
-   {
-      // Chrome user agent based on oldest supported Chrome release.
-      // Ideally this should be version 71, but our QT browser in use for RDP is pinned at version 69.
-      // See: https://endoflife.software/applications/browsers/google-chrome
+   if (isChromeOlderThan(userAgent, 21))
       return false;
-   }
-   else if (isFirefoxOlderThan(userAgent, 68))
-   {
-      // Firefox user agent based on oldest ESR release. See:
-      // https://support.mozilla.org/en-US/kb/firefox-esr-release-cycle
+   else if (isFirefoxOlderThan(userAgent, 10))
       return false;
-   }
-   else if (isSafariOlderThan(userAgent, 12.1))
-   {
-      // Safari user agent based on the Safari version on the oldest supported version of macOS.
-      // See:
-      // https://en.wikipedia.org/wiki/Safari_version_history
+   else if (isSafariOlderThan(userAgent, 5.1))
       return false;
-   }
-   else if (isTridentOlderThan(userAgent, 7.0))
-   {
-      // Trident user agent based on IE 11, the last version of IE (and the only one we support
-      // since IE 10 is EOL and no further IE releases based on Trident are expected)
+   else if (isTridentOlderThan(userAgent, 6.0))
       return false;
-   }
    else
    {
       return isChrome(userAgent) ||

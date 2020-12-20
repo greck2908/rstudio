@@ -1,7 +1,7 @@
 #
 # NotebookData.R
 #
-# Copyright (C) 2020 by RStudio, PBC
+# Copyright (C) 2009-18 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -92,16 +92,9 @@
       options,
       file = output)
 
-    # standard metadata
-    metadata <- list(classes = className, nrow = nRow, ncol = nCol, summary = list())
-
-    # if tibble is loaded, use it to create a summary of the object
-    if ("tibble" %in% loadedNamespaces())
-    {
-       metadata$summary <- as.list(tibble::tbl_sum(original))
-    }
-
-    .Call("rs_recordData", output, metadata, PACKAGE = "(embedding)")
+    .Call("rs_recordData", output, list(classes = className,
+                                        nrow = nRow, 
+                                        ncol = nCol))
     invisible(original)
   }
 

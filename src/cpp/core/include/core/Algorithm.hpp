@@ -1,7 +1,7 @@
 /*
  * Algorithm.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -265,34 +265,20 @@ inline std::string join(const std::vector<std::string>& container, const std::st
    return boost::algorithm::join(container, delim);
 }
 
-
-template <typename Iterator, typename F>
-inline std::string join(Iterator begin,
-                        Iterator end,
-                        const std::string& delim,
-                        F&& f)
+template <typename Iterator>
+inline std::string join(Iterator begin, Iterator end, const std::string& delim)
 {
    if (begin >= end)
       return std::string();
    
    std::string result;
-   result += f(*begin);
+   result += *begin;
    for (Iterator it = begin + 1; it != end; ++it)
    {
       result += delim;
-      result += f(*it);
+      result += *it;
    }
    return result;
-   
-}
-
-template <typename Iterator>
-inline std::string join(Iterator begin,
-                        Iterator end,
-                        const std::string& delim)
-{
-   auto callback = [](const std::string& string) { return string; };
-   return join(begin, end, delim, std::move(callback));
 }
 
 } // namespace algorithm

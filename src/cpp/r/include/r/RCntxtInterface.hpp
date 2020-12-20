@@ -1,7 +1,7 @@
 /*
  * RCntxtInterface.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -33,7 +33,6 @@ public:
    // accessors for RCNTXT entries
    virtual SEXP callfun() const       = 0;
    virtual int callflag() const       = 0;
-   virtual int evaldepth() const      = 0;
    virtual SEXP call() const          = 0;
    virtual SEXP srcref() const        = 0;
    virtual SEXP cloenv() const        = 0;

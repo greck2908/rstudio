@@ -1,7 +1,7 @@
 /*
  * RVersionsChangedEvent.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,8 @@ import org.rstudio.studio.client.application.model.RVersionsInfo;
 import com.google.gwt.event.shared.EventHandler;
 import com.google.gwt.event.shared.GwtEvent;
 
-public class RVersionsChangedEvent extends GwtEvent<RVersionsChangedEvent.Handler>
+public class RVersionsChangedEvent 
+                     extends GwtEvent<RVersionsChangedEvent.Handler>
 {
    public interface Handler extends EventHandler
    {
@@ -30,7 +31,7 @@ public class RVersionsChangedEvent extends GwtEvent<RVersionsChangedEvent.Handle
    {
       rVersionsInfo_ = rVersions;
    }
-
+   
    public RVersionsInfo getRVersionsInfo()
    {
       return rVersionsInfo_;
@@ -48,7 +49,7 @@ public class RVersionsChangedEvent extends GwtEvent<RVersionsChangedEvent.Handle
       handler.onRVersionsChanged(this);
    }
 
-   public static final Type<Handler> TYPE = new Type<>();
-
+   public static final Type<Handler> TYPE = new Type<Handler>();
+   
    private final RVersionsInfo rVersionsInfo_;
 }

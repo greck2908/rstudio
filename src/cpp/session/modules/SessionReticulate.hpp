@@ -1,7 +1,7 @@
 /*
  * SessionReticulate.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -29,7 +29,6 @@ namespace session {
 namespace modules {
 namespace reticulate {
 
-bool isPythonInitialized();
 bool isReplActive();
 
 core::Error initialize();

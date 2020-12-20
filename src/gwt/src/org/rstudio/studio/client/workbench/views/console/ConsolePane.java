@@ -1,7 +1,7 @@
 /*
  * ConsolePane.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,8 +14,8 @@
  */
 package org.rstudio.studio.client.workbench.views.console;
 
-import com.google.gwt.aria.client.Roles;
 import com.google.gwt.core.client.Scheduler;
+import com.google.gwt.core.client.Scheduler.ScheduledCommand;
 import com.google.gwt.user.client.ui.Image;
 import com.google.gwt.user.client.ui.IsWidget;
 import com.google.gwt.user.client.ui.Label;
@@ -25,7 +25,6 @@ import com.google.inject.Provider;
 
 import java.util.Stack;
 
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.theme.res.ThemeStyles;
 import org.rstudio.core.client.widget.CanFocus;
 import org.rstudio.core.client.widget.SecondaryToolbar;
@@ -49,7 +48,7 @@ public class ConsolePane extends WorkbenchPane
       Profiler,   // ongoing profile session
       Job         // ongoing asynchronous job
    }
-
+   
    @Inject
    public ConsolePane(Provider<Shell> consoleProvider,
                       Provider<JobProgressPresenter> progressProvider,
@@ -57,26 +56,16 @@ public class ConsolePane extends WorkbenchPane
                       Commands commands,
                       Session session)
    {
-      // We pass null in place of events here to prevent ActivePaneEvent from being called.
-      // ActivatePaneEvent isn't necessary and causes an exception for the Console Pane.
-      super("Console", null);
+      super("Console");
 
       consoleProvider_ = consoleProvider;
       progressProvider_ = progressProvider;
       commands_ = commands;
       session_ = session;
-
+      
       // the secondary toolbar can have several possible states that obscure
       // each other; we keep track of the stack here
-      mode_ = new Stack<>();
-
-      ElementIds.assignElementId(this, ElementIds.WORKBENCH_PANEL + "_console");
-
-      // technically this is only playing aria-tabpanel role when the console pane
-      // has tabs (e.g. at least one other pane is being shown, such as Terminal), but
-      // having it always marked with that role is fine
-      Roles.getTabpanelRole().set(this.getElement());
-      Roles.getTabpanelRole().setAriaLabelProperty(this.getElement(), "Console");
+      mode_ = new Stack<ConsoleMode>();
 
       // console is interacted with immediately so we make sure it
       // is always created during startup
@@ -94,7 +83,7 @@ public class ConsolePane extends WorkbenchPane
    {
       shell_.getDisplay().focus();
    }
-
+   
    @Override
    public void ensureCursorVisible()
    {
@@ -106,7 +95,7 @@ public class ConsolePane extends WorkbenchPane
    {
       return consoleInterruptButton_;
    }
-
+   
    @Override
    public IsWidget getConsoleClearButton()
    {
@@ -127,7 +116,7 @@ public class ConsolePane extends WorkbenchPane
    @Override
    protected Toolbar createMainToolbar()
    {
-      Toolbar toolbar = new Toolbar("Console Tab");
+      Toolbar toolbar = new Toolbar();
       workingDir_ = new Label();
       workingDir_.setStyleName(ThemeStyles.INSTANCE.subtitle());
       toolbar.addLeftWidget(workingDir_);
@@ -136,21 +125,21 @@ public class ConsolePane extends WorkbenchPane
       consoleClearButton_ = commands_.consoleClear().createToolbarButton();
       consoleClearButton_.addStyleName(ThemeStyles.INSTANCE.consoleClearButton());
       consoleClearButton_.setVisible(true);
-
+      
       profilerInterruptButton_ = ConsoleInterruptProfilerButton.CreateProfilerButton();
       profilerInterruptButton_.setVisible(false);
 
       toolbar.addRightWidget(profilerInterruptButton_);
       toolbar.addRightWidget(consoleInterruptButton_);
       toolbar.addRightWidget(consoleClearButton_);
-
+      
       return toolbar;
    }
-
+   
    @Override
    protected SecondaryToolbar createSecondaryToolbar()
    {
-      secondaryToolbar_ = new SecondaryToolbar(true, "Console Tab Second");
+      secondaryToolbar_ = new SecondaryToolbar(true);
       secondaryToolbar_.getWrapper().addStyleName(ThemeStyles.INSTANCE.tallerToolbarWrapper());
        
       return secondaryToolbar_;
@@ -187,28 +176,28 @@ public class ConsolePane extends WorkbenchPane
    }
 
    @Override
-   public void setFocus()
-   {
-      focus();
-   }
-
-   @Override
    public void enterMode(ConsoleMode mode)
    {
       // ignore if this mode is already in the stack
       if (mode_.contains(mode))
          return;
-
+      
       // add to the node stack
       mode_.add(mode);
 
       // show the toolbar corresponding to the mode
       syncSecondaryToolbar();
-
+      
       // if switching into debug mode, sync cursor state too
       if (mode == ConsoleMode.Debug)
       {
-         Scheduler.get().scheduleFinally(() -> ensureCursorVisible());
+         Scheduler.get().scheduleFinally(new ScheduledCommand()
+         {
+            public void execute()
+            {
+               ensureCursorVisible();
+            }
+         });
       }
    }
 
@@ -220,21 +209,21 @@ public class ConsolePane extends WorkbenchPane
       // the mode may not be at the top of the stack, and at most one mode of
       // each type may be in the stack, so it's safe to just remove all
       // instances of the mode from the queue
-      mode_.removeIf((ConsoleMode t) ->
+      mode_.removeIf((ConsoleMode t) -> 
       {
          return t == mode;
       });
-
+      
       ConsoleMode newMode = mode();
-
+      
       // this should not happen, but safely ignore it if it does
       if (prevMode == newMode)
          return;
-
+      
       // clear progress event when exiting job mode
       if (prevMode == ConsoleMode.Job)
          lastProgress_ = null;
-
+      
       // show the new topmost mode in the stack
       syncSecondaryToolbar();
    }
@@ -246,7 +235,7 @@ public class ConsolePane extends WorkbenchPane
          return ConsoleMode.Normal;
       return mode_.peek();
    }
-
+   
    @Override
    public void showProgress(LocalJobProgress progress)
    {
@@ -255,7 +244,7 @@ public class ConsolePane extends WorkbenchPane
          progress_.showProgress(progress);
       lastProgress_ = progress;
    }
-
+   
    private void syncSecondaryToolbar()
    {      
       // show the toolbar if we're not in normal mode
@@ -274,20 +263,19 @@ public class ConsolePane extends WorkbenchPane
         case Profiler:
            initProfilerToolbar();
            break;
-
+        
         case Job:
            initJobToolbar();
            break;
-
+        
         case Normal:
            // no work necessary here, we won't show the toolbar
            break;
       }
    }
-
+   
    private void initDebugToolbar()
    {
-      secondaryToolbar_.setLabel("Console Tab Debug");
       secondaryToolbar_.addLeftWidget(commands_.debugStep().createToolbarButton()); 
       if (session_.getSessionInfo().getHaveAdvancedStepCommands())
       {
@@ -301,17 +289,15 @@ public class ConsolePane extends WorkbenchPane
       secondaryToolbar_.addLeftSeparator();
       secondaryToolbar_.addLeftWidget(commands_.debugStop().createToolbarButton());
    }
-
+   
    private void initProfilerToolbar()
    {
-      secondaryToolbar_.setLabel("Console Tab Profiler");
       secondaryToolbar_.addLeftWidget(commands_.stopProfiler().createToolbarButton()); 
    }
-
+   
    private void initJobToolbar()
    {
       progress_ = progressProvider_.get();
-      secondaryToolbar_.setLabel("Console Tab Job Progress");
       secondaryToolbar_.addLeftWidget(progress_.asWidget());
       secondaryToolbar_.setLeftWidgetWidth(progress_.asWidget(), "100%");
 
@@ -319,7 +305,7 @@ public class ConsolePane extends WorkbenchPane
          showProgress(lastProgress_);
    }
 
-   private Provider<Shell> consoleProvider_;
+   private Provider<Shell> consoleProvider_ ;
    private Provider<JobProgressPresenter> progressProvider_;
    JobProgressPresenter progress_;
    LocalJobProgress lastProgress_;

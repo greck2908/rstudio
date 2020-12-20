@@ -1,7 +1,7 @@
 /*
  * SessionSVN.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -38,9 +38,9 @@
 #include <session/projects/SessionProjects.hpp>
 #include <session/SessionModuleContext.hpp>
 #include <session/SessionOptions.hpp>
+#include <session/SessionUserSettings.hpp>
 #include <session/SessionConsoleProcess.hpp>
 #include <session/SessionPasswordManager.hpp>
-#include <session/prefs/UserPrefs.hpp>
 
 #include <r/RExec.hpp>
 
@@ -85,7 +85,7 @@ FilePath resolveAliasedPath(const std::string& path)
    if (boost::algorithm::starts_with(path, "~/"))
       return module_context::resolveAliasedPath(path);
    else
-      return s_workingDir.completeChildPath(path);
+      return s_workingDir.childPath(path);
 }
 
 
@@ -94,11 +94,11 @@ std::vector<FilePath> resolveAliasedPaths(const json::Array& paths,
                                           bool includeRenameNew = true)
 {
    std::vector<FilePath> results;
-   for (json::Array::Iterator it = paths.begin();
+   for (json::Array::iterator it = paths.begin();
         it != paths.end();
         it++)
    {
-      results.push_back(resolveAliasedPath((*it).getString()));
+      results.push_back(resolveAliasedPath((*it).get_str()));
    }
    return results;
 }
@@ -117,13 +117,13 @@ core::system::ProcessOptions procOptions(bool requiresSsh)
    core::system::environment(&childEnv);
 
    // add postback directory to PATH
-   FilePath postbackDir = session::options().rpostbackPath().getParent();
-   core::system::addToPath(&childEnv, postbackDir.getAbsolutePath());
+   FilePath postbackDir = session::options().rpostbackPath().parent();
+   core::system::addToPath(&childEnv, postbackDir.absolutePath());
 
    // on windows add gnudiff directory to the path
 #ifdef _WIN32
    core::system::addToPath(&childEnv,
-                           session::options().gnudiffPath().getAbsolutePath());
+                           session::options().gnudiffPath().absolutePath());
 #endif
 
    // on windows add msys_ssh to the path if we need ssh
@@ -131,11 +131,11 @@ core::system::ProcessOptions procOptions(bool requiresSsh)
    if (requiresSsh)
    {
       core::system::addToPath(&childEnv,
-                              session::options().msysSshPath().getAbsolutePath());
+                              session::options().msysSshPath().absolutePath());
    }
 #endif
 
-   if (!s_workingDir.isEmpty())
+   if (!s_workingDir.empty())
       options.workingDir = s_workingDir;
    else
       options.workingDir = projects::projectContext().directory();
@@ -166,7 +166,7 @@ void initEnvironment()
 #ifdef _WIN32
    r::exec::RFunction sysSetenv("Sys.setenv");
    sysSetenv.addParam("RSTUDIO_MSYS_SSH",
-                      session::options().msysSshPath().getAbsolutePath());
+                      session::options().msysSshPath().absolutePath());
    Error error = sysSetenv.call();
    if (error)
       LOG_ERROR(error);
@@ -192,7 +192,7 @@ Error runSvn(const ShellArgs& args,
              core::system::ProcessResult* pResult)
 {
    core::system::ProcessOptions options = procOptions();
-   if (!workingDir.isEmpty())
+   if (!workingDir.empty())
       options.workingDir = workingDir;
    options.redirectStdErrToStdOut = redirectStdErrToStdOut;
    Error error = core::system::runCommand(svn() << args.args(),
@@ -206,7 +206,7 @@ Error runSvn(const ShellArgs& args,
              core::system::ProcessResult* pResult)
 {
    FilePath workingDir;
-   if (!s_workingDir.isEmpty())
+   if (!s_workingDir.empty())
       workingDir = s_workingDir;
 
    return runSvn(args, workingDir, redirectStdErrToStdOut, pResult);
@@ -229,11 +229,6 @@ Error runSvn(const ShellArgs& args,
    if (pExitCode)
       *pExitCode = result.exitStatus;
 
-#ifdef __APPLE__
-   if (result.exitStatus == 69)
-      module_context::checkXcodeLicense();
-#endif
-   
    return Success();
 }
 
@@ -255,7 +250,7 @@ core::Error createConsoleProc(const ShellArgs& args,
    core::system::ProcessOptions options = procOptions(requiresSsh);
    if (!workingDir)
       options.workingDir = s_workingDir;
-   else if (!workingDir.get().isEmpty())
+   else if (!workingDir.get().empty())
       options.workingDir = workingDir.get();
 
    // NOTE: we use runCommand style process creation on both windows and posix
@@ -268,7 +263,7 @@ core::Error createConsoleProc(const ShellArgs& args,
    std::string command = svn() << args.args();
 
    // redirect stdout to a file
-   if (!outputFile.isEmpty())
+   if (!outputFile.empty())
       options.stdOutFile = outputFile;
 
    using namespace session::console_process;
@@ -397,11 +392,11 @@ void initSvnBin()
 {
    // get the svn exe from user settings if it is there
    if (session::options().allowVcsExecutableEdit())
-      s_svnExePath = prefs::userPrefs().svnExePath();
+      s_svnExePath = userSettings().svnExePath().absolutePath();
 
    // if it wasn't provided in settings try to detect it
    if (s_svnExePath.empty())
-      s_svnExePath = svn::detectedSvnExePath().getAbsolutePath();
+      s_svnExePath = svn::detectedSvnExePath().absolutePath();
 }
 
 Error parseXml(const std::string strData,
@@ -419,7 +414,7 @@ Error parseXml(const std::string strData,
       pDoc->parse<0>(&((*pDataBuffer)[0]));
       return Success();
    }
-   catch (rapidxml::parse_error&)
+   catch (rapidxml::parse_error)
    {
       return systemError(boost::system::errc::protocol_error,
                          "Could not parse XML",
@@ -433,6 +428,14 @@ Error parseXml(const std::string strData,
 
 bool isSvnInstalled()
 {
+   // special check on osx mavericks to make sure we don't run the fake svn
+   if (module_context::isOSXMavericks() &&
+       !module_context::hasOSXMavericksDeveloperTools() &&
+       whichSvnExe().empty())
+   {
+      return false;
+   }
+
    int exitCode;
    Error error = runSvn(ShellArgs() << "help", nullptr, nullptr, &exitCode);
 
@@ -455,7 +458,7 @@ struct SvnInfo
 
 Error runSvnInfo(const core::FilePath& workingDir, SvnInfo* pSvnInfo)
 {
-   if (workingDir.isEmpty())
+   if (workingDir.empty())
       return Success();
 
    core::system::ProcessResult result;
@@ -517,7 +520,7 @@ std::string repositoryRoot(const FilePath& workingDir)
 
 bool isSvnEnabled()
 {
-   return !s_workingDir.isEmpty();
+   return !s_workingDir.empty();
 }
 
 FilePath detectedSvnExePath()
@@ -533,23 +536,37 @@ FilePath detectedSvnExePath()
       return FilePath();
    }
 #else
-   return whichSvnExe();
+   FilePath svnExeFilePath = whichSvnExe();
+   if (!svnExeFilePath.empty())
+   {
+      // extra check on mavericks to make sure it's not the fake svn
+      if (module_context::isOSXMavericks())
+      {
+         if (module_context::hasOSXMavericksDeveloperTools())
+            return FilePath(svnExeFilePath);
+         else
+            return FilePath();
+      }
+      else
+      {
+         return FilePath(svnExeFilePath);
+      }
+   }
+   else
+      return FilePath();
 #endif
 }
 
 std::string nonPathSvnBinDir()
 {
-   if (s_svnExePath != svn::detectedSvnExePath().getAbsolutePath())
-      return FilePath(s_svnExePath).getParent().getAbsolutePath();
+   if (s_svnExePath != svn::detectedSvnExePath().absolutePath())
+      return FilePath(s_svnExePath).parent().absolutePath();
    else
       return std::string();
 }
 
-void onUserSettingsChanged(const std::string& layer, const std::string& pref)
+void onUserSettingsChanged()
 {
-   if (pref != kSvnExePath)
-      return;
-
    initSvnBin();
 }
 
@@ -639,11 +656,11 @@ std::string node_value(rapidxml::xml_node<>* pNode, const std::string& nodeName)
 
 FilePath resolveAliasedJsonPath(const json::Value& value)
 {
-   std::string path = value.getString();
+   std::string path = value.get_str();
    if (boost::algorithm::starts_with(path, "~/"))
       return module_context::resolveAliasedPath(path);
    else
-      return s_workingDir.completeChildPath(path);
+      return s_workingDir.childPath(path);
 }
 
 Error svnAdd(const json::JsonRpcRequest& request,
@@ -728,7 +745,7 @@ Error svnRevert(const json::JsonRpcRequest& request,
    std::map<std::string, source_control::FileWithStatus> fileStatusMap;
    for (const source_control::FileWithStatus& file : fileStatusVector)
    {
-      fileStatusMap[file.path.getAbsolutePath()] = file;
+      fileStatusMap[file.path.absolutePath()] = file;
    }
    
    std::vector<FilePath> recursiveReverts;
@@ -742,7 +759,7 @@ Error svnRevert(const json::JsonRpcRequest& request,
       }
       
       bool shouldRevertRecursively = false;
-      std::string key = filePath.getAbsolutePath();
+      std::string key = filePath.absolutePath();
       if (fileStatusMap.count(key))
       {
          const source_control::FileWithStatus& fileStatus =
@@ -820,7 +837,7 @@ Error statusToJson(const core::FilePath &path,
 {
    json::Object& obj = *pObject;
    obj["status"] = status.status();
-   obj["path"] = path.getRelativePath(s_workingDir);
+   obj["path"] = path.relativePath(s_workingDir);
    obj["raw_path"] = module_context::createAliasedPath(path);
    obj["is_directory"] = path.isDirectory();
    if (!status.changelist().empty())
@@ -835,7 +852,7 @@ Error status(const FilePath& filePath,
 
    ShellArgs args;
    args << "status" << globalArgs() << "--xml" << "--ignore-externals";
-   if (!filePath.isEmpty())
+   if (!filePath.empty())
       args << "--" << filePath;
 
    std::string stdOut, stdErr;
@@ -921,7 +938,7 @@ Error status(const FilePath& filePath,
             vcsStatus.changelist() = changelist;
             FileWithStatus fileWithStatus;
             fileWithStatus.status = status;
-            fileWithStatus.path = s_workingDir.completePath(path);
+            fileWithStatus.path = s_workingDir.complete(path);
 
             pFiles->push_back(fileWithStatus);
          }
@@ -1015,9 +1032,9 @@ Error svnCommit(const json::JsonRpcRequest& request,
    ask_pass::setActiveWindow(request.sourceWindow);
 
    FilePath tempFile = module_context::tempFile("svnmsg", "txt");
-   std::shared_ptr<std::ostream> pStream;
+   boost::shared_ptr<std::ostream> pStream;
 
-   error = tempFile.openForWrite(pStream);
+   error = tempFile.open_w(&pStream);
    if (error)
       return error;
 
@@ -1029,11 +1046,10 @@ Error svnCommit(const json::JsonRpcRequest& request,
 
    ShellArgs args;
    args << "commit" << globalArgs();
-   args << "--encoding" << "UTF-8";
    args << "-F" << tempFile;
 
    args << "--";
-   if (!paths.isEmpty())
+   if (!paths.empty())
       args << resolveAliasedPaths(paths);
 
    // TODO: ensure tempFile is deleted when the commit process exits
@@ -1136,9 +1152,9 @@ Error svnApplyPatch(const json::JsonRpcRequest& request,
    FilePath filePath = resolveAliasedPath(path);
 
    FilePath tempFile = module_context::tempFile("svnpatch", "txt");
-   std::shared_ptr<std::ostream> pStream;
+   boost::shared_ptr<std::ostream> pStream;
 
-   error = tempFile.openForWrite(pStream);
+   error = tempFile.open_w(&pStream);
    if (error)
       return error;
 
@@ -1310,7 +1326,7 @@ void history(int rev,
    else
       args << "-r" << "HEAD:1";
 
-   if (!fileFilter.isEmpty())
+   if (!fileFilter.empty())
       args << fileFilter;
 
    runSvnAsync(args,
@@ -1849,7 +1865,7 @@ Error initialize()
    // install rpc methods
    using boost::bind;
    using namespace module_context;
-   ExecBlock initBlock;
+   ExecBlock initBlock ;
    initBlock.addFunctions()
       (bind(registerRpcMethod, "svn_add", svnAdd))
       (bind(registerRpcMethod, "svn_delete", svnDelete))
@@ -1886,7 +1902,7 @@ Error initializeSvn(const core::FilePath& workingDir)
    std::string repoURL = repositoryRoot(s_workingDir);
    s_isSvnSshRepository = boost::algorithm::starts_with(repoURL, "svn+ssh");
 
-   prefs::userPrefs().onChanged.connect(onUserSettingsChanged);
+   userSettings().onChanged.connect(onUserSettingsChanged);
 
    return Success();
 }

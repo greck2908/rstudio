@@ -1,7 +1,7 @@
 /*
  * HtmlFormModalDialog.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -35,9 +35,7 @@ public abstract class HtmlFormModalDialog<T> extends ModalDialogBase
                               DialogRole role,
                               final String progressMessage, 
                               String actionURL,
-                              final Operation beginOperation,
-                              final OperationWithInput<T> completedOperation,
-                              final Operation failedOperation)
+                              final OperationWithInput<T> operation)
    {
       super(new FormPanel(), role);
       setText(title);
@@ -49,42 +47,12 @@ public abstract class HtmlFormModalDialog<T> extends ModalDialogBase
       setFormPanelEncodingAndMethod(formPanel);
       
       final ProgressIndicator progressIndicator = addProgressIndicator();
-      final ProgressIndicator indicatorWrapper = new ProgressIndicator()
-      {
-         public void onProgress(String message)
-         {
-            progressIndicator.onProgress(message);
-         }
-
-         public void onProgress(String message, Operation onCancel)
-         {
-            progressIndicator.onProgress(message, onCancel);
-         }
-
-         public void onCompleted()
-         {
-            progressIndicator.onCompleted();
-         }
-
-         public void onError(String message)
-         {
-            progressIndicator.onError(message);
-            failedOperation.execute();
-         }
-
-         @Override
-         public void clearProgress()
-         {
-            progressIndicator.clearProgress();
-         }
-      };
       
       ThemedButton okButton = new ThemedButton("OK", new ClickHandler() {
          public void onClick(ClickEvent event) {
             try
             {
                formPanel.submit();
-               beginOperation.execute();
             }
             catch (final JavaScriptException e)
             {
@@ -95,13 +63,13 @@ public abstract class HtmlFormModalDialog<T> extends ModalDialogBase
                      if ("Access is denied.".equals(
                            StringUtil.notNull(e.getDescription()).trim()))
                      {
-                        indicatorWrapper.onError(
+                        progressIndicator.onError(
                               "Please use a complete file path.");
                      }
                      else
                      {
                         Debug.log(e.toString());
-                        indicatorWrapper.onError(e.getDescription());
+                        progressIndicator.onError(e.getDescription());
                      }
                   }
                });
@@ -113,7 +81,7 @@ public abstract class HtmlFormModalDialog<T> extends ModalDialogBase
                   public void execute()
                   {
                      Debug.log(e.toString());
-                     indicatorWrapper.onError(e.getMessage());
+                     progressIndicator.onError(e.getMessage());
                   }
                });
             }
@@ -137,7 +105,7 @@ public abstract class HtmlFormModalDialog<T> extends ModalDialogBase
          public void onSubmit(SubmitEvent event) {           
             if (validate())
             { 
-               indicatorWrapper.onProgress(progressMessage);
+               progressIndicator.onProgress(progressMessage);
             }
             else
             {
@@ -155,17 +123,18 @@ public abstract class HtmlFormModalDialog<T> extends ModalDialogBase
                try
                {
                   T results = parseResults(resultsText);
-                  indicatorWrapper.onCompleted();
-                  completedOperation.execute(results);
+                  progressIndicator.onCompleted();
+                  operation.execute(results);
                }
                catch(Exception e)
                {
-                  indicatorWrapper.onError(e.getMessage());
+                  progressIndicator.onError(e.getMessage());
                }
             }
             else
             {
-               indicatorWrapper.onError("Unexpected empty response from server");
+               progressIndicator.onError(
+                                    "Unexpected empty response from server");
             }      
          }
       });

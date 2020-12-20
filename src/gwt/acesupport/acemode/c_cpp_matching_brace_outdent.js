@@ -157,6 +157,7 @@ var $alignCase                 = true; // case 'a':
       var prevLine = null;
       if (row > 0)
          prevLine = doc.getLine(row - 1);
+      var indent = this.$getIndent(line);
 
       // Check for '<<', '.'alignment
       if ($alignStreamOut && this.alignStartToken("<<", session, row, line, prevLine))
@@ -365,7 +366,7 @@ var $alignCase                 = true; // case 'a':
                row: row,
                column: line.length
             },
-            new RegExp("(?:^|[.])paren(?:$|[.])", "")
+            new RegExp(/paren\.keyword\.operator/)
          );
 
          if (openBracePos) {

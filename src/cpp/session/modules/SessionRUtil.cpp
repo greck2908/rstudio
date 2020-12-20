@@ -1,7 +1,7 @@
 /*
  * SessionRUtil.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-2015 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,7 @@
 
 #include <session/SessionRUtil.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 #include <core/Exec.hpp>
 #include <core/FileSerializer.hpp>
@@ -56,7 +56,7 @@ Error extractRCode(const std::string& contents,
    extract.addParam(contents);
    extract.addParam(reOpen);
    extract.addParam(reClose);
-   Error error = extract.callUtf8(pContent);
+   Error error = extract.call(pContent);
    return error;
 }
 
@@ -69,19 +69,19 @@ Error extractRCode(const std::string& fileContents,
    using namespace source_database;
    Error error = Success();
    
-   if (documentType == kSourceDocumentTypeRSource)
+   if (documentType == SourceDocument::SourceDocumentTypeRSource)
       *pCode = fileContents;
-   else if (documentType == kSourceDocumentTypeRMarkdown)
+   else if (documentType == SourceDocument::SourceDocumentTypeRMarkdown)
       error = extractRCode(fileContents,
                            "^\\s*[`]{3}{\\s*[Rr](?:}|[\\s,].*})\\s*$",
                            "^\\s*[`]{3}\\s*$",
                            pCode);
-   else if (documentType == kSourceDocumentTypeSweave)
+   else if (documentType == SourceDocument::SourceDocumentTypeSweave)
       error = extractRCode(fileContents,
                            "^\\s*<<.*>>=\\s*$",
                            "^\\s*@\\s*$",
                            pCode);
-   else if (documentType == kSourceDocumentTypeCpp)
+   else if (documentType == SourceDocument::SourceDocumentTypeCpp)
       error = extractRCode(fileContents,
                            "^\\s*/[*]{3,}\\s*[rR]\\s*$",
                            "^\\s*[*]+/",
@@ -119,7 +119,7 @@ SEXP rs_fromJSON(SEXP objectSEXP)
    std::string contents = r::sexp::asString(objectSEXP);
    
    json::Value jsonValue;
-   if (jsonValue.parse(contents))
+   if (!json::parse(contents, &jsonValue))
       return R_NilValue;
    
    r::sexp::Protect protect;
@@ -165,8 +165,8 @@ SEXP rs_readIniFile(SEXP iniPathSEXP)
     if (!iniFile.exists())
       return R_NilValue;
 
-   std::shared_ptr<std::istream> pIfs;
-   Error error = FilePath(iniFile).openForRead(pIfs);
+   boost::shared_ptr<std::istream> pIfs;
+   Error error = FilePath(iniFile).open_r(&pIfs);
    if (error)
    {
       return R_NilValue;
@@ -175,15 +175,15 @@ SEXP rs_readIniFile(SEXP iniPathSEXP)
    try
    {
       ptree pt;
-      ini_parser::read_ini(iniFile.getAbsolutePath(), pt);
+      ini_parser::read_ini(iniFile.absolutePath(), pt);
 
       r::sexp::Protect protect;
       return readInitFileLevel(pt, protect);
    }
    catch(const std::exception& e)
    {
-      LOG_ERROR_MESSAGE("Error reading " + iniFile.getAbsolutePath() +
-                        ": " + std::string(e.what()));
+      LOG_ERROR_MESSAGE("Error reading " + iniFile.absolutePath() +
+        ": " + std::string(e.what()));
 
       return R_NilValue;
    }
@@ -192,7 +192,7 @@ SEXP rs_readIniFile(SEXP iniPathSEXP)
 SEXP rs_rResourcesPath()
 {
    r::sexp::Protect protect;
-   return r::sexp::create(session::options().rResourcesPath().getAbsolutePath(), &protect);
+   return r::sexp::create(session::options().rResourcesPath().absolutePath(), &protect);
 }
 
 class Process;
@@ -220,10 +220,6 @@ protected:
    
    bool onContinue()
    {
-      bool ok = AsyncRProcess::onContinue();
-      if (!ok)
-         return false;
-      
       invokeCallback("continue");
       return true;
    }

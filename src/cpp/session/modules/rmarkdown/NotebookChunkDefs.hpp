@@ -1,7 +1,7 @@
 /*
  * NotebookChunkDefs.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,11 +16,11 @@
 #ifndef SESSION_NOTEBOOK_CHUNK_DEFS_HPP
 #define SESSION_NOTEBOOK_CHUNK_DEFS_HPP
 
-#include <shared_core/json/Json.hpp>
+#include <core/json/Json.hpp>
 #include <core/json/JsonRpc.hpp>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/FileSerializer.hpp>
 
 #include <ctime>
@@ -60,7 +60,7 @@ core::Error getChunkDefsValue(const core::FilePath& defs,
       return error;
 
    // extract the chunk definitions
-   return core::json::readObject(defContents, key, *pValue);
+   return core::json::readObject(defContents, key, pValue);
 }
 } // anonymous namespace
 
@@ -135,7 +135,7 @@ core::Error setChunkValue(const std::string& docPath,
    if (!defFile.exists())
    {
       defFile = chunkDefinitionsPath(docPath, docId, notebookCtxId());
-      error = defFile.getParent().ensureDirectory();
+      error = defFile.parent().ensureDirectory();
       if (error)
          return error;
    }
@@ -151,7 +151,9 @@ core::Error setChunkValue(const std::string& docPath,
 
    // update key and write out new contents
    defs[key] = value;
-   return core::writeStringToFile(defFile, defs.write());
+   std::ostringstream oss;
+   core::json::write(defs, oss);
+   return core::writeStringToFile(defFile, oss.str());
 }
 
 core::Error initChunkDefs();

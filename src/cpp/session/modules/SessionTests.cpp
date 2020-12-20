@@ -1,7 +1,7 @@
 /*
  * SessionTests.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,7 @@
 #include <boost/algorithm/string/predicate.hpp>
 
 #include <core/Algorithm.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Exec.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/YamlUtil.hpp>
@@ -31,8 +31,7 @@
 #include <session/SessionRUtil.hpp>
 #include <session/SessionOptions.hpp>
 #include <session/SessionModuleContext.hpp>
-
-#include <session/prefs/UserPrefs.hpp>
+#include <session/SessionUserSettings.hpp>
 
 #define kTestsNone           "none"
 #define kTestsTestThat       "test-testthat"
@@ -132,7 +131,7 @@ Error installShinyTestDependencies(const json::JsonRpcRequest& request,
 
    // for windows we need to forward setInternet2
 #ifdef _WIN32
-   if (!r::session::utils::isR3_3() && prefs::userPrefs().useInternet2())
+   if (!r::session::utils::isR3_3() && userSettings().useInternet2())
       args.push_back("--internet2");
 #endif
 
@@ -146,7 +145,7 @@ Error installShinyTestDependencies(const json::JsonRpcRequest& request,
    // create and execute console process
    boost::shared_ptr<console_process::ConsoleProcess> pCP;
    pCP = console_process::ConsoleProcess::create(
-            string_utils::utf8ToSystem(rProgramPath.getAbsolutePath()),
+            string_utils::utf8ToSystem(rProgramPath.absolutePath()),
             args,
             options,
             pCPI);

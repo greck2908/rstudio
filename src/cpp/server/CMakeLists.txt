@@ -1,7 +1,7 @@
 #
 # CMakeLists.txt
 #
-# Copyright (C) 2020 by RStudio, PBC
+# Copyright (C) 2009-19 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -27,7 +27,6 @@ set(SERVER_SOURCE_FILES
    ServerErrorCategory.cpp
    ServerEval.cpp
    ServerInit.cpp
-   ServerLoginPages.cpp
    ServerMain.cpp
    ServerMainOverlay.cpp
    ServerMeta.cpp
@@ -42,7 +41,6 @@ set(SERVER_SOURCE_FILES
    ServerSessionProxyOverlay.cpp
    ServerSessionManager.cpp
    auth/ServerAuthHandler.cpp
-   auth/ServerAuthCommon.cpp
    auth/ServerSecureUriHandler.cpp
    auth/ServerValidateUser.cpp
    ${CMAKE_CURRENT_BINARY_DIR}/ServerAddins.cpp
@@ -151,13 +149,18 @@ include_directories(
    ${SERVER_SYSTEM_INCLUDE_DIRS}
    ${CORE_INCLUDE_DIRS}
    ${MONITOR_SOURCE_DIR}/include
-   ${EXT_SOURCE_DIR}
    ${SESSION_SOURCE_DIR}/include
-   ${SHARED_CORE_SOURCE_DIR}/include
 )
 
 # define executable
 add_stripped_executable(rserver ${SERVER_SOURCE_FILES} ${SERVER_HEADER_FILES})
+
+# add origin rpath for suse/sles
+if(RSTUDIO_PACKAGE_VARIANT STREQUAL "SLES")
+   set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+   set_target_properties(rserver PROPERTIES
+                         INSTALL_RPATH \$ORIGIN)
+endif()
 
 # set link dependencies
 target_link_libraries(rserver
@@ -165,7 +168,6 @@ target_link_libraries(rserver
    rstudio-server-core
    rstudio-monitor
    ${CRASHPAD_LIBRARIES}
-   ${SOCI_LIBRARIES}
    ${SERVER_SYSTEM_LIBRARIES}
 )
 
@@ -179,27 +181,8 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/${RSERVER_THEME_README}"
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/extras/${RSERVER_THEME_README}"
        DESTINATION "extras/themes")
 
-# do the same for fonts
-set (RSERVER_FONT_README "fonts/README.md")
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/${RSERVER_FONT_README}"
-               "${CMAKE_CURRENT_BINARY_DIR}/extras/${RSERVER_FONT_README}")
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/extras/${RSERVER_FONT_README}"
-       DESTINATION "extras/fonts")
-
-# install db migration scripts
-file(GLOB DB_MIGRATION_FILES_SQL "db/*.sql")
-file(GLOB DB_MIGRATION_FILES_SQLITE "db/*.sqlite")
-file(GLOB DB_MIGRATION_FILES_POSTGRESQL "db/*.postgresql")
-install(FILES ${DB_MIGRATION_FILES_SQL} ${DB_MIGRATION_FILES_SQLITE} ${DB_MIGRATION_FILES_POSTGRESQL}
-        DESTINATION "db")
-
-# install default database.conf file
-set(RSERVER_CONF_DIR "extras/conf")
-set(RSERVER_DATABASE_CONF_FILE "${RSERVER_CONF_DIR}/database.conf")
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/${RSERVER_DATABASE_CONF_FILE}
-        DESTINATION ${RSERVER_CONF_DIR})
-
 if (UNIX AND NOT APPLE)
+
    # install configured admin script
    set(RSERVER_ADMIN_SCRIPT "extras/admin/rstudio-server")
    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/${RSERVER_ADMIN_SCRIPT}.in

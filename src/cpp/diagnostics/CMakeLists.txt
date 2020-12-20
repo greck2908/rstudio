@@ -1,7 +1,7 @@
 #
 # CMakeLists.txt
 #
-# Copyright (C) 2020 by RStudio, PBC
+# Copyright (C) 2009-19 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -21,7 +21,6 @@ file(GLOB_RECURSE DIAGNOSTICS_HEADER_FILES "*.h*")
 # set include directories
 include_directories(
    ${CORE_SOURCE_DIR}/include
-   ${SHARED_CORE_SOURCE_DIR}/include
    ${CMAKE_CURRENT_BINARY_DIR}
    ${EXT_SOURCE_DIR}
 )
@@ -54,6 +53,13 @@ add_stripped_executable(diagnostics
   ${DIAGNOSTICS_SOURCE_FILES}
 )
 
+# add origin rpath for suse/sles
+if(RSTUDIO_PACKAGE_VARIANT STREQUAL "SLES")
+   set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+   set_target_properties(diagnostics PROPERTIES
+                         INSTALL_RPATH \$ORIGIN)
+endif()
+
 # set link dependencies
 target_link_libraries(diagnostics
    rstudio-core
@@ -62,33 +68,13 @@ if(NOT RSTUDIO_SESSION_WIN32)
    install(TARGETS diagnostics DESTINATION ${RSTUDIO_INSTALL_BIN})
 endif()
 
-# if doing a package build on MacOS, reroute depdendent libraries to our bundled copies
+# if doing a package build on MacOS, reroute the OpenSSL libraries to our bundled copies
 if(APPLE AND RSTUDIO_PACKAGE_BUILD)
-
    find_package(OpenSSL REQUIRED QUIET)
    foreach(lib ${OPENSSL_CRYPTO_LIBRARY} ${OPENSSL_SSL_LIBRARY})
-      # get the real path to the library (with all symlinks resolved) and filename
-      get_filename_component(LIB_PATH "${lib}" REALPATH)
-      get_filename_component(LIB_FILE "${LIB_PATH}" NAME)
-      # this command does the following:
-      # 1. runs otool -L to find the path at which the OpenSSL library is
-      #    linked into the executable (this path is unfortunately not canonical
-      #    and includes layers of both resolved and unresolved symlinks)
-      # 2. extracts the path from the output using grep and awk
-      # 3. runs install_name_tool and tells it to replace the path with one that
-      #    points to a bundled copy of the same file
+      get_filename_component(LIB_DIR ${lib} PATH)
+      execute_process(COMMAND readlink ${lib} OUTPUT_VARIABLE LIB_FILE OUTPUT_STRIP_TRAILING_WHITESPACE)
       add_custom_command (TARGET diagnostics POST_BUILD
-         COMMAND install_name_tool -change `otool -L ${CMAKE_CURRENT_BINARY_DIR}/diagnostics | grep ${LIB_FILE} | awk '{ print $$1 }'` @executable_path/../Frameworks/${LIB_FILE} ${CMAKE_CURRENT_BINARY_DIR}/diagnostics)
+         COMMAND install_name_tool -change ${LIB_DIR}/${LIB_FILE} @executable_path/../Frameworks/${LIB_FILE} ${CMAKE_CURRENT_BINARY_DIR}/diagnostics)
    endforeach()
-
-   # do something similar to the above to fix paths to SOCI libraries
-   foreach(lib ${SOCI_DEPENDENCIES})
-      get_filename_component(LIB_NAME "${lib}" NAME_WE)
-      add_custom_command (TARGET diagnostics POST_BUILD
-          COMMAND install_name_tool -change `otool -L ${CMAKE_CURRENT_BINARY_DIR}/diagnostics | grep ${LIB_NAME} | awk '{ print $$1 }'` @executable_path/../Frameworks/$$\(otool -L ${CMAKE_CURRENT_BINARY_DIR}/diagnostics | grep ${LIB_NAME} | awk '{ print $$1 }' | xargs basename\) ${CMAKE_CURRENT_BINARY_DIR}/diagnostics)
-   endforeach()
-
 endif()
-
-
-

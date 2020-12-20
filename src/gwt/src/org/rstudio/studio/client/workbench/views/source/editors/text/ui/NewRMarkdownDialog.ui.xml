@@ -6,7 +6,6 @@
    xmlns:rmd="urn:import:org.rstudio.studio.client.rmarkdown.ui">
 
    <ui:with field="resources" type="org.rstudio.studio.client.workbench.views.source.editors.text.ui.NewRMarkdownDialog.Resources" />
-   <ui:with field="ElementIds" type="org.rstudio.core.client.ElementIds"/>
    <ui:style type="org.rstudio.studio.client.workbench.views.source.editors.text.ui.NewRMarkdownDialog.NewRmdStyle">
    @external .gwt-Label;
    
@@ -53,22 +52,11 @@
      margin-right: 20px;
    }
    
-   .defaultOutputLabel legend
+   .defaultOutputLabel
    {
      font-weight: bold;
-     padding: 0;
      margin-bottom: 7px;
-   }
-   
-   fieldset.defaultOutputLabel
-   {
-      border: none;
-      padding: 0;
-      padding-block-end: 0;
-      padding-inline-end: 0;
-      margin-top: 14px;
-      margin-right: 0;
-      margin-left: 0;
+     margin-top: 14px;
    }
    
    .outputFormatChoice
@@ -109,7 +97,7 @@
    
    .shinyInfoHeader
    {
-     margin-top: 15px;
+     margin-top: 25px;
      margin-bottom: 7px;
    }
    
@@ -132,29 +120,26 @@
      <g:HTMLPanel height="100%" width="325px" 
                   styleName="{style.templateDetails}">
         <g:HTMLPanel ui:field="newTemplatePanel_">
-           <rw:LayoutGrid width="100%" cellSpacing="0" cellPadding="0">
-             <rw:row>
-               <rw:customCell>
-                  <rw:FormLabel for="{ElementIds.getNewRmdTitle}" styleName="{style.topLabel}">Title:</rw:FormLabel>
-               </rw:customCell>
-               <rw:customCell styleName="{style.textCol}">
-                 <rw:FormTextBox elementId="{ElementIds.getNewRmdTitle}" styleName="{style.textBox}" 
-                                 ui:field="txtTitle_" />
-               </rw:customCell>
-              </rw:row>
-              <rw:row>
-                <rw:customCell>
-                   <rw:FormLabel for="{ElementIds.getNewRmdAuthor}" styleName="{style.topLabel}">Author:</rw:FormLabel>
-                </rw:customCell>
-                <rw:customCell>
-                   <rw:FormTextBox elementId="{ElementIds.getNewRmdAuthor}" styleName="{style.textBox}" 
-                                   ui:field="txtAuthor_"/>
-                </rw:customCell>
-              </rw:row>
-           </rw:LayoutGrid>
-           <rw:FieldSetPanel legend="Default Output Format:" styleName="{style.defaultOutputLabel}">
-              <g:HTMLPanel ui:field="templateFormatPanel_"></g:HTMLPanel>
-           </rw:FieldSetPanel>
+           <g:Grid ui:field="formGrid_" width="100%" cellSpacing="0" cellPadding="0">
+             <g:row>
+               <g:customCell><rw:FormLabel ui:field="lblTitle_" styleName="{style.topLabel}" 
+                              text="Title:"></rw:FormLabel></g:customCell>
+               <g:customCell styleName="{style.textCol}">
+                 <g:TextBox styleName="{style.textBox}" 
+                            ui:field="txtTitle_"></g:TextBox>
+               </g:customCell>
+              </g:row>
+              <g:row>
+                <g:customCell><rw:FormLabel ui:field="lblAuthor_" styleName="{style.topLabel}" 
+                         text="Author:"></rw:FormLabel></g:customCell>
+                <g:customCell><g:TextBox styleName="{style.textBox}"
+                           ui:field="txtAuthor_"></g:TextBox></g:customCell>
+              </g:row>
+           </g:Grid>
+           <g:Label styleName="{style.defaultOutputLabel}" 
+                    text="Default Output Format:"
+                    ui:field="outputFormatLabel_"></g:Label>
+           <g:HTMLPanel ui:field="templateFormatPanel_"></g:HTMLPanel>
         </g:HTMLPanel>
         <g:HTMLPanel ui:field="existingTemplatePanel_">
           <rmd:RmdTemplateChooser ui:field="templateChooser_">

@@ -1,7 +1,7 @@
 /*
  * EnvironmentTab.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,6 +22,7 @@ import org.rstudio.studio.client.common.filetypes.events.OpenDataFileEvent;
 import org.rstudio.studio.client.common.filetypes.events.OpenDataFileHandler;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.events.SessionInitEvent;
+import org.rstudio.studio.client.workbench.events.SessionInitHandler;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.ui.DelayLoadTabShim;
 import org.rstudio.studio.client.workbench.ui.DelayLoadWorkbenchTab;
@@ -31,7 +32,7 @@ import com.google.inject.Inject;
 public class EnvironmentTab extends DelayLoadWorkbenchTab<EnvironmentPresenter>
 {
  public interface Binder extends CommandBinder<Commands, EnvironmentTab.Shim> {}
-
+   
    public abstract static class Shim
          extends DelayLoadTabShim<EnvironmentPresenter, EnvironmentTab>
          implements OpenDataFileHandler
@@ -57,6 +58,16 @@ public class EnvironmentTab extends DelayLoadWorkbenchTab<EnvironmentPresenter>
       @Handler
       public abstract void onImportDatasetFromXLS();
       @Handler
+      public abstract void onImportDatasetFromXML();
+      @Handler
+      public abstract void onImportDatasetFromJSON();
+      @Handler
+      public abstract void onImportDatasetFromJDBC();
+      @Handler
+      public abstract void onImportDatasetFromODBC();
+      @Handler
+      public abstract void onImportDatasetFromMongo();
+      @Handler
       public abstract void onClearWorkspace();
 
       abstract void initialize(EnvironmentContextData environmentState);
@@ -72,16 +83,19 @@ public class EnvironmentTab extends DelayLoadWorkbenchTab<EnvironmentPresenter>
       super("Environment", shim);
       binder.bind(commands, shim);
       events.addHandler(OpenDataFileEvent.TYPE, shim);
-
+    
       session_ = session;
-
-      events.addHandler(SessionInitEvent.TYPE, (SessionInitEvent sie) ->
-      {
-         EnvironmentContextData environmentState =
-               session_.getSessionInfo().getEnvironmentState();
-         shim.initialize(environmentState);
+      
+      events.addHandler(SessionInitEvent.TYPE, new SessionInitHandler() {
+         
+         public void onSessionInit(SessionInitEvent sie)
+         {
+            EnvironmentContextData environmentState = 
+                  session_.getSessionInfo().getEnvironmentState();
+            shim.initialize(environmentState);
+         }
       });
    }
-
+   
    private final Session session_;
 }

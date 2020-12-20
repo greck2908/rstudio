@@ -1,7 +1,7 @@
 /*
  * UriHandler.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,9 +20,7 @@
 #include <vector>
 
 #include <boost/function.hpp>
-#include <boost/variant.hpp>
 
-#include <core/http/AsyncConnection.hpp>
 #include <core/http/Response.hpp>
 
 namespace rstudio {
@@ -31,52 +29,38 @@ namespace http {
 
 class Request;
 
-typedef boost::function<void(Response*)> UriHandlerFunctionContinuation;
+typedef boost::function<void(Response*)> UriHandlerFunctionContinuation ;
 
 // UriHandlerFunction concept
 typedef boost::function<void(const Request&,const UriHandlerFunctionContinuation&)>
-                                                UriAsyncHandlerFunction;
+                                                UriAsyncHandlerFunction ;
 
 // UriHandlerFunction concept
-typedef boost::function<void(const Request&,Response*)> UriHandlerFunction;
+typedef boost::function<void(const Request&,Response*)> UriHandlerFunction ;
 
 // UriFilterFunction concept - return true if the filter handled the request
 typedef boost::function<bool(const http::Request&, http::Response*)> 
-                                                         UriFilterFunction;
-
-typedef boost::function<bool(const Request&,
-                             const std::string&,
-                             bool,
-                             const UriHandlerFunctionContinuation&)> UriAsyncUploadHandlerFunction;
-
-typedef boost::variant<UriAsyncHandlerFunction,
-            UriAsyncUploadHandlerFunction> UriAsyncHandlerFunctionVariant;
+                                                         UriFilterFunction; 
 
 class UriHandler
 {
 public:
    UriHandler(const std::string& prefix, const UriAsyncHandlerFunction& function);
    UriHandler(const std::string& prefix, const UriHandlerFunction& function);
-   UriHandler(const std::string& prefix, const UriAsyncUploadHandlerFunction& function);
 
    // COPYING: via compiler
    
    bool matches(const std::string& uri) const;
    
-   UriAsyncHandlerFunctionVariant function() const;
+   UriAsyncHandlerFunction function() const;
   
    // implement UriHandlerFunction concept
    void operator()(const Request& request,
                    const UriHandlerFunctionContinuation& cont) const;
-
-   void operator()(const Request& request,
-                   const std::string& formData,
-                   bool complete,
-                   const UriHandlerFunctionContinuation& cont) const;
    
 private:
    std::string prefix_;
-   UriAsyncHandlerFunctionVariant function_;
+   UriAsyncHandlerFunction function_ ;
 };
 
 class UriHandlers
@@ -88,7 +72,7 @@ public:
    
    void add(const UriHandler& handler);
    
-   boost::optional<UriAsyncHandlerFunctionVariant> handlerFor(const std::string& uri) const;
+   UriAsyncHandlerFunction handlerFor(const std::string& uri) const;
    
 private:
    std::vector<UriHandler> uriHandlers_;
@@ -99,10 +83,7 @@ inline void notFoundHandler(const Request& request, Response* pResponse)
    pResponse->setNotFoundError(request);
 }
 
-void visitHandler(const UriAsyncHandlerFunctionVariant& variant,
-                  const Request& request,
-                  const UriHandlerFunctionContinuation& cont);
-
+   
 } // namespace http
 } // namespace core
 } // namespace rstudio

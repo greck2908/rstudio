@@ -1,7 +1,7 @@
 /*
  * SecureCookie.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -30,10 +30,12 @@
 #include <core/http/Request.hpp>
 #include <core/http/Response.hpp>
 #include <core/http/Util.hpp>
+#include <core/http/Cookie.hpp>
 #include <core/r_util/RSessionContext.hpp>
 
 #include <core/system/Crypto.hpp>
 #include <core/system/PosixSystem.hpp>
+#include <core/system/FileMode.hpp>
 
 #include <server_core/http/SecureCookie.hpp>
 #include <server_core/SecureKeyFile.hpp>
@@ -49,7 +51,7 @@ namespace {
 const char * const kDelim = "|";
 
 // secure cookie key
-std::string s_secureCookieKey;
+std::string s_secureCookieKey ;
 
 
 Error base64HMAC(const std::string& value,
@@ -90,16 +92,15 @@ Error hashWithSecureKey(const std::string& message, std::string* pHMAC)
       return error;
 
    // base 64 encode it
-   return core::system::crypto::base64Encode(hmac, *pHMAC);
+   return core::system::crypto::base64Encode(hmac, pHMAC);
 }
 
 http::Cookie createSecureCookie(const std::string& name,
                                 const std::string& value,
                                 const core::http::Request& request,
                                 const boost::posix_time::time_duration& validDuration,
-                                const std::string& path /* = "/"*/,
-                                bool secure /*= false*/,
-                                http::Cookie::SameSite sameSite /*= SameSite::Undefined*/)
+                                const std::string& path,
+                                bool secure)
 {
    // generate expires string
    std::string expires = http::util::httpDate(
@@ -109,7 +110,7 @@ http::Cookie createSecureCookie(const std::string& name,
    // error occurs during encoding. this will cause the application to
    // fail downstream which is what we want given that we couldn't properly
    // secure the cookie)
-   std::string signedCookieValue;
+   std::string signedCookieValue ;
    std::string hmac;
    Error error = base64HMAC(value, expires, &hmac);
    if (error)
@@ -131,7 +132,6 @@ http::Cookie createSecureCookie(const std::string& name,
                        name,
                        signedCookieValue,
                        path,
-                       sameSite,
                        true, // HTTP only
                        secure);
 }
@@ -207,11 +207,28 @@ void set(const std::string& name,
          const std::string& value,
          const http::Request& request,
          const boost::posix_time::time_duration& validDuration,
-         const boost::optional<boost::posix_time::time_duration>& expiresFromNow,
          const std::string& path,
          http::Response* pResponse,
-         bool secure,
-         http::Cookie::SameSite sameSite)
+         bool secure)
+{
+   secure_cookie::set(name,
+                      value,
+                      request,
+                      validDuration,
+                      boost::optional<boost::gregorian::days>(),
+                      path,
+                      pResponse,
+                      secure);
+}
+
+void set(const std::string& name,
+         const std::string& value,
+         const http::Request& request,
+         const boost::posix_time::time_duration& validDuration,
+         const boost::optional<boost::gregorian::days>& cookieExpiresDays,
+         const std::string& path,
+         http::Response* pResponse,
+         bool secure)
 {
    // create secure cookie
    http::Cookie cookie = createSecureCookie(name,
@@ -219,8 +236,32 @@ void set(const std::string& name,
                                             request,
                                             validDuration,
                                             path,
-                                            secure,
-                                            sameSite);
+                                            secure);
+
+   // expire from browser as requested
+   if (cookieExpiresDays.is_initialized())
+      cookie.setExpires(*cookieExpiresDays);
+
+   // add to response
+   pResponse->addCookie(cookie);
+}
+
+void set(const std::string& name,
+         const std::string& value,
+         const http::Request& request,
+         const boost::posix_time::time_duration& validDuration,
+         const boost::optional<boost::posix_time::time_duration>& expiresFromNow,
+         const std::string& path,
+         http::Response* pResponse,
+         bool secure)
+{
+   // create secure cookie
+   http::Cookie cookie = createSecureCookie(name,
+                                            value,
+                                            request,
+                                            validDuration,
+                                            path,
+                                            secure);
 
    // expire from browser as requested
    if (expiresFromNow.is_initialized())
@@ -234,8 +275,7 @@ void remove(const http::Request& request,
             const std::string& name,
             const std::string& path,
             core::http::Response* pResponse,
-            bool secure,
-            http::Cookie::SameSite sameSite)
+            bool secure)
 {
    // create cookie
    http::Cookie cookie(request, name, std::string(), path);
@@ -253,8 +293,6 @@ void remove(const http::Request& request,
       // over https
       cookie.setSecure();
    }
-
-   cookie.setSameSite(sameSite);
 
    // add to response
    pResponse->addCookie(cookie);
@@ -277,7 +315,7 @@ Error initialize()
 
 Error initialize(const FilePath& secureKeyFile)
 {
-   if (secureKeyFile.isEmpty())
+   if (secureKeyFile.empty())
       return initialize();
 
    Error error = key_file::readSecureKeyFile(secureKeyFile, &s_secureCookieKey);

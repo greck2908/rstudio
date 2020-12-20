@@ -1,7 +1,7 @@
 #
 #  compile-themes.R
 #
-# Copyright (C) 2020 by RStudio, PBC
+# Copyright (C) 2019 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,7 @@
    # Split any lines with "\n" for proper parsing.
    cssLines <- unlist(strsplit(gsub("\\}", "\\}\n", lines), c("\n"), perl = TRUE))
    
-   currKeys <-list()
+   currKey = NULL
    isLastDescForKey <- FALSE
    inCommentBlock <- FALSE
    candidateKey <- NULL
@@ -72,23 +72,20 @@
             
             if (!grepl("^\\s*$", candidateKey))
             {
-               if (length(currKeys) > 0)
+               if (!is.null(currKey))
                {
                   warning("Malformed CSS: ", orgLine, ". No closing bracket for last block.")
                }
-               currKeys <- unlist(strsplit(candidateKey, "\\s*,\\s*", perl = TRUE))
+               currKey <- candidateKey
                candidateKey <- NULL
                
-               for (currKey in currKeys)
-               {
-                  css[[currKey]] <- list()
-               }
+               css[[currKey]] <- list()
                currLine <- sub("^\\s*[^\\{]*?\\s*\\{", "", currLine)
             }
          }
          
          # If there is currently a key, look for it's descriptions.
-         if (length(currKeys) > 0)
+         if (!is.null(currKey))
          {
             # Determine if we're at the end of the block and remove the closing bracket to be able
             # to parse anything that comes before it on the same line.
@@ -100,18 +97,6 @@
                {
                   warning("Maformed CSS: ", orgLine, ". Extra closing brackets.")
                }
-            }
-            
-            # Handle any URL fields, because they're too complex to be parsed as below.
-            urlPattern <-"\\s*(background(?:-image)?)\\s*:\\s*(url\\((?:\"[^\"]*\"|[^)]*)\\)[^();]*?)\\s*(?:;|$)"
-            
-            while (grepl(urlPattern, currLine, ignore.case = TRUE, perl = TRUE))
-            {
-               ruleName = sub(urlPattern, "\\1", currLine, ignore.case = TRUE, perl = TRUE)
-               ruleValue = sub(urlPattern, "\\2", currLine, ignore.case = TRUE, perl = TRUE)
-               currLine <- sub(urlPattern, "", currLine, ignore.case = TRUE, perl = TRUE)
-               
-               for (currKey in currKeys) css[[currKey]][[ruleName]] <- ruleValue
             }
             
             # Look for a : on the line. CSS rules always have the format "name: style", so this
@@ -133,7 +118,7 @@
                      }
                      else
                      {
-                        for (currKey in currKeys) css[[currKey]][[ desc[1] ]] <- tolower(desc[2])
+                        css[[currKey]][[ desc[1] ]] <- tolower(desc[2])
                      }
                   }
                }
@@ -160,7 +145,7 @@
          # If we've finished a block, reset the key and the block-end indicator.
          if (isLastDescForKey)
          {
-            currKeys <- list()
+            currKey <- NULL
             isLastDescForKey <- FALSE
          }
          
@@ -497,38 +482,6 @@
            markerColor)
 })
 
-.rs.addFunction("createNodeSelectorRule", function(themeName, isDark, overrides = list()) {
-   nodeSelectorColor <- overrides[[themeName]]
-   if (is.null(nodeSelectorColor))
-      nodeSelectorColor <- if (isDark) "#fb6f1c" else "rgb(102, 155, 243)"
-   
-   sprintf(paste(sep = "\n",
-                 ".ace_node-selector {",
-                 "  background-color: %s",
-                 "}"),
-           nodeSelectorColor)
-})
-
-.rs.addFunction("createCommentBgRule", function(themeName, isDark, overrides = list()) {
-   commentFgColor <- if (isDark) "#4D4333" else "#3C4C72"
-   commentBgColor <- if (isDark) "#D1B78A" else "#FFECCB"
-   
-   override <- overrides[[themeName]]
-   if (!is.null(override) && !is.null(override$fg))
-      commentFgColor <- override$fg
-   
-   if (!is.null(override) && !is.null(override$bg))
-      commentBgColor <- override$bg
-   
-   sprintf(paste(sep = "\n",
-                 ".ace_comment-highlight {",
-                 "  color: %s;",
-                 "  background-color: %s;",
-                 "}"),
-           commentFgColor,
-           commentBgColor)
-})
-
 .rs.addFunction("get_chunk_bg_color", function(themeName, isDark, overrides = list()) {
    p <- overrides[[themeName]]
    if (is.null(p))
@@ -543,29 +496,15 @@
 })
 
 .rs.addFunction("updateSetting", function(content, newValue, cssClass, settingName) {
-   classPat <- paste0("\\.", cssClass, "( *){")
-   if (any(grepl(classPat, content, perl = TRUE)))
-   {
-      settingName <- paste0(settingName, ":")
-      blockLoc <- grep(classPat, content, perl = TRUE)
-      
-      newLine <-  paste0("  ", settingName, " ", newValue, ";")
-      settingPat <- paste0("(^| )",settingName)
-      if (!any(grepl(settingPat, content, perl = TRUE)))
-      {
-         settingLoc <- grep("}",  content, perl = TRUE)
-         
-         loc <- settingLoc[settingLoc > blockLoc][1]
-         content <- c(content[1:loc-1], newLine, content[loc:length(content)])
-      }
-      else
-      {
-         settingLoc <- grep(settingPat,  content, perl = TRUE)
-      
-         loc <- settingLoc[settingLoc > blockLoc][1]
-         content[loc] <- newLine
-      }
-   }
+   settingName <- paste0(settingName, ":")
+   blockLoc <- grep(paste0("\\.", cssClass, "( *){"), content, perl = TRUE)
+   settingLoc <- grep(paste0("(^| )",settingName),  content, perl = TRUE)
+   
+   print(paste(cssClass, settingName))
+   print(blockLoc)
+   print(settingLoc)
+   loc <- settingLoc[settingLoc > blockLoc][1]
+   content[loc] <- paste0("  ", settingName, " ", newValue, ";")
    content
 })
 
@@ -575,10 +514,6 @@
 
 .rs.addFunction("setActiveDebugLineColor", function(content, color) {
    .rs.updateSetting(content, color, "ace_active_debug_line", "background-color")
-})
-
-.rs.addFunction("setSelectionStartBorderRadius", function(content) {
-   .rs.updateSetting(content, "2px", "ace_selection.ace_start", "border-radius")
 })
 
 .rs.addFunction("create_terminal_cursor_rules", function(isDark) {
@@ -1213,16 +1148,7 @@
    content
 })
 
-.rs.addFunction("compile_theme", function(
-   lines,
-   isDark,
-   name = "",
-   chunkBgPropOverrideMap = list(),
-   operatorOverrideMap = list(),
-   keywordOverrideMap = list(),
-   nodeSelectorOverrideMap = list(),
-   commentBgOverrideMap = list())
-{
+.rs.addFunction("compile_theme", function(lines, isDark, name = "", chunkBgPropOverrideMap = list(), operatorOverrideMap = list(), keywordOverrideMap = list()) {
    ## Guess the theme name -- all rules should start with it.
    stripped <- sub(" .*", "", lines)
    stripped <- grep("^\\.", stripped, value = TRUE)
@@ -1246,12 +1172,8 @@
    regex <- paste("^\\", themeNameCssClass, "\\S*\\s+", sep = "")
    content <- gsub(regex, "", content)
    
-   ## Add border radius
-   content <- .rs.setSelectionStartBorderRadius(content)
-   
    ## Parse the css
    parsed <- .rs.parseCss(lines = content)
-   
    names(parsed)[grep("^\\.ace_editor(,.*|)$", names(parsed), perl = TRUE)] <- "ace_editor"
    
    if (!any(grepl("^\\.ace_keyword", names(parsed)))) {
@@ -1265,7 +1187,7 @@
       keywordColor <- parsed[[key[[1]]]]$color
    }
    if (is.null(keywordColor)) {
-      warning("No field 'color' for rule 'ace_keyword' in file '", paste0(name,".css"), "'", call. = FALSE)
+      warning("No keyword color available for file '", paste0(name,".css"), "'", call. = FALSE)
       return(c())
    }
    
@@ -1287,7 +1209,7 @@
    
    borderField <- parsed[[layerName]]$border
    if (is.null(borderField)) {
-      warning("No field 'border' for rule '", layerName, "' in file '", paste0(name,".css"), "'; skipping", call. = FALSE)
+      warning("No field for layer '", layerName, "' in file '", paste0(name,".css"), "'; skipping", call. = FALSE)
       return(c())
    }
    
@@ -1329,9 +1251,7 @@
    
    content <- c(
       content,
-      .rs.create_line_marker_rule(".ace_foreign_line", mergedColor),
-      .rs.createNodeSelectorRule(name, isDark, nodeSelectorOverrideMap),
-      .rs.createCommentBgRule(name, isDark, commentBgOverrideMap)
+      .rs.create_line_marker_rule(".ace_foreign_line", mergedColor)
    )
    
    ## Generate a color used for 'debugging' backgrounds.
@@ -1385,7 +1305,7 @@
    
    # Add xterm-256 colors for colorized console output
    content <- c(content,
-                .rs.create_xterm_color_rules(background, foreground, isDark))
+                .rs.create_xterm_color_rules(background, foreground, isDark)) 
    
    # Theme rules
    content <- c(content,

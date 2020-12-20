@@ -1,7 +1,7 @@
 /*
  * GitChangelistTablePresenter.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,7 +20,6 @@ import org.rstudio.studio.client.common.vcs.GitServerOperations;
 import org.rstudio.studio.client.common.vcs.RemoteBranchInfo;
 import org.rstudio.studio.client.common.vcs.StatusAndPath;
 import org.rstudio.studio.client.server.Void;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 import org.rstudio.studio.client.workbench.views.vcs.common.events.StageUnstageEvent;
 import org.rstudio.studio.client.workbench.views.vcs.common.events.StageUnstageHandler;
 import org.rstudio.studio.client.workbench.views.vcs.common.events.VcsRefreshEvent;
@@ -34,13 +33,11 @@ public class GitChangelistTablePresenter
    @Inject
    public GitChangelistTablePresenter(GitServerOperations server,
                                       GitChangelistTable view,
-                                      GitState gitState,
-                                      UserPrefs prefs)
+                                      GitState gitState)
    {
       server_ = server;
       view_ = view;
       gitState_ = gitState;
-      prefs_ = prefs;
 
       view_.addStageUnstageHandler(new StageUnstageHandler()
       {
@@ -79,11 +76,11 @@ public class GitChangelistTablePresenter
                   remote.getCommitsBehind() + " commit" +
                   (remote.getCommitsBehind() > 1 ? "s" : "") + ".";
                
-               view_.showInfoBar(message, !prefs.reducedMotion().getValue());
+               view_.showInfoBar(message);
             }
             else
             {
-               view_.hideInfoBar(!prefs_.reducedMotion().getValue());
+               view_.hideInfoBar();
             } 
          }
       });
@@ -102,5 +99,4 @@ public class GitChangelistTablePresenter
    private final GitServerOperations server_;
    private final GitChangelistTable view_;
    private final GitState gitState_;
-   private final UserPrefs prefs_;
 }

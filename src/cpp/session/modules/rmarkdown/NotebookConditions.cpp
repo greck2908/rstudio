@@ -1,7 +1,7 @@
 /*
  * NotebookConditions.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,7 +16,7 @@
 #include "SessionRmdNotebook.hpp"
 #include "NotebookConditions.hpp"
 
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 
 #include <r/RExec.hpp>
 #include <r/RSexp.hpp>

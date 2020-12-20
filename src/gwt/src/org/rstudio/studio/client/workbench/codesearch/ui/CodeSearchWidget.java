@@ -1,7 +1,7 @@
 /*
  * CodeSearchWidget.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,7 +14,6 @@
  */
 package org.rstudio.studio.client.workbench.codesearch.ui;
 
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.widget.SearchDisplay;
 import org.rstudio.core.client.widget.SearchWidget;
@@ -40,10 +39,10 @@ public class CodeSearchWidget extends SearchWidget
       oracle_ = oracle;   
       
       CodeSearchResources res = CodeSearchResources.INSTANCE;
-      setIcon(new ImageResource2x(res.gotoFunction2x()));
-      addStyleName(res.styles().codeSearchWidget());
       
-      ElementIds.assignElementId(this, ElementIds.CODE_SEARCH_WIDGET);
+      setIcon(new ImageResource2x(res.gotoFunction2x()));
+      
+      addStyleName(res.styles().codeSearchWidget());
    }
 
    @Override

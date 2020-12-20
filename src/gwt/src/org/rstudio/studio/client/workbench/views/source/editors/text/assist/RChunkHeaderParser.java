@@ -1,7 +1,7 @@
 /*
  * RChunkHeaderParser.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,7 +17,6 @@ package org.rstudio.studio.client.workbench.views.source.editors.text.assist;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.rstudio.core.client.Mutable;
 import org.rstudio.core.client.RegexUtil;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.TextCursor;
@@ -26,277 +25,115 @@ import org.rstudio.core.client.regex.Pattern;
 
 public class RChunkHeaderParser
 {
-   public static Map<String, String> parse(String line)
+   public static Map<String, String> parse(String header)
    {
       Map<String, String> options = new HashMap<String, String>();
-      parse(line, options);
-      return options;
-   }
-   
-   public static final void parse(String line, Map<String, String> options)
-   {
-      // set up state
-      Mutable<String> key = new Mutable<String>();
-      Consumer keyConsumer = new MutableConsumer(key);
-      
-      Mutable<String> val = new Mutable<String>();
-      Consumer valConsumer = new MutableConsumer(val);
       
       // determine an appropriate pattern for extracting options from
       // this header (infer based on the line contents)
       Pattern pattern = null;
-      boolean isRmd = false;
-      if (RegexUtil.RE_RMARKDOWN_CHUNK_BEGIN.test(line))
-      {
+      if (RegexUtil.RE_RMARKDOWN_CHUNK_BEGIN.test(header))
          pattern = RegexUtil.RE_RMARKDOWN_CHUNK_BEGIN;
-         isRmd = true;
-      }
-      else if (RegexUtil.RE_SWEAVE_CHUNK_BEGIN.test(line))
-      {
+      else if (RegexUtil.RE_SWEAVE_CHUNK_BEGIN.test(header))
          pattern = RegexUtil.RE_SWEAVE_CHUNK_BEGIN;
-         isRmd = false;
-      }
-      else if (RegexUtil.RE_RHTML_CHUNK_BEGIN.test(line))
-      {
+      else if (RegexUtil.RE_RHTML_CHUNK_BEGIN.test(header))
          pattern = RegexUtil.RE_RHTML_CHUNK_BEGIN;
-         isRmd = false;
-      }
       
-      if (pattern != null)
-      {
-         Match match = pattern.match(line, 0);
-         if (match != null)
-            line = match.getGroup(1);
-      }
+      if (pattern == null)
+         return options;
       
-      TextCursor cursor = new TextCursor(line);
-      
-      // force default R engine
-      options.put("engine", ensureQuoted("r"));
-      
-      // for R Markdown documents, we need to also parse
-      // an engine and an optional label, which adds a bit
-      // of extra work for the parser
-      if (isRmd)
-      {
-         // consume engine
-         if (!consumeEngine(cursor, options))
-            return;
-
-         // consume whitespace and commas
-         if (!cursor.consumeUntilRegex("[^\\s,]"))
-            return;
-
-         // consume next token -- need to determine
-         // whether this is a chunk option name or
-         // a label soon after
-         if (!consumeKey(cursor, keyConsumer))
-            return;
-
-         // consume until ',' or '='. if nothing is
-         // found, this must have been a label
-         if (!cursor.consumeUntilRegex("[,=]"))
-         {
-            options.put("label", ensureQuoted(key.get().trim()));
-            return;
-         }
-
-         char ch = cursor.peek();
-         if (ch == ',')
-         {
-            // found a comma -- this must have been a label
-            options.put("label", ensureQuoted(key.get().trim()));
-         }
-         else
-         {
-            // found an '=' -- this was a key for a chunk option
-            if (!cursor.consume('='))
-               return;
-
-            // eat whitespace
-            if (!cursor.consumeUntilRegex("\\S"))
-               return;
-
-            // consume value
-            if (!consumeValue(cursor, valConsumer))
-               return;
-
-            // set option
-            options.put(key.get(), val.get());
-
-            // move to next comma
-            if (!cursor.fwdToCharacter(',', false))
-               return;
-         }
-      }
-      
-      do
-      {
-         // eat whitespace and commas
-         if (!cursor.consumeUntilRegex("[^\\s,]"))
-            return;
-         
-         // consume key
-         if (!consumeKey(cursor, keyConsumer))
-            return;
-         
-         // eat whitespace
-         if (!cursor.consumeUntilRegex("\\S"))
-            return;
-         
-         // check '='
-         if (!cursor.consume('='))
-            return;
-         
-         // eat whitespace
-         if (!cursor.consumeUntilRegex("\\S"))
-            return;
-         
-         // consume value
-         if (!consumeValue(cursor, valConsumer))
-            return;
-         
-         // update options
-         options.put(
-               StringUtil.stringValue(key.get().trim()),
-               val.get().trim());
-         
-         // find next comma
-         if (!cursor.consumeUntil(','))
-            return;
-      }
-      while (cursor.peek() == ',');
-      
-      return;
-   }
-   
-   private static final boolean consumeEngine(final TextCursor cursor,
-                                              final Map<String, String> options)
-   {
-      Consumer consumer = new Consumer()
-      {
-         @Override
-         public void consume(String value)
-         {
-            options.put("engine", ensureQuoted(value));
-         }
-      };
-      
-      if (consumeUntilRegex(cursor, "(?:$|[\\s,])", consumer))
-         return true;
-      
-      return false;
-   }
-   
-   private static final boolean consumeUntilRegex(TextCursor cursor,
-                                                  String regex,
-                                                  Consumer consumer)
-   {
-      Pattern pattern = Pattern.create(regex);
-      Match match = pattern.match(cursor.getData(), cursor.getIndex());
+      Match match = pattern.match(header,  0);
       if (match == null)
-         return false;
+         return options;
       
-      int startIdx = cursor.getIndex();
-      int endIdx = match.getIndex();
-      if (consumer != null)
-      {
-         String value = cursor.getData().substring(startIdx, endIdx);
-         consumer.consume(value);
-      }
-
-      cursor.setIndex(endIdx);
-      return true;
-   }
-   
-   private static final boolean consumeQuotedItem(TextCursor cursor, Consumer consumer)
-   {
-      if (!isQuote(cursor.peek()))
-         return false;
+      String extracted = match.getGroup(1);
+      String chunkLabel = extractChunkLabel(extracted);
+      if (!StringUtil.isNullOrEmpty(chunkLabel))
+         options.put("label", chunkLabel);
       
-      int startIndex = cursor.getIndex();
-      if (cursor.fwdToMatchingCharacter())
-      {
-         int endIndex = cursor.getIndex() + 1;
-         if (consumer != null)
-         {
-            String value = cursor.getData().substring(startIndex, endIndex);
-            consumer.consume(value);
-         }
-         cursor.setIndex(endIndex);
-         return true;
-      }
-      return false;
-   }
-   
-   private static final boolean consumeKey(TextCursor cursor, Consumer consumer)
-   {
-      if (isQuote(cursor.peek()) && consumeQuotedItem(cursor, consumer))
-         return true;
+      // if we had a chunk label, then we want to navigate our cursor to
+      // the first comma in the chunk header; otherwise, we start at the
+      // first space. this is done to accept chunk headers of the form
+      //
+      //    ```{r message=FALSE}
+      //
+      // ie, those with no comma after the engine used
+      int argsStartIdx = StringUtil.isNullOrEmpty(chunkLabel)
+            ? extracted.indexOf(' ')
+            : extracted.indexOf(',');
       
-      return consumeUntilRegex(cursor, "(?:$|[^a-zA-Z0-9_.])", consumer);
-   }
-   
-   private static final boolean consumeValue(TextCursor cursor,
-                                             Consumer consumer)
-   {
-      if (consumeQuotedItem(cursor, consumer))
-         return true;
+      String arguments = extracted.substring(argsStartIdx + 1);
+      TextCursor cursor = new TextCursor(arguments);
       
-      int startIdx = cursor.getIndex();
+      // consume commas and whitespace if needed
+      cursor.consumeUntilRegex("[^\\s,]");
+      
+      int startIndex = 0;
       do
       {
-         if (cursor.isLeftBracket() && cursor.fwdToMatchingCharacter())
-            continue;
-         
-         if (cursor.peek() == ',')
+         if (!cursor.fwdToCharacter('=', false))
             break;
+         
+         int equalsIndex = cursor.getIndex();
+         int endIndex = arguments.length();
+         if (cursor.fwdToCharacter(',', true) ||
+             cursor.fwdToCharacter(' ', true))
+         {
+            endIndex = cursor.getIndex();
+         }
+         
+         options.put(
+               arguments.substring(startIndex, equalsIndex).trim(),
+               arguments.substring(equalsIndex + 1, endIndex).trim());
+         
+         startIndex = cursor.getIndex() + 1;
       }
       while (cursor.moveToNextCharacter());
       
-      int endIdx = cursor.getIndex();
-      if (consumer != null)
-      {
-         String value = cursor.getData().substring(startIdx, endIdx);
-         consumer.consume(value);
-      }
-      cursor.setIndex(endIdx);
-      return true;
-   }
-   
-   private static final boolean isQuote(char ch)
-   {
-      return ch == '\'' || ch == '"' || ch == '`';
-   }
-   
-   private static final String ensureQuoted(String string)
-   {
-      String[] quotes = new String[] { "\"", "'", "`" };
-      for (String quote : quotes)
-         if (string.startsWith(quote) && string.endsWith(quote))
-            return string;
       
-      return "\"" + string.replaceAll("\"", "\\\\\"") + "\"";
+      return options;
    }
    
-   private static interface Consumer
+   private static String extractChunkLabel(String extractedChunkHeader)
    {
-      public void consume(String value);
-   }
-   
-   private static class MutableConsumer implements Consumer
-   {
-      public MutableConsumer(Mutable<String> value)
-      {
-         value_ = value;
-      }
+      // if there are no spaces within the chunk header,
+      // there cannot be a label. this implies a header of the form
+      //
+      //    ```{r}
+      //
+      int firstSpaceIdx = extractedChunkHeader.indexOf(' ');
+      if (firstSpaceIdx == -1)
+         return "";
       
-      @Override
-      public void consume(String value)
-      {
-         value_.set(value);
-      }
+      // find the indices of the first '=' and ',' characters
+      int firstEqualsIdx = extractedChunkHeader.indexOf('=');
+      int firstCommaIdx  = extractedChunkHeader.indexOf(',');
       
-      private final Mutable<String> value_;
+      // if we found neither an '=' nor a ',', then the label
+      // must be all the text following the first space. this implies
+      // a layout of the form:
+      //
+      //    ```{r label}
+      //
+      if (firstEqualsIdx == -1 && firstCommaIdx == -1)
+         return extractedChunkHeader.substring(firstSpaceIdx + 1).trim();
+      
+      // if we found an '=' before we found a ',' (or we didn't find
+      // a ',' at all), that implies a chunk header like:
+      //
+      //    ```{r message=TRUE, echo=FALSE}
+      //
+      // and so there is no label.
+      if (firstCommaIdx == -1)
+         return "";
+         
+      if (firstEqualsIdx != -1 && firstEqualsIdx < firstCommaIdx)
+         return "";
+      
+      // otherwise, the text from the first space to that comma gives the label
+      //
+      //    ```{r label, message=TRUE}
+      //
+      return extractedChunkHeader.substring(firstSpaceIdx + 1, firstCommaIdx).trim();
    }
 }

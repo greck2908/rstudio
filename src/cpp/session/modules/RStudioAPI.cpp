@@ -1,7 +1,7 @@
 /*
  * RStudioAPI.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,7 +16,7 @@
 #include <core/Macros.hpp>
 #include <core/Algorithm.hpp>
 #include <core/Debug.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Exec.hpp>
 
 #include <r/RSexp.hpp>
@@ -26,7 +26,6 @@
 #include <r/session/RSessionUtils.hpp>
 
 #include <session/SessionModuleContext.hpp>
-#include <session/SessionSourceDatabase.hpp>
 #include <session/projects/SessionProjects.hpp>
 
 using namespace rstudio::core;
@@ -37,10 +36,8 @@ namespace modules {
 namespace rstudioapi {
 
 namespace {
-
 module_context::WaitForMethodFunction s_waitForShowDialog;
 module_context::WaitForMethodFunction s_waitForOpenFileDialog;
-module_context::WaitForMethodFunction s_waitForRStudioApiResponse;
 
 SEXP rs_executeAppCommand(SEXP commandSEXP, SEXP quietSEXP)
 {
@@ -51,6 +48,9 @@ SEXP rs_executeAppCommand(SEXP commandSEXP, SEXP quietSEXP)
    module_context::enqueClientEvent(event);
    return R_NilValue;
 }
+
+} // end anonymous namespace
+
 
 ClientEvent showDialogEvent(const std::string& title,
                             const std::string& message,
@@ -110,7 +110,7 @@ SEXP rs_showDialog(SEXP titleSEXP,
          return R_NilValue;
       }
 
-      if (dialogIcon == 4 && !request.params[1].isNull()) {
+      if (dialogIcon == 4 && !request.params[1].is_null()) {
          bool result;
          Error error = json::readParam(request.params, 1, &result);
          if (error)
@@ -122,7 +122,7 @@ SEXP rs_showDialog(SEXP titleSEXP,
          r::sexp::Protect rProtect;
          return r::sexp::create(result, &rProtect);
       }
-      else if (!request.params[0].isNull())
+      else if (!request.params[0].is_null())
       {
          std::string promptValue;
          Error error = json::readParam(request.params, 0, &promptValue);
@@ -200,148 +200,20 @@ SEXP rs_openFileDialog(SEXP typeSEXP,
    return r::sexp::create(selection, &protect);
 }
 
-SEXP rs_highlightUi(SEXP queriesSEXP)
-{
-   json::Value data;
-   Error error = r::json::jsonValueFromList(queriesSEXP, &data);
-   if (error)
-      LOG_ERROR(error);
-   
-   ClientEvent event(client_events::kHighlightUi, data);
-   module_context::enqueClientEvent(event);
-   
-   return queriesSEXP;
-}
-
-SEXP rs_userIdentity()
-{
-   r::sexp::Protect protect;
-   // Check RSTUDIO_USER_IDENTITY_DISPLAY first; it is used in Pro to override the system user
-   // identity (username) with a display name in some auth forms
-   std::string display = core::system::getenv("RSTUDIO_USER_IDENTITY_DISPLAY");
-   if (display.empty())
-   {
-      // no env var; look up value in options provided at session start
-      display = session::options().userIdentity();
-   }
-
-   return r::sexp::create(display, &protect);
-}
-
-SEXP rs_systemUsername()
-{
-   r::sexp::Protect protect;
-   return r::sexp::create(core::system::username(), &protect);
-}
-
-SEXP rs_documentProperties(SEXP idSEXP,
-                           SEXP includeContentsSEXP)
-{
-   // resolve params
-   std::string id = r::sexp::asString(idSEXP);
-   bool includeContents = r::sexp::asLogical(includeContentsSEXP);
-
-   // retrieve document
-   using session::source_database::SourceDocument;
-   boost::shared_ptr<SourceDocument> pDoc(new SourceDocument);
-   Error error = source_database::get(id, pDoc);
-   if (error)
-   {
-      LOG_ERROR(error);
-      return R_NilValue;
-   }
-
-   // convert to R object
-   r::sexp::Protect protect;
-   SEXP object = pDoc->toRObject(&protect, includeContents);
-   return object;
-}
-
-
-SEXP rs_sendApiRequest(SEXP requestSEXP)
-{
-   Error error;
-   
-   bool sync = false;
-   error = r::sexp::getNamedListElement(requestSEXP, "sync", &sync);
-   if (error)
-   {
-      LOG_ERROR(error);
-      return R_NilValue;
-   }
-   
-   // build client event
-   json::Object requestJson;
-   error = r::json::jsonValueFromObject(requestSEXP, &requestJson);
-   if (error)
-   {
-      LOG_ERROR(error);
-      return R_NilValue;
-   }
-   
-   ClientEvent event(
-            client_events::kRStudioApiRequest,
-            requestJson);
-      
-   if (sync)
-   {
-      // use waitfor method to ensure we wait for response from client
-      json::JsonRpcRequest request;
-      if (!s_waitForRStudioApiResponse(&request, event))
-      {
-         r::exec::warning("Failed to execute API request");
-         return R_NilValue;
-      }
-      
-      // read response
-      json::Object responseJson;
-      Error error = json::readParam(request.params, 0, &responseJson);
-      if (error)
-      {
-         LOG_ERROR(error);
-         return R_NilValue;
-      }
-      
-      r::sexp::Protect protect;
-      return r::sexp::create(responseJson, &protect);
-   }
-   else
-   {
-      // just fire the event and immediately return
-      module_context::enqueClientEvent(event);
-      r::sexp::Protect protect;
-      return r::sexp::create(true, &protect);
-   }
-}
-
-} // end anonymous namespace
-
 Error initialize()
 {
    using boost::bind;
    using namespace module_context;
 
-   // register waitForMethod handlers
-   s_waitForShowDialog         = registerWaitForMethod("rstudioapi_show_dialog_completed");
-   s_waitForOpenFileDialog     = registerWaitForMethod("open_file_dialog_completed");
-   s_waitForRStudioApiResponse = registerWaitForMethod("rstudioapi_response");
+   // register waitForMethod handler
+   s_waitForShowDialog     = registerWaitForMethod("rstudioapi_show_dialog_completed");
+   s_waitForOpenFileDialog = registerWaitForMethod("open_file_dialog_completed");
 
-   // register R callables
    RS_REGISTER_CALL_METHOD(rs_showDialog);
    RS_REGISTER_CALL_METHOD(rs_openFileDialog);
    RS_REGISTER_CALL_METHOD(rs_executeAppCommand);
-   RS_REGISTER_CALL_METHOD(rs_highlightUi);
-   RS_REGISTER_CALL_METHOD(rs_userIdentity);
-   RS_REGISTER_CALL_METHOD(rs_systemUsername);
-   RS_REGISTER_CALL_METHOD(rs_documentProperties);
-   RS_REGISTER_CALL_METHOD(rs_sendApiRequest);
-   
-   using boost::bind;
-   ExecBlock initBlock;
-   initBlock.addFunctions()
-         (bind(sourceModuleRFile, "RStudioAPI.R"));
 
-   return initBlock.execute();
+   return Success();
 }
 
 } // namespace connections

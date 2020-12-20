@@ -1,7 +1,7 @@
 /*
  * SessionRnwConcordance.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,10 +24,10 @@
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/regex.hpp>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/FileSerializer.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 #include <core/Algorithm.hpp>
 
 #include <core/tex/TexSynctex.hpp>
@@ -46,8 +46,8 @@ namespace {
 
 FilePath concordanceFilePath(const FilePath& rnwFilePath)
 {
-   FilePath parentDir = rnwFilePath.getParent();
-   return parentDir.completePath(rnwFilePath.getStem() + "-concordance.tex");
+   FilePath parentDir = rnwFilePath.parent();
+   return parentDir.complete(rnwFilePath.stem() + "-concordance.tex");
 }
 
 Error badFormatError(const FilePath& concordanceFile,
@@ -119,8 +119,8 @@ Error Concordance::parse(const FilePath& sourceFile,
        return badFormatError(sourceFile, "sections", ERROR_LOCATION);
 
    // get input and output file names
-   outputFile_ = baseDir.completePath(core::tex::normalizeSynctexName(sections[1]));
-   inputFile_ = baseDir.completePath(core::tex::normalizeSynctexName(sections[2]));
+   outputFile_ = baseDir.complete(core::tex::normalizeSynctexName(sections[1]));
+   inputFile_ = baseDir.complete(core::tex::normalizeSynctexName(sections[2]));
 
    // get offset and values
    std::string valuesSection;
@@ -187,24 +187,24 @@ void Concordance::append(const Concordance& concordance)
    // if we don't yet have an input and output file then initialize
    // from this concordance -- otherwise verify that the inbound
    // concordances match
-   if (inputFile_.isEmpty())
+   if (inputFile_.empty())
       inputFile_ = concordance.inputFile();
-   if (outputFile_.isEmpty())
+   if (outputFile_.empty())
       outputFile_ = concordance.outputFile();
 
    if (inputFile_ != concordance.inputFile())
    {
       LOG_WARNING_MESSAGE("Non matching concordance: " +
-                             inputFile_.getAbsolutePath() + ", " +
-                          concordance.inputFile().getAbsolutePath());
+                          inputFile_.absolutePath() + ", " +
+                          concordance.inputFile().absolutePath());
       return;
    }
 
    else if (outputFile_ != concordance.outputFile())
    {
       LOG_WARNING_MESSAGE("Non matching concordance: " +
-                             outputFile_.getAbsolutePath() + ", " +
-                          concordance.outputFile().getAbsolutePath());
+                          outputFile_.absolutePath() + ", " +
+                          concordance.outputFile().absolutePath());
       return;
    }
 
@@ -245,7 +245,7 @@ bool hasInputFile(const Concordance& concord, const FilePath& inputFile)
 
 FileAndLine Concordances::rnwLine(const FileAndLine& texLine) const
 {
-   if (texLine.filePath().isEmpty())
+   if (texLine.filePath().empty())
       return FileAndLine();
 
    // inspect concordance where output file is equivliant to tex file
@@ -274,7 +274,7 @@ FileAndLine Concordances::rnwLine(const FileAndLine& texLine) const
 
 FileAndLine Concordances::texLine(const FileAndLine& rnwLine) const
 {
-   if (rnwLine.filePath().isEmpty())
+   if (rnwLine.filePath().empty())
       return FileAndLine();
 
    // inspect concordance where input file is equivilant to rnw file
@@ -396,7 +396,7 @@ Error readIfExists(const core::FilePath& srcFile, Concordances* pConcordances)
          Concordance concord;
          Error error = concord.parse(concordanceFile,
                                      kConcordance + entry,
-                                     srcFile.getParent());
+                                     srcFile.parent());
          if (error)
             LOG_ERROR(error);
          else

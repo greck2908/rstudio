@@ -1,7 +1,7 @@
 /*
  * SessionHTMLPreview.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -28,7 +28,7 @@
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Exec.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/HtmlUtils.hpp>
@@ -78,11 +78,11 @@ void enqueHTMLPreviewSucceeded(const std::string& title,
    resultJson["succeeded"] = true;
    resultJson["title"] = title;
    resultJson["preview_url"] = previewUrl;
-   if (!sourceFile.isEmpty())
+   if (!sourceFile.empty())
       resultJson["source_file"] = module_context::createAliasedPath(sourceFile);
    else
       resultJson["source_file"] = json::Value();
-   if (!htmlFile.isEmpty())
+   if (!htmlFile.empty())
       resultJson["html_file"] = module_context::createAliasedPath(htmlFile);
    else
       resultJson["html_file"] = json::Value();
@@ -167,7 +167,7 @@ public:
 
    FilePath targetDirectory() const
    {
-      return targetFile_.getParent();
+      return targetFile_.parent();
    }
 
    FilePath knitrOutputFile() const
@@ -177,7 +177,7 @@ public:
 
    std::string readOutput() const
    {
-      if (outputFile_.isEmpty())
+      if (outputFile_.empty())
          return std::string();
 
       std::string output;
@@ -192,7 +192,7 @@ public:
    {
       FilePath baseFile = requiresKnit() ? knitrOutputFile() : targetFile();
       if (isMarkdown())
-         return baseFile.getParent().completeChildPath(baseFile.getStem() + ".html");
+         return baseFile.parent().childPath(baseFile.stem() + ".html");
       else
          return baseFile;
    }
@@ -206,7 +206,7 @@ private:
       FilePath outputFileTempFile;
       if (isMarkdown() && targetIsRMarkdown())
          knitrOutputFile_ = outputFileForTarget(".md");
-      else if (targetFile_.getExtensionLowerCase() == ".rhtml")
+      else if (targetFile_.extensionLowerCase() == ".rhtml")
          knitrOutputFile_= outputFileForTarget(".html");
       else
          outputFileTempFile = module_context::tempFile("knitr-output", "out");
@@ -222,37 +222,37 @@ private:
 
       // args
       std::string cmd;
-      if (!knitrOutputFile_.isEmpty())
+      if (!knitrOutputFile_.empty())
       {
          boost::format fmt;
 
          fmt = boost::format("require(knitr); "
                               "knit('%2%', encoding='%1%');");
 
-         cmd = boost::str(fmt % encoding % targetFile_.getFilename());
+         cmd = boost::str(fmt % encoding % targetFile_.filename());
       }
       else
       {
          std::string tempFilePath = string_utils::utf8ToSystem(
-            outputFileTempFile.getAbsolutePath());
+                                           outputFileTempFile.absolutePath());
          boost::format fmt;
          fmt = boost::format("require(knitr); "
                              "knit('%2%', encoding='%1%'); "
                              "cat(o, file='%3%');");
-         cmd = boost::str(fmt % encoding % targetFile_.getFilename() %
+         cmd = boost::str(fmt % encoding % targetFile_.filename() % 
                           tempFilePath);
       }
 
       outputPathTempFile_ = outputFileTempFile;
       encoding_ = encoding;
 
-      async_r::AsyncRProcess::start(cmd.c_str(), targetFile_.getParent(),
+      async_r::AsyncRProcess::start(cmd.c_str(), targetFile_.parent(),
                                     async_r::R_PROCESS_REDIRECTSTDERR);
    }
 
    bool targetIsRMarkdown()
    {
-      std::string ext = targetFile_.getExtensionLowerCase();
+      std::string ext = targetFile_.extensionLowerCase();
       return ext == ".rmd" || ext == ".rmarkdown";
    }
 
@@ -278,7 +278,7 @@ private:
       if (exitStatus == EXIT_SUCCESS)
       {
          // determine the path of the knitr output file if necessary
-         if (knitrOutputFile_.isEmpty())
+         if (knitrOutputFile_.empty())
          {
             std::string outputFile;
             Error error = core::readStringFromFile(outputPathTempFile,
@@ -289,7 +289,7 @@ private:
                return;
             }
             boost::algorithm::trim(outputFile);
-            knitrOutputFile_ = targetFile_.getParent().completePath(outputFile);
+            knitrOutputFile_ = targetFile_.parent().complete(outputFile);
          }
 
          // terminate with content
@@ -304,7 +304,7 @@ private:
 
    FilePath outputFileForTarget(const std::string& ext)
    {
-      return targetFile_.getParent().completeChildPath(targetFile_.getStem() + ext);
+      return targetFile_.parent().childPath(targetFile_.stem() + ext);
    }
 
    void terminateWithContent(const FilePath& filePath,
@@ -324,8 +324,9 @@ private:
       {
          // fulfill semantics of calling the custom function
          // from the directory of the input file
-         RestoreCurrentPathScope restorePathScope(module_context::safeCurrentPath(), ERROR_LOCATION);
-         Error error = filePath.getParent().makeCurrentPath();
+         RestoreCurrentPathScope restorePathScope(
+                           module_context::safeCurrentPath());
+         Error error = filePath.parent().makeCurrentPath();
          if (error)
          {
             terminateWithError(error);
@@ -335,9 +336,9 @@ private:
          // call the function
          r::exec::RFunction renderMarkdownFunc(renderMarkdownSEXP);
          renderMarkdownFunc.addParam(
-            string_utils::utf8ToSystem(filePath.getFilename()));
+            string_utils::utf8ToSystem(filePath.filename()));
          renderMarkdownFunc.addParam(
-            string_utils::utf8ToSystem(htmlPreviewFile().getFilename()));
+            string_utils::utf8ToSystem(htmlPreviewFile().filename()));
          error = renderMarkdownFunc.call();
          if (error)
          {
@@ -403,7 +404,7 @@ private:
       std::string message =
          "Error generating HTML preview for " +
          module_context::createAliasedPath(targetFile_) + " " +
-         error.getSummary();
+         error.summary();
       terminateWithError(message);
    }
 
@@ -554,16 +555,16 @@ bool okToGenerateFile(const FilePath& rmdPath,
                       const std::string& extension,
                       std::string* pErrMsg)
 {
-   FilePath filePath = rmdPath.getParent().completePath(
-                                    rmdPath.getStem() + extension);
+   FilePath filePath = rmdPath.parent().complete(
+                                    rmdPath.stem() + extension);
 
    if (filePath.exists())
    {
-      std::shared_ptr<std::istream> pStr;
-      Error error = filePath.openForRead(pStr);
+      boost::shared_ptr<std::istream> pStr;
+      Error error = filePath.open_r(&pStr);
       if (error)
       {
-         *pErrMsg = "Error opening file: " + error.getSummary();
+         *pErrMsg = "Error opening file: " + error.summary();
          return false;
       }
 
@@ -580,7 +581,7 @@ bool okToGenerateFile(const FilePath& rmdPath,
                                         magicGuid.end()))
       {
          *pErrMsg = "Unable to generate the file '" +
-                    filePath.getFilename() + "' because it already "
+                    filePath.filename() + "' because it already "
                     "exists.\n\n"
                     "You need to move or delete this file prior to "
                     "compiling a notebook for this R script.";
@@ -682,11 +683,12 @@ Error createNotebook(const json::JsonRpcRequest& request,
    else
    {
       // switch to the source document's directory for this operation
-      RestoreCurrentPathScope restorePathScope(module_context::safeCurrentPath(), ERROR_LOCATION);
+      RestoreCurrentPathScope restorePathScope(
+                              module_context::safeCurrentPath());
 
       FilePath scriptPath = module_context::resolveAliasedPath(
                                                       pDoc->path());
-      error = scriptPath.getParent().makeCurrentPath();
+      Error error = scriptPath.parent().makeCurrentPath();
       if (error)
          return error;
 
@@ -699,7 +701,7 @@ Error createNotebook(const json::JsonRpcRequest& request,
 
       // call the function
       std::string scriptFileName =
-               string_utils::utf8ToSystem(scriptPath.getFilename());
+               string_utils::utf8ToSystem(scriptPath.filename());
       error = r::exec::RFunction(rmdFunction,
                                     scriptFileName,
                                     signature).call();
@@ -790,7 +792,7 @@ void modifyOutputForPreview(std::string* pOutput)
    }
 
    // serve mathjax locally from this directory
-   std::string previewMathjax = "mathjax-27";
+   std::string previewMathjax = "mathjax-26";
 
    // replace old mathjax CDN for compatibility with R packages that still use
    // the deprecated URL
@@ -811,7 +813,7 @@ Error readPreviewTemplate(const FilePath& resPath,
                           std::string* pPreviewTemplate)
 {
 
-   FilePath htmlPreviewFile = resPath.completeChildPath("markdown.html");
+   FilePath htmlPreviewFile = resPath.childPath("markdown.html");
    return core::readStringFromFile(htmlPreviewFile, pPreviewTemplate);
 }
 
@@ -871,7 +873,7 @@ void handleInternalMarkdownPreviewRequest(
       std::istringstream previewInputStream(previewTemplate);
       std::stringstream previewStrStream;
       previewStrStream.exceptions(std::istream::failbit | std::istream::badbit);
-      boost::iostreams::filtering_ostream previewOutputStream;
+      boost::iostreams::filtering_ostream previewOutputStream ;
       previewOutputStream.push(templateFilter);
       previewOutputStream.push(imageFilter);
       previewOutputStream.push(previewStrStream);
@@ -903,7 +905,7 @@ void handleInternalMarkdownPreviewRequest(
             LOG_ERROR(error);
 
          error = s_pCurrentPreview_->targetDirectory()
-                                   .completePath(FIGURE_DIR).removeIfExists();
+                           .complete(FIGURE_DIR).removeIfExists();
          if (error)
             LOG_ERROR(error);
       }
@@ -961,18 +963,18 @@ void handlePreviewRequest(const http::Request& request,
    }
 
    // request for mathjax file
-   else if (boost::algorithm::starts_with(path, "mathjax-27"))
+   else if (boost::algorithm::starts_with(path, "mathjax-26"))
    {
 
       FilePath filePath =
-         session::options().mathjaxPath().getParent().completeChildPath(path);
+            session::options().mathjaxPath().parent().childPath(path);
       pResponse->setFile(filePath, request);
    }
 
    // request for dependent file
    else
    {
-      FilePath filePath = s_pCurrentPreview_->targetDirectory().completeChildPath(path);
+      FilePath filePath = s_pCurrentPreview_->targetDirectory().childPath(path);
       addFileSpecificHeaders(filePath, pResponse);
       pResponse->setFile(filePath, request);
    }
@@ -1025,7 +1027,7 @@ SEXP rs_showPageViewer(SEXP urlSEXP, SEXP titleSEXP, SEXP selfContainedSEXP)
             Error error = viewerTempDir.ensureDirectory();
             if (error)
                throw r::exec::RErrorException(r::endUserErrorMessage(error));
-            viewerFilePath = viewerTempDir.completeChildPath(filePath.getFilename());
+            viewerFilePath = viewerTempDir.childPath(filePath.filename());
 
             // create base64 encoded version
             error = module_context::createSelfContainedHtml(filePath, viewerFilePath);
@@ -1039,13 +1041,13 @@ SEXP rs_showPageViewer(SEXP urlSEXP, SEXP titleSEXP, SEXP selfContainedSEXP)
          }
           
          // set url to localhost previewer
-         std::string tempPath = viewerFilePath.getRelativePath(module_context::tempDir());
+         std::string tempPath = viewerFilePath.relativePath(module_context::tempDir());
          url = module_context::sessionTempDirUrl(tempPath);
       }
 
       // emit show page viewer event
       json::Object data;
-      data["path"] = viewerFilePath.getAbsolutePath();
+      data["path"] = viewerFilePath.absolutePath();
       data["encoding"] = "UTF-8";
       data["is_markdown"] = false;
       data["requires_knit"] = false;
@@ -1065,19 +1067,19 @@ SEXP rs_showPageViewer(SEXP urlSEXP, SEXP titleSEXP, SEXP selfContainedSEXP)
          filePath,            // original source file
          viewerFilePath,      // file to show as preview
          false,               // file label
-         !filePath.isEmpty(), // save as
+         !filePath.empty(),   // save as
          false                // re-execute
        );
 
       // return the path to the viewer file if it's a file, otherwise
       // return the URL
       r::sexp::Protect rProtect;
-      if (!viewerFilePath.isEmpty())
-         return r::sexp::create(viewerFilePath.getAbsolutePath(), &rProtect);
+      if (!viewerFilePath.empty())
+         return r::sexp::create(viewerFilePath.absolutePath(), &rProtect);
       else
          return r::sexp::create(url, &rProtect);
    }
-   catch(r::exec::RErrorException& e)
+   catch(r::exec::RErrorException e)
    {
       r::exec::error(e.message());
    }
@@ -1093,7 +1095,7 @@ SEXP rs_showPageViewer(SEXP urlSEXP, SEXP titleSEXP, SEXP selfContainedSEXP)
 void addFileSpecificHeaders(const FilePath& filePath, http::Response* pResponse)
 {
    std::string videoExts(".mov|.mp4|.m4v|.3gp|.avi");
-   std::string ext = filePath.getExtensionLowerCase();
+   std::string ext = filePath.extensionLowerCase();
    if (ext.length() == 4 &&
        videoExts.find(ext) != std::string::npos &&
        session::options().programMode() == kSessionProgramModeDesktop)
@@ -1131,7 +1133,7 @@ core::json::Object capabilitiesAsJson()
       if (error)
          LOG_ERROR(error);
       else if (core::json::isType<core::json::Object>(valJson))
-         capsJson = valJson.getValue<json::Object>();
+         capsJson = valJson.get_value<json::Object>();
    }
 
    return capsJson;
@@ -1144,7 +1146,7 @@ Error initialize()
 
    using boost::bind;
    using namespace module_context;
-   ExecBlock initBlock;
+   ExecBlock initBlock ;
    initBlock.addFunctions()
       (bind(sourceModuleRFile, "SessionHTMLPreview.R"))
       (bind(registerRpcMethod, "preview_html", previewHTML))

@@ -1,7 +1,7 @@
 /*
  * SlideNavigationToolbarMenu.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -146,7 +146,7 @@ public class SlideNavigationToolbarMenu
       @Override
       protected int getMaxHeight()
       {
-         if (BrowseCap.isInternetExplorer())
+         if (BrowseCap.INSTANCE.isInternetExplorer())
          {
             return 300;
          }
@@ -166,5 +166,5 @@ public class SlideNavigationToolbarMenu
    private SlidesPopupMenu slidesMenu_ = new SlidesPopupMenu();
    private Widget menuWidget_;
    private Widget separatorWidget_ = null;
-   private final int heightOffset_;
+   private final int heightOffset_ ;
 }

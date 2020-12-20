@@ -1,7 +1,7 @@
 /*
  * Main.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -13,13 +13,13 @@
  *
  */
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 #include <core/system/System.hpp>
 
 int main(int argc, char * const argv[]) 
 {
-   core::system::initializeLog("rserver", 2);
+   core::system::initializeLog("rserver", 2); 
  
    LOG_WARNING_MESSAGE("hello cmake!");
    

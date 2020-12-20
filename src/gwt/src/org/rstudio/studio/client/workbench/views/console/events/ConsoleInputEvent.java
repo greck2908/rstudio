@@ -1,7 +1,7 @@
 /*
  * ConsoleInputEvent.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,34 +14,17 @@
  */
 package org.rstudio.studio.client.workbench.views.console.events;
 
-import com.google.gwt.event.shared.EventHandler;
 import com.google.gwt.event.shared.GwtEvent;
 
-public class ConsoleInputEvent extends GwtEvent<ConsoleInputEvent.Handler>
+public class ConsoleInputEvent extends GwtEvent<ConsoleInputHandler>
 {
-   public static final int FLAG_CANCEL = 1;
-   public static final int FLAG_EOF    = 2;
-   
-   public ConsoleInputEvent(String input,
-                            String console,
-                            int flags)
+   public static final GwtEvent.Type<ConsoleInputHandler> TYPE =
+      new GwtEvent.Type<ConsoleInputHandler>();
+    
+   public ConsoleInputEvent(String input, String console)
    {
       input_ = input;
       console_ = console;
-      flags_ = flags;
-   }
-   
-   public ConsoleInputEvent(String input,
-                            String console)
-   {
-      input_ = input;
-      console_ = console;
-      flags_ = 0;
-   }
-   
-   public ConsoleInputEvent(int flags)
-   {
-      this("", "", flags);
    }
    
    public String getInput()
@@ -54,32 +37,18 @@ public class ConsoleInputEvent extends GwtEvent<ConsoleInputEvent.Handler>
       return console_;
    }
    
-   public int getFlags()
-   {
-      return flags_;
-   }
-   
-   private final String input_;
-   private final String console_;
-   private final int flags_;
-   
    @Override
-   protected void dispatch(Handler handler)
+   protected void dispatch(ConsoleInputHandler handler)
    {
       handler.onConsoleInput(this);
    }
 
    @Override
-   public Type<Handler> getAssociatedType()
+   public GwtEvent.Type<ConsoleInputHandler> getAssociatedType()
    {
       return TYPE;
    }
    
-   public interface Handler extends EventHandler
-   {
-      void onConsoleInput(ConsoleInputEvent event);
-   }
-
-   public static final Type<Handler> TYPE = new Type<>();
-
+   private final String input_;
+   private final String console_;
 }

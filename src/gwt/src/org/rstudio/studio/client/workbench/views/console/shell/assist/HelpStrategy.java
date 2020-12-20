@@ -1,7 +1,7 @@
 /*
  * HelpStrategy.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -71,10 +71,6 @@ public class HelpStrategy
          case RCompletionType.OPTION:
             showParameterHelp(item, display);
             break;
-         case RCompletionType.FILE:
-         case RCompletionType.DIRECTORY:
-         case RCompletionType.STRING:
-            break;
          default:
             showDefaultHelp(item, display);
             break;
@@ -110,7 +106,7 @@ public class HelpStrategy
                Debug.logError(error);
                RStudioGinjector.INSTANCE.getGlobalDisplay().showErrorMessage(
                      "Error Retrieving Help", error.getUserMessage());
-               display.clearHelp(false);
+               display.clearHelp(false) ;
             }
 
             public void onResponseReceived(HelpInfo.Custom result)
@@ -121,14 +117,14 @@ public class HelpStrategy
                   if (help.hasInfo())
                   {
                      cache_.put(selectedItem, help);
-                     display.displayHelp(help);
+                     display.displayHelp(help) ;
                      return;
                   }
                }
                display.setHelpVisible(false);
-               display.clearHelp(false);
+               display.clearHelp(false) ;
             }
-         });
+         }) ;
       }
       else
       {
@@ -142,25 +138,25 @@ public class HelpStrategy
                Debug.logError(error);
                RStudioGinjector.INSTANCE.getGlobalDisplay().showErrorMessage(
                      "Error Retrieving Help", error.getUserMessage());
-               display.clearHelp(false);
+               display.clearHelp(false) ;
             }
    
             public void onResponseReceived(HelpInfo result)
             {
                if (result != null)
                {
-                  HelpInfo.ParsedInfo help = result.parse(selectedItem.name);
+                  HelpInfo.ParsedInfo help = result.parse(selectedItem.name) ;
                   if (help.hasInfo())
                   {
                      cache_.put(selectedItem, help);
-                     display.displayHelp(help);
+                     display.displayHelp(help) ;
                      return;
                   }
                }
                display.setHelpVisible(false);
-               display.clearHelp(false);
+               display.clearHelp(false) ;
             }
-         });
+         }) ;
       }
 
    }
@@ -187,7 +183,7 @@ public class HelpStrategy
             @Override
             public void onError(ServerError error)
             {
-               display.clearHelp(false);
+               display.clearHelp(false) ;
             }
 
             public void onResponseReceived(HelpInfo.Custom response)
@@ -201,10 +197,10 @@ public class HelpStrategy
                else
                {
                   display.setHelpVisible(false);
-                  display.clearHelp(false);
+                  display.clearHelp(false) ;
                }
             }
-         });
+         }) ;
       }
       else
       {
@@ -215,7 +211,7 @@ public class HelpStrategy
             @Override
             public void onError(ServerError error)
             {
-               display.clearHelp(false);
+               display.clearHelp(false) ;
             }
 
             @Override
@@ -233,7 +229,7 @@ public class HelpStrategy
                   display.clearHelp(false);
                }
             }
-         });
+         }) ;
       }
    }
    
@@ -246,7 +242,7 @@ public class HelpStrategy
       HashMap<String, String> mapToUse = info.getArgs();
       if (mapToUse != null)
       {
-         desc = mapToUse.get(parameter);
+         desc = mapToUse.get(parameter) ;
       }
       
       if (desc == null)
@@ -261,11 +257,11 @@ public class HelpStrategy
       if (desc == null)
       {
          display.setHelpVisible(false);
-         display.clearHelp(false);
+         display.clearHelp(false) ;
       }
       else
       {
-         display.displayParameterHelp(mapToUse, parameter);
+         display.displayParameterHelp(mapToUse, parameter) ;
       }
    }
    
@@ -289,7 +285,7 @@ public class HelpStrategy
          @Override
          public void onError(ServerError error)
          {
-            display.clearHelp(false);
+            display.clearHelp(false) ;
          }
 
          @Override
@@ -307,7 +303,7 @@ public class HelpStrategy
                display.clearHelp(false);
             }
          }
-      });
+      }) ;
    }
    
    private void doShowDataHelp(final ParsedInfo info,
@@ -315,12 +311,12 @@ public class HelpStrategy
    {
       if (info.hasInfo())
       {
-         display.displayDataHelp(info);
+         display.displayDataHelp(info) ;
       }
       else
       {
          display.setHelpVisible(false);
-         display.clearHelp(false);
+         display.clearHelp(false) ;
       }
    }
    
@@ -346,7 +342,7 @@ public class HelpStrategy
          @Override
          public void onError(ServerError error)
          {
-            display.clearHelp(false);
+            display.clearHelp(false) ;
          }
 
          @Override
@@ -364,7 +360,7 @@ public class HelpStrategy
                display.clearHelp(false);
             }
          }
-      });
+      }) ;
    }
    
    private void doShowPackageHelp(final ParsedInfo info,
@@ -372,12 +368,12 @@ public class HelpStrategy
    {
       if (info.hasInfo())
       {
-         display.displayPackageHelp(info);
+         display.displayPackageHelp(info) ;
       }
       else
       {
          display.setHelpVisible(false);
-         display.clearHelp(false);
+         display.clearHelp(false) ;
       }
    }
    

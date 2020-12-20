@@ -1,7 +1,7 @@
 /*
  * RGraphicsUtils.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,10 +17,8 @@
 
 #include <boost/format.hpp>
 
-#include <shared_core/Error.hpp>
-
-#include <core/Algorithm.hpp>
 #include <core/Log.hpp>
+#include <core/Error.hpp>
 
 #include <r/RExec.hpp>
 #include <r/ROptions.hpp>
@@ -30,8 +28,6 @@
 #define R_USE_PROTOTYPES 1
 #include <R_ext/GraphicsEngine.h>
 #include <R_ext/GraphicsDevice.h>
-
-#include <r/session/RGraphicsConstants.h>
 
 #include <r/RErrorCategory.hpp>
 
@@ -44,7 +40,7 @@ namespace graphics {
 
 namespace {
 
-int s_compatibleEngineVersion = 13;
+int s_compatibleEngineVersion = 12;
 
 #ifdef __APPLE__
 class QuartzStatus : boost::noncopyable
@@ -104,22 +100,6 @@ bool hasRequiredGraphicsDevices(std::string* pMessage)
 
 } // anonymous namespace
 
-std::string getDefaultBackend()
-{
-   return r::options::getOption<std::string>(
-            kGraphicsOptionBackend,
-            "default",
-            false);
-}
-
-std::string getDefaultAntialiasing()
-{
-   return r::options::getOption<std::string>(
-            kGraphicsOptionAntialias,
-            "default",
-            false);
-}
-
 void setCompatibleEngineVersion(int version)
 {
    s_compatibleEngineVersion = version;
@@ -170,49 +150,29 @@ bool validateRequirements(std::string* pMessage)
 
 std::string extraBitmapParams()
 {
-   std::vector<std::string> params;
-   
-   std::vector<std::string> supportedBackends;
-   Error error = r::exec::RFunction(".rs.graphics.supportedBackends").call(&supportedBackends);
-   if (error)
-   {
-      LOG_ERROR(error);
-      return "";
-   }
-   
-   std::string backend = getDefaultBackend();
-   
-   // if the requested backend is not supported, silently use the default
-   // (this could happen if a package's configuration was migrated from
-   // one machine to another on a different OS)
-   if (backend != "default")
-   {
-      auto it = std::find(supportedBackends.begin(), supportedBackends.end(), backend);
-      if (it == supportedBackends.end())
-         backend = "default";
-   }
-   
-   // don't use the 'ragg' backend here (these parameters are normally passed
-   // to devices defined by the 'grDevices' package, and it doesn't handle
-   // 'ragg')
-   if (backend != "default" && backend != "ragg")
-      params.push_back("type = \"" + backend + "\"");
-   
-   std::string antialias = getDefaultAntialiasing();
+#if defined(_WIN32)
 
-#ifdef _WIN32
-   // fix up antialias for windows backend
-   if ((backend == "windows" || backend == "default") && antialias == "subpixel")
-      antialias = "cleartype";
+   // no extra params for windows
+
+#elif defined(__APPLE__)
+
+   return ", type = \"quartz\", antialias=\"default\"";
+
+#else
+
+   // if bitmapType is Xlib then force cairo if we can
+   if (r::options::getOption<std::string>("bitmapType") == "Xlib")
+   {
+      if (r::util::hasRequiredVersion("2.14") &&
+          r::util::hasCapability("cairo"))
+      {
+         return ", type = \"cairo\"";
+      }
+   }
+
 #endif
 
-   if (antialias != "default")
-      params.push_back("antialias = \"" + antialias + "\"");
-   
-   if (params.empty())
-      return "";
-   
-   return ", " + core::algorithm::join(params, ", ");
+   return "";
 }
 
 struct RestorePreviousGraphicsDeviceScope::Impl
@@ -235,7 +195,7 @@ RestorePreviousGraphicsDeviceScope::~RestorePreviousGraphicsDeviceScope()
    {
       // reslect the previously selected device if we had one
       if (pImpl_->pPreviousDevice != nullptr)
-         Rf_selectDevice(Rf_ndevNumber(pImpl_->pPreviousDevice->dev));
+         Rf_selectDevice(Rf_ndevNumber(pImpl_->pPreviousDevice->dev));  
    }
    catch(...)
    {
@@ -245,8 +205,8 @@ RestorePreviousGraphicsDeviceScope::~RestorePreviousGraphicsDeviceScope()
 void reportError(const core::Error& error)
 {
    std::string endUserMessage = r::endUserErrorMessage(error);
-   std::string errmsg = "Graphics error: " + endUserMessage;
-   REprintf("%s\n", errmsg.c_str());
+   std::string errmsg = ("Graphics error: " + endUserMessage + "\n");
+   REprintf(errmsg.c_str());
 }
 
 void logAndReportError(const Error& error, const ErrorLocation& location)

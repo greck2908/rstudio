@@ -1,7 +1,7 @@
 /*
  * AsyncServerImpl.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,14 +22,13 @@
 #include <boost/shared_ptr.hpp>
 #include <boost/function.hpp>
 #include <boost/algorithm/string.hpp>
-#include <boost/variant/static_visitor.hpp>
 
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/placeholders.hpp>
 #include <boost/asio/deadline_timer.hpp>
 
 #include <core/BoostThread.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/BoostErrors.hpp>
 #include <core/Log.hpp>
 #include <core/ScheduledCommand.hpp>
@@ -42,7 +41,6 @@
 #include <core/http/AsyncUriHandler.hpp>
 #include <core/http/Util.hpp>
 #include <core/http/UriHandler.hpp>
-#include <core/http/URL.hpp>
 #include <core/http/SocketUtils.hpp>
 #include <core/http/SocketAcceptorService.hpp>
 
@@ -51,38 +49,16 @@ namespace rstudio {
 namespace core {
 namespace http {
 
-class UploadVisitor : public boost::static_visitor<AsyncUriUploadHandlerFunction>
-{
-public:
-   AsyncUriUploadHandlerFunction operator()(const AsyncUriHandlerFunction& func) const
-   {
-      // return empty function to signify that the func is not an upload handler
-      return AsyncUriUploadHandlerFunction();
-   }
-
-   AsyncUriUploadHandlerFunction operator()(const AsyncUriUploadHandlerFunction& func) const
-   {
-      // return the func itself so it can be invoked
-      return func;
-   }
-};
-
 template <typename ProtocolType>
 class AsyncServerImpl : public AsyncServer, boost::noncopyable
 {
 public:
    AsyncServerImpl(const std::string& serverName,
-                   const std::string& baseUri = std::string(),
-                   bool disableOriginCheck = true,
-                   const std::vector<boost::regex>& allowedOrigins = std::vector<boost::regex>(),
-                   const Headers& additionalResponseHeaders = Headers())
-      : acceptorService_(),
-        abortOnResourceError_(false),
+               const std::string& baseUri = std::string())
+      : abortOnResourceError_(false),
         serverName_(serverName),
         baseUri_(baseUri),
-        originCheckDisabled_(disableOriginCheck),
-        allowedOrigins_(allowedOrigins),
-        additionalResponseHeaders_(additionalResponseHeaders),
+        acceptorService_(),
         scheduledCommandInterval_(boost::posix_time::seconds(3)),
         scheduledCommandTimer_(acceptorService_.ioService()),
         running_(false)
@@ -113,13 +89,6 @@ public:
    
    virtual void addHandler(const std::string& prefix,
                            const AsyncUriHandlerFunction& handler)
-   {
-      BOOST_ASSERT(!running_);
-      uriHandlers_.add(AsyncUriHandler(baseUri_ + prefix, handler));
-   }
-
-   virtual void addUploadHandler(const std::string& prefix,
-                                 const AsyncUriUploadHandlerFunction& handler)
    {
       BOOST_ASSERT(!running_);
       uriHandlers_.add(AsyncUriHandler(baseUri_ + prefix, handler));
@@ -213,7 +182,7 @@ public:
          core::system::SignalBlocker signalBlocker;
          Error error = signalBlocker.blockAll();
          if (error)
-            return error;
+            return error ;
       
          // create the threads
          for (std::size_t i=0; i < threadPoolSize; ++i)
@@ -224,7 +193,7 @@ public:
                               this));
             
             // add to list of threads
-            threads_.push_back(pThread);
+            threads_.push_back(pThread);            
          }
       }
       catch(const boost::thread_resource_error& e)
@@ -247,42 +216,8 @@ public:
       // stop the server 
       acceptorService_.ioService().stop();
 
-      std::set<boost::weak_ptr<AsyncConnectionImpl<typename ProtocolType::socket> >> connections;
-      boost::shared_ptr<AsyncConnectionImpl<typename ProtocolType::socket>> pendingConnection;
-      RECURSIVE_LOCK_MUTEX(mutex_)
-      {
-         running_ = false;
-         connections = connections_;
-         pendingConnection = ptrNextConnection_;
-      }
-      END_LOCK_MUTEX
-
-      // gracefully stop all open connections to ensure they are freed
-      // before our io service (socket acceptor) is freed - if this is
-      // not gauranteed, boost will crash when attempting to free socket objects
-      //
-      // note that we create a copy of the connections list here because as connections
-      // are closed, they will remove themselves from the list
-      //
-      // we do this outside of the lock to prevent potential deadlock
-      // since the connection mutex and the server mutex are intertwined here
-      for (const auto& connection : connections)
-      {
-         if (auto instance = connection.lock())
-            instance->close();
-      }
-
-      // the list should be empty now, but clear it to make sure
-      RECURSIVE_LOCK_MUTEX(mutex_)
-      {
-         connections_.clear();
-      }
-      END_LOCK_MUTEX
-
-      // ensure we "close" the empty connection that is always created to handle the next incoming connection
-      // if we do not specifically close it here, it will attempt to close itself when no shared_ptr to
-      // it is held by this server object, causing a bad_weak_ptr exception to be thrown
-      ptrNextConnection_->close();
+      // update state
+      running_ = false;
    }
    
    virtual void waitUntilStopped()
@@ -321,27 +256,6 @@ private:
       CATCH_UNEXPECTED_EXCEPTION
    }
 
-   void addConnection(const boost::weak_ptr<AsyncConnectionImpl<typename ProtocolType::socket>>& connection)
-   {
-      // add connection to our map
-      // note that we only hold a weak_ptr to the connection so that it can go out of scope on its own
-      // if we didn't allow this, unused (finished) connections may never close
-      RECURSIVE_LOCK_MUTEX(mutex_)
-      {
-         connections_.insert(connection);
-      }
-      END_LOCK_MUTEX
-   }
-
-   void onConnectionClosed(const boost::weak_ptr<AsyncConnectionImpl<typename ProtocolType::socket>>& connection)
-   {
-      RECURSIVE_LOCK_MUTEX(mutex_)
-      {
-         connections_.erase(connection);
-      }
-      END_LOCK_MUTEX
-   }
-
    void acceptNextConnection()
    {
       ptrNextConnection_.reset(
@@ -353,17 +267,9 @@ private:
          // optional ssl context - only used for SSL connections
          sslContext_,
 
-         // headers parsed handler
-         boost::bind(&AsyncServerImpl<ProtocolType>::onHeadersParsed,
-                     this, _1, _2),
-
          // connection handler
          boost::bind(&AsyncServerImpl<ProtocolType>::handleConnection,
                      this, _1, _2),
-
-         // close handler
-         boost::bind(&AsyncServerImpl<ProtocolType>::onConnectionClosed,
-                     this, _1),
 
          // request filter
          boost::bind(&AsyncServerImpl<ProtocolType>::connectionRequestFilter,
@@ -389,8 +295,6 @@ private:
       {
          if (!ec) 
          {
-            boost::weak_ptr<AsyncConnectionImpl<typename ProtocolType::socket>> weak(ptrNextConnection_);
-            addConnection(weak);
             ptrNextConnection_->startReading();
          }
          else
@@ -402,7 +306,7 @@ private:
                 ec != boost::asio::error::bad_descriptor)
             {
                // log the error
-               LOG_ERROR(Error(ec, ERROR_LOCATION));
+               LOG_ERROR(Error(ec, ERROR_LOCATION)) ;
                
                // check for resource exhaustion
                checkForResourceExhaustion(ec, ERROR_LOCATION);
@@ -422,12 +326,12 @@ private:
       // ALWAYS accept next connection
       try
       {
-         acceptNextConnection();
+         acceptNextConnection() ;
       }
       CATCH_UNEXPECTED_EXCEPTION
    }
    
-   bool onHeadersParsed(
+   void handleConnection(
          boost::shared_ptr<AsyncConnectionImpl<typename ProtocolType::socket> > pConnection,
          http::Request* pRequest)
    {
@@ -444,9 +348,14 @@ private:
          if (notFoundHandler_)
             pAsyncConnection->response().setNotFoundHandler(notFoundHandler_);
 
+         // call the appropriate handler to generate a response
          std::string uri = pRequest->uri();
          AsyncUriHandler handler = uriHandlers_.handlerFor(uri);
-         boost::optional<AsyncUriHandlerFunctionVariant> handlerFunc = handler.function();
+         AsyncUriHandlerFunction handlerFunc = handler.function();
+
+         // if no handler was assigned but we have a default, use it instead
+         if (!handlerFunc && defaultHandler_)
+            handlerFunc = defaultHandler_;
 
          if (!handler.isProxyHandler())
          {
@@ -457,108 +366,18 @@ private:
             if (method != "GET" &&
                 method != "POST" &&
                 method != "HEAD" &&
-                method != "PUT" &&
-                method != "OPTIONS")
+                method != "PUT")
             {
                // invalid method - fail out
                LOG_ERROR_MESSAGE("Invalid method " + method + " requested for uri: " + pRequest->uri());
                pConnection->response().setStatusCode(http::status::MethodNotAllowed);
-               return false;
-            }
-
-            if (!originCheckDisabled_)
-            {
-               // cross-origin check: ensure that the Origin or Referer headers match the target origin
-               // this is a basic security precaution recommended here:
-               // https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html
-               std::string originator = pRequest->headerValue("Origin");
-               if (originator.empty())
-                  originator = pRequest->headerValue("Referer");
-
-               // get the actual host from the originator as it is possible for it to be a full URL
-               originator = URL(originator).host();
-
-               // get the host header, which indicates the destination for the request
-               // we check for proxy values first as any reverse proxies will modify the host header
-               // **Always use proxied URI:** the path may be a little off but the host here is always
-               // correct and that's what we need to use to confirm a cross-origin violation.
-               std::string host = URL(pRequest->proxiedUri()).host();
-
-               if (!originator.empty() && originator != host)
-               {
-                  // origin does not match destination, but that might be okay
-                  // we will not reject the request if the originator matches an allowed origin
-                  bool originMatches = false;
-                  for (const boost::regex& re : allowedOrigins_)
-                  {
-                     boost::smatch match;
-                     if (boost::regex_match(originator, re))
-                     {
-                        originMatches = true;
-                        break;
-                     }
-                  }
-
-                  if (!originMatches)
-                  {
-                     LOG_ERROR_MESSAGE("Rejecting request with mismatched originator " + originator + " - "
-                                       "expected: " + host + " for URI " + pRequest->uri());
-                     pConnection->response().setStatusCode(http::status::BadRequest);
-                     return false;
-                  }
-               }
+               return;
             }
          }
-
-         if (handlerFunc)
-         {
-            // determine if this is an upload handler
-            // if it is, we need to deliver the body in pieces instead of
-            // invoking one callback when the entire message has been parsed
-            AsyncUriUploadHandlerFunction func = boost::apply_visitor(UploadVisitor(), handlerFunc.get());
-            if (func)
-               pConnection->setUploadHandler(func);
-         }
-
-         return true;
-      }
-      catch(const boost::system::system_error& e)
-      {
-         // always log
-         LOG_ERROR_MESSAGE(std::string("Unexpected exception: ") + e.what());
-
-         // check for resource exhaustion
-         checkForResourceExhaustion(e.code(), ERROR_LOCATION);
-      }
-      CATCH_UNEXPECTED_EXCEPTION
-
-      return false;
-   }
-
-   void handleConnection(
-         boost::shared_ptr<AsyncConnectionImpl<typename ProtocolType::socket> > pConnection,
-         http::Request* pRequest)
-   {
-      try
-      {
-         // convert to cannonical HttpConnection
-         boost::shared_ptr<AsyncConnection> pAsyncConnection =
-             boost::static_pointer_cast<AsyncConnection>(pConnection);
-
-         // call the appropriate handler to generate a response
-         std::string uri = pRequest->uri();
-         AsyncUriHandler handler = uriHandlers_.handlerFor(uri);
-         boost::optional<AsyncUriHandlerFunctionVariant> handlerFunc = handler.function();
-
-         // if no handler was assigned but we have a default, use it instead
-         if (!handlerFunc && defaultHandler_)
-            handlerFunc = defaultHandler_;
 
          // call handler if we have one
          if (handlerFunc)
-         {
-            visitHandler(handlerFunc.get(), pAsyncConnection);
-         }
+            handlerFunc(pAsyncConnection) ;
          else
          {
             // log error
@@ -590,21 +409,15 @@ private:
          continuation(boost::shared_ptr<http::Response>());
    }
 
-   void connectionResponseFilter(const http::Request& originalRequest,
+   void connectionResponseFilter(const std::string& originalUri,
                                  http::Response* pResponse)
    {
       // set server header (evade ref-counting to defend against
       // non-threadsafe std::string implementations)
       pResponse->setHeader("Server", std::string(serverName_.c_str()));
 
-      // set additional headers
-      for (const Header& header : additionalResponseHeaders_)
-      {
-         pResponse->setHeader(header);
-      }
-
       if (responseFilter_)
-         responseFilter_(originalRequest, pResponse);
+         responseFilter_(originalUri, pResponse);
    }
 
    void waitForScheduledCommandTimer()
@@ -731,20 +544,15 @@ private:
    }
 
 private:
-   boost::recursive_mutex mutex_;
-   SocketAcceptorService<ProtocolType> acceptorService_;
    bool abortOnResourceError_;
    std::string serverName_;
    std::string baseUri_;
-   bool originCheckDisabled_;
-   std::vector<boost::regex> allowedOrigins_;
-   Headers additionalResponseHeaders_;
    boost::shared_ptr<boost::asio::ssl::context> sslContext_;
    boost::shared_ptr<AsyncConnectionImpl<typename ProtocolType::socket> > ptrNextConnection_;
-   std::set<boost::weak_ptr<AsyncConnectionImpl<typename ProtocolType::socket> >> connections_;
-   AsyncUriHandlers uriHandlers_;
+   AsyncUriHandlers uriHandlers_ ;
    AsyncUriHandlerFunction defaultHandler_;
    std::vector<boost::shared_ptr<boost::thread> > threads_;
+   SocketAcceptorService<ProtocolType> acceptorService_;
    boost::posix_time::time_duration scheduledCommandInterval_;
    boost::asio::deadline_timer scheduledCommandTimer_;
    std::vector<boost::shared_ptr<ScheduledCommand> > scheduledCommands_;

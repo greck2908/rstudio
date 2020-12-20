@@ -1,7 +1,7 @@
 /*
  * SessionDiagnosticsTests.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,7 +20,7 @@
 #include <iostream>
 
 #include <core/collection/Tree.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/system/FileScanner.hpp>
 #include <core/FileUtils.hpp>
 
@@ -275,14 +275,6 @@ test_context("Diagnostics")
       EXPECT_NO_LINT("function() { i <- 1; function() { data[i] } }");
       
       EXPECT_LINT("list(a <- 1, b <- 2)");
-      
-      EXPECT_ERRORS("{\nx\n<- 1\n}");
-      
-      EXPECT_ERRORS("%a\nb%");
-      
-      EXPECT_ERRORS("local({ if (TRUE) })");
-
-      EXPECT_NO_ERRORS("phi = function(`arg 1`) 1 + 1\nph(`arg 1` = 1)");
    }
    
    lintRStudioRFiles();

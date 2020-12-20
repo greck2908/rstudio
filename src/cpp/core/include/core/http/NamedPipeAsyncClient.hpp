@@ -1,7 +1,7 @@
 /*
  * NamedPipeAsyncClient.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,8 +21,8 @@
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/windows/stream_handle.hpp>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 
 #include <core/http/AsyncClient.hpp>
 
@@ -92,11 +92,6 @@ private:
          writeRequest();
       }
       CATCH_UNEXPECTED_ASYNC_CLIENT_EXCEPTION
-   }
-
-   virtual std::string getDefaultHostHeader()
-   {
-      return "localhost";
    }
 
    // detect when we've got the whole response and force a

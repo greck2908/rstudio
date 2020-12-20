@@ -1,7 +1,7 @@
 /*
  * PrefsServerOperations.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,15 +21,10 @@ import com.google.gwt.core.client.JavaScriptObject;
 
 public interface PrefsServerOperations
 {
-   void setUserPrefs(JavaScriptObject userPrefs,
-                     ServerRequestCallback<Void> requestCallback);
-   
-   void setUserState(JavaScriptObject userState,
-                     ServerRequestCallback<Void> requestCallback);
-   
-   void editPreferences(ServerRequestCallback<Void> requestCallback);
+   void setPrefs(RPrefs rPrefs,
+                 JavaScriptObject uiPrefs,
+                 ServerRequestCallback<Void> requestCallback);
 
-   void clearPreferences(ServerRequestCallback<String> requestCallback);
-   
-   void viewPreferences(ServerRequestCallback<Void> requestCallback);
+   void setUiPrefs(JavaScriptObject uiPrefs,
+                   ServerRequestCallback<Void> requestCallback);
 }

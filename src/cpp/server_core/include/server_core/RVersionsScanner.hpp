@@ -1,7 +1,7 @@
 /*
  * RVersionsScanner.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,8 +16,8 @@
 #ifndef SERVER_CORE_R_VERSIONS_SCANNER_HPP
 #define SERVER_CORE_R_VERSIONS_SCANNER_HPP
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/json/JsonRpc.hpp>
 #include <core/r_util/RVersionsPosix.hpp>
 
@@ -39,8 +39,7 @@ public:
                     const std::string& rLdScriptPath,
                     const std::string& ldLibraryPath,
                     const r_util::RVersion& profileDefaultR,
-                    const std::vector<core::FilePath>& profileRHomeDirs,
-                    const std::string& modulesBinaryPath);
+                    const std::vector<core::FilePath>& profileRHomeDirs);
 
    // scans for r versions and returns any that were found
    // subsequent calls return cached versions found in initial scan
@@ -60,19 +59,16 @@ private:
    std::string rLdLibraryPath_;
    core::r_util::RVersion profileDefaultR_;
    std::vector<FilePath> profileRHomeDirs_;
-   core::FilePath modulesBinaryPath_;
 
    // cached versions
    core::r_util::RVersion systemVersion_;
    std::vector<r_util::RVersion> cachedVersions_;
 
-   void parseRVersionsFile(const FilePath& versionsFile,
-                           const std::string& contents,
+   void parseRVersionsFile(const std::string& contents,
                            std::vector<FilePath> *pRPaths,
                            std::vector<r_util::RVersion> *pREntries);
 
-   boost::shared_ptr<r_util::RVersion> parseREntry(const FilePath& versionsFile,
-                                                   const std::string& rEntryStr);
+   boost::shared_ptr<r_util::RVersion> parseREntry(const std::string& rEntryStr);
 
    void setFallbackVersion();
 };

@@ -1,7 +1,7 @@
 /*
  * PosixSystemTests.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -172,7 +172,7 @@ test_context("PosixSystemTests")
       {
          // we now have a subprocess
          FilePath cwd = currentWorkingDirMac(pid);
-         expect_false(cwd.isEmpty());
+         expect_false(cwd.empty());
          expect_true(cwd.exists());
          expect_true(startingDir == cwd);
 
@@ -278,7 +278,7 @@ test_context("PosixSystemTests")
       {
          // we now have a subprocess
          FilePath cwd = currentWorkingDir(pid);
-         expect_false(cwd.isEmpty());
+         expect_false(cwd.empty());
          expect_true(cwd.exists());
          expect_true(startingDir == cwd);
 
@@ -305,7 +305,7 @@ test_context("PosixSystemTests")
       {
          // we now have a subprocess
          FilePath cwd = currentWorkingDirViaLsof(pid);
-         expect_false(cwd.isEmpty());
+         expect_false(cwd.empty());
          expect_true(cwd.exists());
          expect_true(startingDir == cwd);
 
@@ -330,7 +330,7 @@ test_context("PosixSystemTests")
       {
          // we now have a subprocess
          FilePath cwd = currentWorkingDirViaProcFs(pid);
-         expect_false(cwd.isEmpty());
+         expect_false(cwd.empty());
          expect_true(cwd.exists());
          expect_true(startingDir == cwd);
 

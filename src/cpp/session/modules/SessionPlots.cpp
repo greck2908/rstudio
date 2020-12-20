@@ -1,7 +1,7 @@
 /*
  * SessionPlots.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,11 +18,11 @@
 #include <boost/format.hpp>
 #include <boost/iostreams/filter/regex.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 #include <core/Exec.hpp>
 #include <core/Predicate.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/BoostErrors.hpp>
 #include <core/FileSerializer.hpp>
 
@@ -48,8 +48,6 @@ namespace modules {
 namespace plots {
   
 namespace {
-
-#define MAX_FIG_SIZE 3840*2
 
 // locations
 #define kGraphics "/graphics"
@@ -107,7 +105,7 @@ Error refreshPlot(const json::JsonRpcRequest& request,
 
 json::Object boolObject(bool value)
 {
-   json::Object boolObject;
+   json::Object boolObject ;
    boolObject["value"] = value;
    return boolObject;
 }
@@ -296,7 +294,7 @@ Error plotsCreateRPubsHtml(const json::JsonRpcRequest& request,
    // save small plot
    using namespace rstudio::r::session::graphics;
    Display& display = r::session::graphics::display();
-   FilePath smallPlotPath = tempPath.completeChildPath("plot-small.png");
+   FilePath smallPlotPath = tempPath.childPath("plot-small.png");
    error = display.savePlotAsImage(smallPlotPath, "png", width, height);
    if (error)
    {
@@ -305,7 +303,7 @@ Error plotsCreateRPubsHtml(const json::JsonRpcRequest& request,
    }
 
    // save full plot
-   FilePath fullPlotPath = tempPath.completeChildPath("plot-full.png");
+   FilePath fullPlotPath = tempPath.childPath("plot-full.png");
    error = display.savePlotAsImage(fullPlotPath, "png", 1024, 768, 2.0);
    if (error)
    {
@@ -314,13 +312,13 @@ Error plotsCreateRPubsHtml(const json::JsonRpcRequest& request,
    }
 
    // copy source file to temp dir
-   FilePath sourceFilePath = tempPath.completeChildPath("source.html");
+   FilePath sourceFilePath = tempPath.childPath("source.html");
    FilePath resPath = session::options().rResourcesPath();
-   FilePath plotFilePath = resPath.completePath("plot_publish.html");
+   FilePath plotFilePath = resPath.complete("plot_publish.html");
    error = plotFilePath.copy(sourceFilePath);
 
    // perform the base64 encode using pandoc
-   FilePath targetFilePath = tempPath.completeChildPath("target.html");
+   FilePath targetFilePath = tempPath.childPath("target.html");
    error = module_context::createSelfContainedHtml(sourceFilePath,
                                                    targetFilePath);
    if (error)
@@ -457,7 +455,7 @@ void setImageFileResponse(const FilePath& imageFilePath,
                           http::Response* pResponse)
 {
    // set content type
-   pResponse->setContentType(imageFilePath.getMimeContentType());
+   pResponse->setContentType(imageFilePath.mimeContentType());
    
    // attempt gzip
    if (request.acceptsEncoding(http::kGzipEncoding))
@@ -470,7 +468,7 @@ void setImageFileResponse(const FilePath& imageFilePath,
       if (!core::isPathNotFoundError(error))
          LOG_ERROR(error);
       pResponse->setError(http::status::InternalServerError,
-                          error.getMessage());
+                          error.code().message());
    }
 }
 
@@ -496,8 +494,8 @@ void handleZoomRequest(const http::Request& request, http::Response* pResponse)
 
    // get the width and height parameters
    int width, height;
-   if (!extractSizeParams(request, 100, MAX_FIG_SIZE, &width, &height, pResponse))
-     return;
+   if (!extractSizeParams(request, 100, 3000, &width, &height, pResponse))
+     return ;
 
    // fire off the plot zoom size changed event to notify the client
    // that a new default size should be established
@@ -532,8 +530,8 @@ void handleZoomRequest(const http::Request& request, http::Response* pResponse)
                   "window.activeTimer = setTimeout( function() { "
 
                      "window.location.href = "
-                        "\"plot_zoom?width=\" + Math.max(Math.min(document.body.clientWidth, " << MAX_FIG_SIZE << "), 100) "
-                              " + \"&height=\" + Math.max(Math.min(document.body.clientHeight, " << MAX_FIG_SIZE << "), 100) "
+                        "\"plot_zoom?width=\" + document.body.clientWidth "
+                              " + \"&height=\" + document.body.clientHeight "
                               " + \"&scale=\" + #scale#;"
                    "}, 300);"
                "}"
@@ -563,8 +561,8 @@ void handleZoomPngRequest(const http::Request& request,
 
    // get the width and height parameters
    int width, height;
-   if (!extractSizeParams(request, 100, MAX_FIG_SIZE, &width, &height, pResponse))
-     return;
+   if (!extractSizeParams(request, 100, 5000, &width, &height, pResponse))
+     return ;
 
    // generate the file
    using namespace rstudio::r::session::graphics;
@@ -577,7 +575,7 @@ void handleZoomPngRequest(const http::Request& request,
    if (saveError)
    {
       pResponse->setError(http::status::InternalServerError, 
-                          saveError.getMessage());
+                          saveError.code().message());
       return;
    }
    
@@ -595,8 +593,8 @@ void handlePngRequest(const http::Request& request,
 {
    // get the width and height parameters
    int width, height;
-   if (!extractSizeParams(request, 100, MAX_FIG_SIZE, &width, &height, pResponse))
-      return;
+   if (!extractSizeParams(request, 100, 5000, &width, &height, pResponse))
+      return ;
 
    // generate the image
    using namespace rstudio::r::session;
@@ -608,7 +606,7 @@ void handlePngRequest(const http::Request& request,
    if (error)
    {
       pResponse->setError(http::status::InternalServerError,
-                          error.getMessage());
+                          error.code().message());
       return;
    }
 
@@ -618,7 +616,7 @@ void handlePngRequest(const http::Request& request,
    {
       pResponse->setHeader("Content-Disposition",
                            "attachment; filename=rstudio-plot" +
-                           imagePath.getExtension());
+                           imagePath.extension());
    }
 
    // return it
@@ -645,7 +643,7 @@ void handleGraphicsRequest(const http::Request& request,
       std::string errmsg = "invalid graphics uri: " + uri;
       LOG_ERROR_MESSAGE(errmsg);
       pResponse->setNotFoundError(request);
-      return;
+      return ;
    }
    std::string filename = uri.substr(lastSlashPos+1);
  
@@ -660,7 +658,7 @@ void handleGraphicsRequest(const http::Request& request,
       pResponse->setPrivateCacheForeverHeaders();
 
       // set the file
-      setImageFileResponse(imagePath, request, pResponse);
+      setImageFileResponse(imagePath, request, pResponse);   
    }
    else
    {
@@ -897,7 +895,7 @@ Error initialize()
    graphics::display().onShowManipulator().connect(bind(onShowManipulator));
    
    using namespace module_context;
-   ExecBlock initBlock;
+   ExecBlock initBlock ;
    initBlock.addFunctions()
       (bind(registerRpcMethod, "next_plot", nextPlot))
       (bind(registerRpcMethod, "previous_plot", previousPlot))

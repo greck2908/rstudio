@@ -1,7 +1,7 @@
 /*
  * LogOptions.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2018 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,32 +16,61 @@
 #ifndef CORE_LOG_OPTIONS_HPP
 #define CORE_LOG_OPTIONS_HPP
 
-#include <string>
-
 #include <boost/variant.hpp>
 
 #include <core/ConfigProfile.hpp>
+#include <core/FilePath.hpp>
 #include <core/Log.hpp>
 #include <core/Thread.hpp>
 
-#include <shared_core/FilePath.hpp>
-#include <shared_core/FileLogDestination.hpp>
-
 namespace rstudio {
 namespace core {
-namespace log {
 
-struct StdErrLogOptions
+struct StdErrLoggerOptions
 {
 };
 
-struct SysLogOptions
+struct SysLoggerOptions
 {
 };
 
-typedef boost::variant<StdErrLogOptions,
-   SysLogOptions,
-   FileLogOptions> LoggerOptions;
+struct FileLoggerOptions
+{
+   static constexpr const char* defaultFileMode = "666";
+   static constexpr int defaultMaxSizeMb = 2;
+   static constexpr bool defaultRotate = true;
+   static constexpr bool defaultIncludePid = false;
+
+   FileLoggerOptions();
+
+   FileLoggerOptions(const FilePath& logDir) :
+      FileLoggerOptions(logDir, defaultFileMode, defaultMaxSizeMb, defaultRotate, defaultIncludePid)
+   {
+   }
+
+   FileLoggerOptions(const FilePath& logDir,
+                     const std::string& fileMode,
+                     double maxSizeMb,
+                     bool rotate,
+                     bool includePid) :
+      logDir(logDir),
+      fileMode(fileMode),
+      maxSizeMb(maxSizeMb),
+      rotate(rotate),
+      includePid(includePid)
+   {
+   }
+
+   FilePath logDir;
+   std::string fileMode;
+   double maxSizeMb;
+   bool rotate;
+   bool includePid;
+};
+
+typedef boost::variant<StdErrLoggerOptions,
+                       SysLoggerOptions,
+                       FileLoggerOptions> LoggerOptions;
 
 class LogOptions
 {
@@ -49,23 +78,22 @@ public:
    LogOptions(const std::string& executableName);
 
    LogOptions(const std::string& executableName,
-              LogLevel defaultLogLevel,
-              LoggerType defaultLoggerType,
+              int defaultLogLevel,
+              int defaultLoggerType,
               const LoggerOptions& defaultLoggerOptions);
 
-   virtual ~LogOptions()
-   { }
+   virtual ~LogOptions() {}
 
    core::Error read();
 
    // gets the current log level
-   LogLevel logLevel(const std::string& loggerName = std::string()) const;
+   int logLevel(const std::string& loggerName = std::string()) const;
 
    // gets the lowest log level defined
-   LogLevel lowestLogLevel() const;
+   int lowestLogLevel() const;
 
    // gets the current logger type
-   LoggerType loggerType(const std::string& loggerName = std::string()) const;
+   int loggerType(const std::string& loggerName = std::string()) const;
 
    // gets the current logger's specific options
    LoggerOptions loggerOptions(const std::string& loggerName = std::string()) const;
@@ -74,7 +102,6 @@ public:
 
 private:
    void initProfile();
-
    void setLowestLogLevel();
 
    std::vector<ConfigProfile::Level> getLevels(const std::string& loggerName) const;
@@ -85,12 +112,11 @@ private:
    std::string defaultLoggerType_;
    LoggerOptions defaultLoggerOptions_;
 
-   LogLevel lowestLogLevel_;
+   int lowestLogLevel_;
 
    ConfigProfile profile_;
 };
 
-} // namespace log
 } // namespace core
 } // namespace rstudio
 

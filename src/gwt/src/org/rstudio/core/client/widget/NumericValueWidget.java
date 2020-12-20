@@ -1,7 +1,7 @@
 /*
  * NumericValueWidget.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,53 +19,25 @@ import com.google.gwt.event.logical.shared.ValueChangeHandler;
 import com.google.gwt.event.shared.HandlerRegistration;
 import com.google.gwt.user.client.ui.*;
 import org.rstudio.core.client.events.EnsureVisibleEvent;
+import org.rstudio.core.client.events.EnsureVisibleHandler;
 import org.rstudio.core.client.events.HasEnsureVisibleHandlers;
 import org.rstudio.studio.client.RStudioGinjector;
 
 public class NumericValueWidget extends Composite
       implements HasValue<String>,
-                 HasEnsureVisibleHandlers,
-                 CanSetControlId
+                 HasEnsureVisibleHandlers
 {
-   public static final Integer ZeroMinimum = null;
-   public static final Integer NoMaximum = null;
-
-   public NumericValueWidget()
+   public NumericValueWidget(String label)
    {
-      this("", ZeroMinimum, NoMaximum);
-   }
-
-   /**
-    * Prompt for an integer in the range [min, max]
-    *
-    * @param label
-    * @param minValue minimum, if null (ZeroMinimum), zero assumed
-    * @param maxValue maximum, if null (NoMaximum), no maximum assumed
-    */
-   public NumericValueWidget(String label, Integer minValue, Integer maxValue)
-   {
-      label_ = label;
       FlowPanel flowPanel = new FlowPanel();
+      flowPanel.add(new SpanLabel(label, true));
 
-      textBox_ = new NumericTextBox();
-      textBox_.setWidth("48px");
-      setLimits(minValue, maxValue);
+      textBox_ = new TextBox();
+      textBox_.setWidth("30px");
       textBox_.getElement().getStyle().setMarginLeft(0.6, Unit.EM);
-      flowPanel.add(textBoxLabel_ = new SpanLabel(label_, textBox_, true));
       flowPanel.add(textBox_);
 
       initWidget(flowPanel);
-   }
-
-   public String getLabel()
-   {
-      return textBoxLabel_.getText();
-   }
-
-   public void setLabel(String text)
-   {
-      label_ = text;
-      textBoxLabel_.setText(text);
    }
 
    public String getValue()
@@ -82,27 +54,10 @@ public class NumericValueWidget extends Composite
    {
       textBox_.setValue(value, fireEvents);
    }
-
-   public void setLimits(Integer minValue, Integer maxValue)
-   {
-      minValue_ = minValue;
-      maxValue_ = maxValue;
-      if (minValue == ZeroMinimum)
-         textBox_.setMin(0);
-      else
-         textBox_.setMin(minValue);
-      if (maxValue != NoMaximum)
-         textBox_.setMax(maxValue);
-   }
-
+   
    public void setWidth(String width)
    {
       textBox_.setWidth(width);
-   }
-
-   public void setEnabled(boolean enabled)
-   {
-      textBox_.setEnabled(enabled);
    }
 
    public HandlerRegistration addValueChangeHandler(ValueChangeHandler<String> handler)
@@ -110,11 +65,21 @@ public class NumericValueWidget extends Composite
       return textBox_.addValueChangeHandler(handler);
    }
 
+   public boolean validate(String fieldName)
+   {
+      return validateRange(fieldName, null, null);
+   }
+
+   public boolean validatePositive(String fieldName)
+   {
+      return validateRange(fieldName, 1, null);
+   }
+
    /**
-    * Make sure field is a valid integer in the range [min, max]. If min or max
+    * Make sure field is a valid integer in the range [min, max). If min or max
     * are null, then 0 and infinity are assumed, respectively.
     */
-   public boolean validate()
+   public boolean validateRange(String fieldName, Integer min, Integer max)
    {
       String value = textBox_.getValue().trim();
       if (!value.matches("^\\d+$"))
@@ -123,49 +88,34 @@ public class NumericValueWidget extends Composite
          textBox_.getElement().focus();
          RStudioGinjector.INSTANCE.getGlobalDisplay().showErrorMessage(
                "Error",
-               label_ + " must be a valid number.",
-               textBox_);
+               fieldName + " must be a valid number.");
          return false;
       }
-      if (minValue_ != null || maxValue_ != null)
+      if (min != null || max != null)
       {
          int intVal = Integer.parseInt(value);
-         if (minValue_ != null && intVal < minValue_)
+         if (min != null && intVal < min)
          {
             RStudioGinjector.INSTANCE.getGlobalDisplay().showErrorMessage(
                   "Error",
-                  label_ + " must be greater than or equal to " + minValue_ + ".",
-                  textBox_);
+                  fieldName + " must be greater than or equal to " + min + ".");
             return false;
          }
-         if (maxValue_ != null && intVal > maxValue_)
+         if (max != null && intVal >= max)
          {
             RStudioGinjector.INSTANCE.getGlobalDisplay().showErrorMessage(
                   "Error",
-                  label_ + " must be less than or equal to " + maxValue_ + ".",
-                  textBox_);
+                  fieldName + " must be less than " + max + ".");
             return false;
          }
       }
       return true;
    }
 
-   public HandlerRegistration addEnsureVisibleHandler(EnsureVisibleEvent.Handler handler)
+   public HandlerRegistration addEnsureVisibleHandler(EnsureVisibleHandler handler)
    {
       return addHandler(handler, EnsureVisibleEvent.TYPE);
    }
 
-
-   @Override
-   public void setElementId(String id)
-   {
-      textBox_.getElement().setId(id);
-      textBoxLabel_.setFor(id);
-   }
-
-   private final SpanLabel textBoxLabel_;
-   private final NumericTextBox textBox_;
-   private Integer minValue_;
-   private Integer maxValue_;
-   private String label_;
+   private TextBox textBox_;
 }

@@ -89,7 +89,7 @@
   background: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAACCAYAAACZgbYnAAAAE0lEQVQImWP4////f4bLly//BwAmVgd1/w11/gAAAABJRU5ErkJggg==") right repeat-y;
 }
 .nocolor.ace_editor .ace_line span {
-  color: rgb(127, 0, 85) !important;
+  color: #7F0055 !important;
 }
 .ace_bracket {
   margin: 0 !important;
@@ -99,27 +99,20 @@
 .ace_marker-layer .ace_foreign_line {
   position: absolute;
   z-index: -1;
-  background-color: #F3F3F3;
-}
-.ace_node-selector {
-  background-color: rgb(102, 155, 243)
-}
-.ace_comment-highlight {
-  color: #3C4C72;
-  background-color: #FFECCB;
+  background-color: #F2F2F2;
 }
 .ace_marker-layer .ace_active_debug_line {
   position: absolute;
   z-index: -1;
-  background-color: #FFEF9C;
+  background-color: #FFEE9B;
 }
 .ace_marker-layer .ace_find_line {
   position: absolute;
   z-index: -1;
-  background-color: #E6E6E6;
+  background-color: #E5E5E5;
 }
 .ace_console_error {
-  background-color: #E6E6E6;
+  background-color: #E5E5E5;
 }
 .ace_keyword.ace_operator {
   color: #888888 !important;
@@ -128,8 +121,8 @@
   color: #800080 !important;
 }
 .terminal {
-  background-color: #ffffff;
-  color: black;
+  background-color: #FFFFFF;
+  color: #000000;
   font-feature-settings: "liga" 0;
   position: relative;
   user-select: none;
@@ -155,11 +148,11 @@
    background-color: #333;
 }
 .terminal .xterm-viewport {
-  background-color: #ffffff;
+  background-color: #FFFFFF;
   overflow-y: scroll;
 }
-.xtermInvertColor { color: #ffffff; }
-.xtermInvertBgColor { background-color: black; }
+.xtermInvertColor { color: #FFFFFF; }
+.xtermInvertBgColor { background-color: #000000; }
 .xtermBold { font-weight: bold; }
 .xtermUnderline { text-decoration: underline; }
 .xtermBlink { text-decoration: blink; }

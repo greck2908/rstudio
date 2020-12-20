@@ -1,7 +1,7 @@
 /*
  * WorkbenchMetrics.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -28,12 +28,12 @@ public class WorkbenchMetrics extends JavaScriptObject
                                                       int graphicsHeight,
                                                       double devicePixelRatio) /*-{
       var clientMetrics = new Object();
-      clientMetrics.consoleWidth = consoleWidth;
+      clientMetrics.consoleWidth = consoleWidth ;
       clientMetrics.buildConsoleWidth = buildConsoleWidth;
-      clientMetrics.graphicsWidth = graphicsWidth;
-      clientMetrics.graphicsHeight = graphicsHeight;
+      clientMetrics.graphicsWidth = graphicsWidth ;
+      clientMetrics.graphicsHeight = graphicsHeight ;
       clientMetrics.devicePixelRatio = devicePixelRatio;
-      return clientMetrics;
+      return clientMetrics ;
    }-*/;
    
    public final native int getConsoleWidth() /*-{
@@ -45,7 +45,7 @@ public class WorkbenchMetrics extends JavaScriptObject
    }-*/;
    
    public final native int getGraphicsWidth() /*-{
-      return this.graphicsWidth;
+      return this.graphicsWidth ;
    }-*/;
 
    public final native int getGraphicsHeight() /*-{

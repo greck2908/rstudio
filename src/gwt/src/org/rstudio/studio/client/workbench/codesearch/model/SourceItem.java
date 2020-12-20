@@ -1,7 +1,7 @@
 /*
  * SourceItem.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,8 +17,6 @@ package org.rstudio.studio.client.workbench.codesearch.model;
 import com.google.gwt.core.client.JavaScriptObject;
 import org.rstudio.core.client.CodeNavigationTarget;
 import org.rstudio.core.client.FilePosition;
-import org.rstudio.core.client.XRef;
-import org.rstudio.core.client.js.JsObject;
 
 
 public class SourceItem extends JavaScriptObject
@@ -27,18 +25,13 @@ public class SourceItem extends JavaScriptObject
    {
    }
    
-   // NOTE: synchronize with class in SessionCodeSearch.cpp
-   public static final int NONE       =  0;
-   public static final int FUNCTION   =  1;
-   public static final int METHOD     =  2;
-   public static final int CLASS      =  3;
-   public static final int ENUM       =  4;
-   public static final int ENUM_VALUE =  5;
-   public static final int NAMESPACE  =  6; 
-   public static final int SECTION    =  7;
-   public static final int FIGURE     =  8;
-   public static final int TABLE      =  9;
-   public static final int MATH       = 10;
+   public static final int NONE = 0;
+   public static final int FUNCTION = 1;
+   public static final int METHOD = 2;
+   public static final int CLASS = 3;
+   public static final int ENUM = 4;
+   public static final int ENUM_VALUE = 5;
+   public static final int NAMESPACE = 6;   
 
    public final native int getType() /*-{
       return this.type;
@@ -68,36 +61,11 @@ public class SourceItem extends JavaScriptObject
    public final native int getColumn() /*-{
       return this.column;
    }-*/;
-   
-   public final native JsObject getMetadata() /*-{
-      return this.metadata || {};
-   }-*/;
-   
-   public final boolean hasXRef()
-   {
-      return getMetadata().hasKey("xref");
-   }
-   
-   public final XRef getXRef()
-   {
-      return getMetadata().getObject("xref").cast();
-   }
 
    public final CodeNavigationTarget toCodeNavigationTarget()
    {
-      if (hasXRef())
-      {
-         XRef xref = getXRef();
-         return new CodeNavigationTarget(
-               getContext(),
-               FilePosition.create(getLine(), getColumn()),
-               xref);
-      }
-      else
-      {
-         return new CodeNavigationTarget(
-               getContext(),
-               FilePosition.create(getLine(), getColumn()));
-      }
+      return new CodeNavigationTarget(getContext(),
+                                      FilePosition.create(getLine(),
+                                                          getColumn()));
    }
 }

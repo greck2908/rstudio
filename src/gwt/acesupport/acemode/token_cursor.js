@@ -1,7 +1,7 @@
 /*
  * token_cursor.js
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,8 +14,6 @@
  */
 
 define("mode/token_cursor", ["require", "exports", "module"], function(require, exports, module) {
-
-var $reParenType = /(?:^|[.])paren(?:$|[.])/;
 
 var oop = require("ace/lib/oop");
 var Utils = require("mode/utils");
@@ -1104,15 +1102,17 @@ oop.mixin(RTokenCursor.prototype, TokenCursor.prototype);
    // NOTE: A lot of the ugliness here stems from the fact that
    // both open and closing brackets have the same type; that is,
    //
-   //    paren.***
+   //    paren.keyword.operator
    //
+   // and so we need to be careful when testing for the 'keyword'
+   // or 'operator' types.
    this.isValidForEndOfStatement = function()
    {
       var type = this.currentType();
-      var value = this.currentValue();
+      if (type === "paren.keyword.operator")
+         return isRightBracket(this.currentValue());
 
-      if (type.search($reParenType) !== -1)
-         return isRightBracket(value);
+      var value = this.currentValue();
 
       return isSingleLineString(value) ||
              this.hasType("identifier", "constant", "variable");
@@ -1121,9 +1121,7 @@ oop.mixin(RTokenCursor.prototype, TokenCursor.prototype);
    this.isValidForStartOfStatement = function()
    {
       var type = this.currentType();
-      var value = this.currentValue();
-
-      if (type.search($reParenType) !== -1)
+      if (type === "paren.keyword.operator")
          return isLeftBracket(this.currentValue());
 
       var value = this.currentValue();

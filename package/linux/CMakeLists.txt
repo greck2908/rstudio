@@ -1,19 +1,5 @@
-#
-# CMakeLists.txt
-#
-# Copyright (C) 2020 by RStudio, PBC
-#
-# Unless you have received this program directly from RStudio pursuant
-# to the terms of a commercial license agreement with RStudio, then
-# this program is licensed to you under the terms of version 3 of the
-# GNU Affero General Public License. This program is distributed WITHOUT
-# ANY EXPRESS OR IMPLIED WARRANTY, INCLUDING THOSE OF NON-INFRINGEMENT,
-# MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE. Please refer to the
-# AGPL (http://www.gnu.org/licenses/agpl-3.0.txt) for more details.
-#
-#
 
-# configure cpack install location
+# configure cpack install location 
 set(CPACK_SET_DESTDIR "ON")
 set(CPACK_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 
@@ -25,7 +11,7 @@ if (NOT PACKAGE_ARCHITECTURE)
       exec_program(dpkg ARGS --print-architecture
                    OUTPUT_VARIABLE PACKAGE_ARCHITECTURE)
    elseif(RPM_EXECUTABLE)
-      exec_program(arch OUTPUT_VARIABLE PACKAGE_ARCHITECTURE)
+      exec_program(arch OUTPUT_VARIABLE PACKAGE_ARCHITECTURE) 
    endif()
 endif()
 
@@ -51,59 +37,59 @@ if(RSTUDIO_SERVER)
   # debian control files
   set(DEBIAN_POSTINST postinst.in)
   set(DEBIAN_POSTRM postrm.in)
-
+  
   # rpm scripts
   set(RPM_POSTINST postinst.sh.in)
   set(RPM_POSTRM postrm.sh.in)
 
-  # rpm dependencies
-  string(FIND "${RSTUDIO_PACKAGE_OS}" "SUSE" SUSE_POS)
-  if(SUSE_POS GREATER 0)
-     # SuSE based systems
-     set(RSTUDIO_RPM_DEPENDS "libsqlite3-0, libpq5, ")
-  else()
-     set(RSTUDIO_RPM_DEPENDS "sqlite, postgresql-libs, ")
-  endif()
-  set(RSTUDIO_RPM_DEPENDS "${RSTUDIO_RPM_DEPENDS} psmisc, ")
-
-  # debian dependencies -- to install the .deb from the command line with
+  # deiban dependencies -- to install the .deb from the command line with
   # automatic dependency resolution use e.g.
   #   sudo apt-get install gdebi-core
   #   sudo gdebi rstudio-server-0.97.151-amd64.deb
-  set(RSTUDIO_DEBIAN_DEPENDS "psmisc, libapparmor1, libedit2, sudo, lsb-release, libssl1.0.0 | libssl1.0.2 | libssl1.1, libclang-dev, libsqlite3-0, libpq5, ")
+  set(RSTUDIO_DEBIAN_DEPENDS "psmisc, libapparmor1, libedit2, sudo, lsb-release, libssl1.0.0 | libssl1.0.2 | libssl1.1, libclang-dev, ")
+
+  # rpm dependencies
+  set(RSTUDIO_RPM_DEPENDS "psmisc, ")
+
+  # on RHEL 5 we also depend on libffi
+  if(IS_RHEL_5 AND NOT RSTUDIO_PACKAGE_VARIANT STREQUAL "SLES")
+     set(RSTUDIO_RPM_DEPENDS "${RSTUDIO_RPM_DEPENDS}libffi, ")
+  endif()
 
 elseif(RSTUDIO_DESKTOP)
-
+ 
    # debian control files
   set(DEBIAN_POSTINST postinst-desktop.in)
   set(DEBIAN_POSTRM postrm-desktop.in)
-
+  
   # rpm scripts
   set(RPM_POSTINST postinst-desktop.sh.in)
   set(RPM_POSTRM postrm-desktop.sh.in)
 
   # rpm dependencies
-  string(FIND "${RSTUDIO_PACKAGE_OS}" "SUSE" SUSE_POS)
-  if(SUSE_POS GREATER 0)
-     # SuSE based systems
-     set(RSTUDIO_RPM_DEPENDS "libxkbcommon-x11-0, libsqlite3-0, libpq5, ")
-  else()
-     set(RSTUDIO_RPM_DEPENDS "libxkbcommon-x11, sqlite, postgresql-libs, ")
-  endif()
+  set(RSTUDIO_RPM_DEPENDS "libxkbcommon-x11, ")
 
   # deb dependencies
-  set(RSTUDIO_DEBIAN_DEPENDS "libedit2, libssl1.0.0 | libssl1.0.2 | libssl1.1, libclang-dev, libxkbcommon-x11-0, libsqlite3-0, libpq5, ")
-
+  set(RSTUDIO_DEBIAN_DEPENDS "libedit2, libssl1.0.0 | libssl1.0.2 | libssl1.1, libclang-dev, libxkbcommon-x11-0, ")
+  
 endif()
 
 # define package suffix
 set(RSTUDIO_PACKAGE_SUFFIX "-")
 
 if(RSTUDIO_SERVER)
-   # add rhel to package name for redhat enterprise linux builds
-   if(IS_RHEL)
+   # SLES builds are produced from a CentOS5 machine, so check for specific SLES
+   # target first
+   if(RSTUDIO_PACKAGE_VARIANT STREQUAL "SLES")
+      set(RSTUDIO_PACKAGE_SUFFIX "${RSTUDIO_PACKAGE_SUFFIX}suse-")
+   elseif(IS_RHEL_5)
+      set(RSTUDIO_PACKAGE_SUFFIX "${RSTUDIO_PACKAGE_SUFFIX}rhel5-")
+   elseif(IS_RHEL) 
       set(RSTUDIO_PACKAGE_SUFFIX "${RSTUDIO_PACKAGE_SUFFIX}rhel-")
    endif()
+elseif(NOT RSTUDIO_PACKAGE_VARIANT STREQUAL "")
+   # for desktop builds, use the package variant name directly when non-empty
+   set(RSTUDIO_PACKAGE_SUFFIX "${RSTUDIO_PACKAGE_SUFFIX}${RSTUDIO_PACKAGE_VARIANT}-")
 endif()
 
 # include overlay if it exists
@@ -130,7 +116,7 @@ file(COPY ${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/postinst
 
 set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA "${CMAKE_CURRENT_BINARY_DIR}/debian-control/postinst;${CMAKE_CURRENT_BINARY_DIR}/debian-control/postrm")
 
-# dynamically configured rpm scripts (only works with cmake 2.8.1 or higher).
+# dynamically configured rpm scripts (only works with cmake 2.8.1 or higher). 
 # alternatively you can get CPackRPM.cmake from the cmake tip and copy it into
 # your local cmake modules directory -- this is what we currently do
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/rpm-script/${RPM_POSTINST}
@@ -142,14 +128,14 @@ set(CPACK_RPM_SPEC_INSTALL_POST "/bin/true")
 set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${CMAKE_CURRENT_BINARY_DIR}/rpm-script/postinst.sh")
 set(CPACK_RPM_POST_UNINSTALL_SCRIPT_FILE "${CMAKE_CURRENT_BINARY_DIR}/rpm-script/postrm.sh")
 
-# /usr and /usr/lib are already present in CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST,
+# /usr and /usr/lib are already present in CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST, 
 # but some Linux distributions complain without this explicit suppression
 set(CPACK_RPM_SPEC_MORE_DEFINE "%define ignore \#")
-set(CPACK_RPM_USER_FILELIST
+set(CPACK_RPM_USER_FILELIST 
   "%ignore /usr"
   "%ignore /usr/lib")
 
-set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION
+set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION 
   "/usr/share/applications"
   "/usr/share/icons"
   "/usr/share/pixmaps"

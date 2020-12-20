@@ -1,7 +1,7 @@
 /*
  * SessionVCSCore.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,7 +14,7 @@
  */
 #include "SessionVCSCore.hpp"
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 
 using namespace rstudio::core;
 
@@ -26,7 +26,7 @@ namespace source_control {
 VCSStatus StatusResult::getStatus(const FilePath& fileOrDirectory) const
 {
    std::map<std::string, VCSStatus>::const_iterator found =
-         this->filesByPath_.find(fileOrDirectory.getAbsolutePath());
+         this->filesByPath_.find(fileOrDirectory.absolutePath());
    if (found != this->filesByPath_.end())
       return found->second;
 

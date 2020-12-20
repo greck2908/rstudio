@@ -1,7 +1,7 @@
 /*
  * RpcRequestCallback.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,6 +17,6 @@ package org.rstudio.core.client.jsonrpc;
 
 public interface RpcRequestCallback 
 {
-   void onError(RpcRequest request, RpcError error);
+   void onError(RpcRequest request, RpcError error) ;
    void onResponseReceived(RpcRequest request, RpcResponse response);
 }

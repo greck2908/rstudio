@@ -1,7 +1,7 @@
 /*
  * ShellUtils.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,8 +15,8 @@
 
 #include <core/system/ShellUtils.hpp>
 
-#include <shared_core/FilePath.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/FilePath.hpp>
+#include <core/SafeConvert.hpp>
 
 namespace rstudio {
 namespace core {
@@ -59,7 +59,7 @@ ShellCommand& ShellCommand::operator<<(const FilePath& path)
 {
    output_.push_back(' ');
    // TODO: check encoding
-   output_.append(escape(path.getAbsolutePath()));
+   output_.append(escape(path.absolutePath()));
    return *this;
 }
 
@@ -106,9 +106,9 @@ ShellArgs& ShellArgs::operator<<(int arg)
 ShellArgs& ShellArgs::operator<<(const FilePath& path)
 {
    if (encodingMode_ == SystemEncoding)
-      *this << string_utils::utf8ToSystem(path.getAbsolutePath());
+      *this << string_utils::utf8ToSystem(path.absolutePath());
    else
-      *this << path.getAbsolutePath();
+      *this << path.absolutePath();
    return *this;
 }
 

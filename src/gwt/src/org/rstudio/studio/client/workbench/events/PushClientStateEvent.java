@@ -1,7 +1,7 @@
 /*
  * PushClientStateEvent.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,30 +14,25 @@
  */
 package org.rstudio.studio.client.workbench.events;
 
-import com.google.gwt.event.shared.EventHandler;
 import com.google.gwt.event.shared.GwtEvent;
 
-public class PushClientStateEvent extends GwtEvent<PushClientStateEvent.Handler>
+public class PushClientStateEvent extends GwtEvent<PushClientStateHandler>
 {
-   public static final GwtEvent.Type<Handler> TYPE = new GwtEvent.Type<>();
-
-   public interface Handler extends EventHandler
-   {
-      void onPushClientState(PushClientStateEvent event);
-   }
+   public static final GwtEvent.Type<PushClientStateHandler> TYPE =
+      new GwtEvent.Type<PushClientStateHandler>();
 
    public PushClientStateEvent()
    {
    }
 
    @Override
-   protected void dispatch(Handler handler)
+   protected void dispatch(PushClientStateHandler handler)
    {
       handler.onPushClientState(this);
    }
 
    @Override
-   public GwtEvent.Type<Handler> getAssociatedType()
+   public GwtEvent.Type<PushClientStateHandler> getAssociatedType()
    {
       return TYPE;
    }

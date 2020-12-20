@@ -1,7 +1,7 @@
 /*
  * InfoBar.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,7 +14,6 @@
  */
 package org.rstudio.core.client.widget;
 
-import com.google.gwt.aria.client.Roles;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.dom.client.Style.Cursor;
 import com.google.gwt.dom.client.Style.TextDecoration;
@@ -28,18 +27,16 @@ import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.DockLayoutPanel;
 import com.google.gwt.user.client.ui.HorizontalPanel;
+import com.google.gwt.user.client.ui.Image;
 import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.Widget;
 
 import java.util.List;
 
-import org.rstudio.core.client.a11y.A11y;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.theme.res.ThemeResources;
 import org.rstudio.studio.client.RStudioGinjector;
-import org.rstudio.studio.client.application.AriaLiveService;
-import org.rstudio.studio.client.common.Timers;
 import org.rstudio.studio.client.common.filetypes.FileTypeRegistry;
 import org.rstudio.studio.client.workbench.model.Session;
 
@@ -56,31 +53,23 @@ public class InfoBar extends Composite
    
    public InfoBar(int mode, ClickHandler dismissHandler)
    {
-      switch (mode)
+      switch(mode)
       {
       case WARNING:
-         icon_ = new DecorativeImage(new ImageResource2x(ThemeResources.INSTANCE.warningSmall2x()));
+         icon_ = new Image(new ImageResource2x(ThemeResources.INSTANCE.warningSmall2x()));
          break;
       case ERROR:
-         icon_ = new DecorativeImage(new ImageResource2x(ThemeResources.INSTANCE.errorSmall2x()));
+         icon_ = new Image(new ImageResource2x(ThemeResources.INSTANCE.errorSmall2x()));
          break;
       case INFO:
       default:
-         icon_ = new DecorativeImage(new ImageResource2x(ThemeResources.INSTANCE.infoSmall2x()));
+         icon_ = new Image(new ImageResource2x(ThemeResources.INSTANCE.infoSmall2x()));
          break;
       }
      
       labelRight_ = new HorizontalPanel();
       initWidget(binder.createAndBindUi(this));
-
-      A11y.setARIAHidden(label_);
-      if (!RStudioGinjector.INSTANCE.getAriaLiveService().isDisabled(AriaLiveService.INFO_BAR))
-      {
-         if (mode == ERROR)
-            Roles.getAlertRole().set(live_.getElement());
-         else
-            Roles.getStatusRole().set(live_.getElement());
-      }
+      
       dismiss_.addStyleName(ThemeResources.INSTANCE.themeStyles().handCursor());
       
       if (dismissHandler != null)
@@ -98,19 +87,11 @@ public class InfoBar extends Composite
    public void setText(String text)
    {
       label_.setText(text);
-      Timers.singleShot(AriaLiveService.UI_ANNOUNCEMENT_DELAY, () -> live_.setText(text));
-      labelRight_.clear();
    }
 
    public int getHeight()
    {
       return 19;
-   }
-   
-   public void setTextWithAction(String text, String actionLabel, Command command)
-   {
-      setText(text);
-      labelRight_.add(label(actionLabel, command));
    }
    
    public void showRequiredPackagesMissingWarning(List<String> packages,
@@ -137,7 +118,9 @@ public class InfoBar extends Composite
          message = "Packages " + packages.get(0) + ", " + packages.get(1) + ", and " + (n - 2) + " others required but are not installed.";
       }
       
-      setText(message);
+      label_.setText(message);
+      
+      labelRight_.clear();
 
       labelRight_.add(label("Install", () -> {
          onInstall.execute();
@@ -148,31 +131,15 @@ public class InfoBar extends Composite
       }));
    }
    
-   public void showPanmirrorFormatChanged(Command onReload)
-   {
-      setText("Markdown format changes require a reload of the visual editor.");
-      labelRight_.clear();
-      labelRight_.add(label("Reload Now", () -> {
-         onReload.execute();
-      }));
-   }
-   
-   public void showTexInstallationMissingWarning(String message,
-                                                 Command onInstall)
-   {
-      setText(message);
-      labelRight_.add(label("Install TinyTeX", () -> { onInstall.execute(); }));
-   }
-   
    public void showReadOnlyWarning(List<String> alternatives)
    {
       if (alternatives.size() == 0)
       {
-         setText("This document is read only.");
+         label_.setText("This document is read only.");
       }
       else
       {
-         setText("This document is read only. Generated from:");
+         label_.setText("This document is read only. Generated from:");
          for (String alternative : alternatives)
          {
             labelRight_.add(label(alternative, () -> {
@@ -201,15 +168,13 @@ public class InfoBar extends Composite
    @UiField
    protected DockLayoutPanel container_;
    @UiField(provided = true)
-   protected DecorativeImage icon_;
+   protected Image icon_;
    @UiField
    protected Label label_;
-   @UiField
-   protected Label live_;
    @UiField(provided = true)
    protected HorizontalPanel labelRight_;
    @UiField
-   ImageButton dismiss_;
+   Image dismiss_;
 
    interface MyBinder extends UiBinder<Widget, InfoBar>{}
    private static MyBinder binder = GWT.create(MyBinder.class);

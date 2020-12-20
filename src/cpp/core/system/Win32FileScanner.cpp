@@ -1,7 +1,7 @@
 /*
  * Win32FileScanner.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,12 +17,10 @@
 
 #include <boost/system/windows_error.hpp>
 
-#include <core/BoostThread.hpp>
+#include <core/Error.hpp>
 #include <core/FileInfo.hpp>
-#include <core/Log.hpp>
-
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
+#include <core/BoostThread.hpp>
 
 namespace rstudio {
 namespace core {
@@ -44,19 +42,19 @@ FileInfo convertToFileInfo(const FilePath& filePath, bool yield, int *pCount)
 
    if (filePath.isDirectory())
    {
-      return FileInfo(filePath.getAbsolutePath(), true, filePath.isSymlink());
+      return FileInfo(filePath.absolutePath(), true, filePath.isSymlink());
    }
    else if (filePath.exists())
    {
-      return FileInfo(filePath.getAbsolutePath(),
+      return FileInfo(filePath.absolutePath(),
                       false,
-                      filePath.getSize(),
-                      filePath.getLastWriteTime(),
+                      filePath.size(),
+                      filePath.lastWriteTime(),
                       filePath.isSymlink());
    }
    else
    {
-      return FileInfo(filePath.getAbsolutePath(), false);
+      return FileInfo(filePath.absolutePath(), false);
    }
 }
 
@@ -95,7 +93,7 @@ Error scanFiles(const tree<FileInfo>::iterator_base& fromNode,
 
    // read directory entries
    std::vector<FilePath> children;
-   Error error = rootPath.getChildren(children);
+   Error error = rootPath.children(&children);
    if (error)
       return error;
 
@@ -115,10 +113,6 @@ Error scanFiles(const tree<FileInfo>::iterator_base& fromNode,
    // iterate over entries
    for (const FileInfo& childFileInfo : childrenFileInfo)
    {
-      // check for interrupts
-      if (boost::this_thread::interruption_requested())
-         return core::systemError(boost::system::errc::interrupted, ERROR_LOCATION);
-
       // apply filter if we have one
       if (options.filter && !options.filter(childFileInfo))
          continue;
@@ -131,7 +125,8 @@ Error scanFiles(const tree<FileInfo>::iterator_base& fromNode,
          if (options.recursive && !childFileInfo.isSymlink())
          {
             Error error = scanFiles(child, options, pTree);
-            if (error && (error != boost::system::windows_error::path_not_found))
+            if (error &&
+               (error.code() != boost::system::windows_error::path_not_found))
                LOG_ERROR(error);
          }
       }

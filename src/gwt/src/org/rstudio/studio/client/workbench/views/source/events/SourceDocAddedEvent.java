@@ -1,7 +1,7 @@
 /*
  * SourceDocAddedEvent.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -29,16 +29,15 @@ public class SourceDocAddedEvent
    {
       void onSourceDocAdded(SourceDocAddedEvent e);
    }
-
+   
    public SourceDocAddedEvent()
    {
    }
-
-   public SourceDocAddedEvent(SourceDocument doc, int mode, String displayName)
+   
+   public SourceDocAddedEvent(SourceDocument doc, int mode)
    {
       doc_ = doc;
       mode_ = mode;
-      displayName_ = displayName;
       windowId_ = SourceWindowManager.getSourceWindowId();
    }
 
@@ -46,22 +45,17 @@ public class SourceDocAddedEvent
    {
       return doc_;
    }
-
-   public String getDisplayName()
-   {
-      return displayName_;
-   }
-
+   
    public String getWindowId()
    {
       return windowId_;
    }
-
+   
    public int getMode()
    {
       return mode_;
    }
-
+  
    @Override
    public Type<Handler> getAssociatedType()
    {
@@ -75,9 +69,8 @@ public class SourceDocAddedEvent
    }
 
    private SourceDocument doc_;
-   private String displayName_;
    private String windowId_;
    private int mode_;
-
-   public static final Type<Handler> TYPE = new Type<>();
+   
+   public static final Type<Handler> TYPE = new Type<Handler>();
 }

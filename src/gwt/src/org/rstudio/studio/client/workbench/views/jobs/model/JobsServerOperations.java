@@ -1,7 +1,7 @@
 /*
  * JobsServerOperations.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,7 +21,7 @@ import com.google.gwt.core.client.JsArray;
 
 public interface JobsServerOperations
 {
-   void setJobListening(String id, boolean listening, boolean bypassLauncherCall,
+   void setJobListening(String id, boolean listening,
                         ServerRequestCallback<JsArray<JobOutput> > output);
    void startJob(JobLaunchSpec spec, ServerRequestCallback<String> callback);
    void clearJobs(ServerRequestCallback<Void> callback);

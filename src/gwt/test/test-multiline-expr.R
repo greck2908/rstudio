@@ -1,7 +1,5 @@
 # To test here, try typing 'Cmd + Enter' and ensure that the cursor
 # executes and jumps from the consecutively numbered blocks.
-library(dplyr)
-library(data.table)
 
 # 1
 {
@@ -79,8 +77,7 @@ x <- f(a = 1,
        # d = 4
 )
 
-# 12: data.table style (note: two separate statements)
-dt <- data.table(mtcars)
+# 12 -- data.table style
 dt[ , sequence := seq_len( nrow( dt ) )
 
     ][ , normal := rnorm( nrow( dt ) )
@@ -96,31 +93,6 @@ third"
 # expression system; e.g.
 #' [name](link)
 statement <- 1 + 1
-
-# 15: certain pipe styles
-mtcars %>%
-   filter(
-      mpg > 20
-   ) %>%
-   select(everything())
-
-# 16: certain pipe styles
-mtcars %>%
-   filter(
-      mpg > 20) %>%
-   select(everything())
-
-# 17: more pipes
-mtcars %>%
-   filter(
-      mpg > 20) %>% select(everything())
-
-# 18: more pipes
-mtcars %>% 
-   mutate(
-      x1 = "ok here") %>% 
-   mutate(
-      x2 = "not ok") # use Ctrl + Enter in this line
 
 # cursor should end here after executing all lines
 EOF

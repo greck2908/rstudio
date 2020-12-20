@@ -1,7 +1,7 @@
 /*
  * Event.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,39 +17,12 @@
 
 #include <iostream>
 
-#include <core/Log.hpp>
 #include <core/StringUtils.hpp>
 
 #include <core/http/Util.hpp>
 
 namespace rstudio {
 namespace monitor {
-
-Event::Event(int scope,
-             int id,
-             const std::string& data,
-             const std::string& username,
-             PidType pid,
-             boost::posix_time::ptime timestamp)
-   : empty_(false),
-     scope_(scope),
-     id_(id),
-     pid_(pid),
-     timestamp_(core::date_time::millisecondsSinceEpoch(timestamp))
-{
-   ::memset(&username_, 0, kMaxEventDataSize+1);
-   username.copy(username_, kMaxEventDataSize);
-   if (username.length() > kMaxEventDataSize)
-   {
-      LOG_WARNING_MESSAGE("Event " + eventScopeAndIdAsString(*this) + " username was truncated");
-   }
-   ::memset(&data_, 0, kMaxEventDataSize+1);
-   data.copy(data_, kMaxEventDataSize);
-   if (data.length() > kMaxEventDataSize)
-   {
-      LOG_WARNING_MESSAGE("Event " + eventScopeAndIdAsString(*this) + " data was truncated");
-   }
-}
 
 std::string eventScopeAndIdAsString(const Event& event)
 {
@@ -66,7 +39,7 @@ std::string eventScopeAndIdAsString(const Event& event)
          scope = "<unknown>";
          break;
    }
-   
+
    std::string id;
    switch(event.id())
    {
@@ -78,15 +51,6 @@ std::string eventScopeAndIdAsString(const Event& event)
          break;
       case kAuthLoginFailedEvent:
          id = "login_failed";
-         break;
-      case kAuthLoginThrottledEvent:
-         id = "throttled";
-         break;
-      case kAuthLoginUnlicensedEvent:
-         id = "unlicensed";
-         break;
-      case kAuthLicenseFailedEvent:
-         id = "license_failed";
          break;
       case kSessionStartEvent:
          id = "start";
@@ -113,7 +77,7 @@ std::string eventScopeAndIdAsString(const Event& event)
          id = "<unknown>";
          break;
    }
-   
+
    return scope + "_" + id;
 }
 

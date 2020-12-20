@@ -1,7 +1,7 @@
 /*
  * SessionCodeSearch.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -61,7 +61,7 @@ public:
    
    boost::shared_ptr<RSourceIndex> get(const core::FilePath& filePath)
    {
-      std::string absPath = filePath.getAbsolutePath();
+      std::string absPath = filePath.absolutePath();
       if (filePathMap_.count(absPath))
          return filePathMap_[absPath];
       return boost::shared_ptr<RSourceIndex>();

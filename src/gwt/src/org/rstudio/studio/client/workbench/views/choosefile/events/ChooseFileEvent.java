@@ -1,7 +1,7 @@
 /*
  * ChooseFileEvent.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,39 +14,34 @@
  */
 package org.rstudio.studio.client.workbench.views.choosefile.events;
 
-import com.google.gwt.event.shared.EventHandler;
 import com.google.gwt.event.shared.GwtEvent;
 
-public class ChooseFileEvent extends GwtEvent<ChooseFileEvent.Handler>
+public class ChooseFileEvent extends GwtEvent<ChooseFileHandler>
 {
-   public static final Type<Handler> TYPE = new Type<>();
-
-   public interface Handler extends EventHandler
-   {
-      void onChooseFile(ChooseFileEvent event);
-   }
-
+   public static final GwtEvent.Type<ChooseFileHandler> TYPE =
+      new GwtEvent.Type<ChooseFileHandler>();
+   
    public ChooseFileEvent(boolean newFile)
    {
       newFile_ = newFile;
    }
-
+   
    public boolean getNewFile()
    {
       return newFile_;
    }
-
+   
    @Override
-   protected void dispatch(Handler handler)
+   protected void dispatch(ChooseFileHandler handler)
    {
       handler.onChooseFile(this);
    }
 
    @Override
-   public Type<Handler> getAssociatedType()
+   public GwtEvent.Type<ChooseFileHandler> getAssociatedType()
    {
       return TYPE;
    }
-
+   
    private final boolean newFile_;
 }

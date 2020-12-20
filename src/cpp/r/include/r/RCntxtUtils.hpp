@@ -1,7 +1,7 @@
 /*
  * RCntxtUtils.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,7 +16,7 @@
 #ifndef R_CONTEXT_UTILS_HPP
 #define R_CONTEXT_UTILS_HPP
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include "RCntxt.hpp"
 
 namespace rstudio {
@@ -28,8 +28,7 @@ namespace context {
 // represents the version of the memory layout of the RCNTXT structure
 enum RCntxtVersion
 {
-   RVersion40, // R 4.0 and above
-   RVersion34, // R 3.4 until R 4.0 (exclusive)
+   RVersion34, // R 3.4 and above
    RVersion33, // R 3.3 (all versions)
    RVersion32, // R 3.2.5 and below
    RVersionUnknown 

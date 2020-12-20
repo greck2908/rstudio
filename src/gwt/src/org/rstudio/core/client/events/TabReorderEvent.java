@@ -1,7 +1,7 @@
 /*
  * TabReorderEvent.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,12 +14,11 @@
  */
 package org.rstudio.core.client.events;
 
-import com.google.gwt.event.shared.EventHandler;
 import com.google.gwt.event.shared.GwtEvent;
 
-public class TabReorderEvent extends GwtEvent<TabReorderEvent.Handler>
+public class TabReorderEvent extends GwtEvent<TabReorderHandler>
 {
-   public static final Type<Handler> TYPE = new Type<>();
+   public static final Type<TabReorderHandler> TYPE = new Type<TabReorderHandler>();
 
    public TabReorderEvent(int oldPos, int newPos)
    {
@@ -38,20 +37,15 @@ public class TabReorderEvent extends GwtEvent<TabReorderEvent.Handler>
    }
 
    @Override
-   public Type<Handler> getAssociatedType()
+   public Type<TabReorderHandler> getAssociatedType()
    {
       return TYPE;
    }
 
    @Override
-   protected void dispatch(Handler handler)
+   protected void dispatch(TabReorderHandler handler)
    {
       handler.onTabReorder(this);
-   }
-
-   public interface Handler extends EventHandler
-   {
-      void onTabReorder(TabReorderEvent event);
    }
 
    private int oldPos_;

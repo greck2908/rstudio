@@ -1,7 +1,7 @@
 /*
  * ThemeFonts.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,9 +17,6 @@ package org.rstudio.core.client.theme;
 import com.google.gwt.core.client.GWT;
 
 import org.rstudio.core.client.BrowseCap;
-import org.rstudio.core.client.StringUtil;
-import org.rstudio.studio.client.RStudioGinjector;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 
 
 public class ThemeFonts
@@ -41,11 +38,6 @@ public class ThemeFonts
    {
       String getProportionalFont();
       String getFixedWidthFont();
-   }
-   
-   public static String getFixedWidthClass()
-   {
-      return "rstudio-fixed-width-font";
    }
 
    static class DesktopThemeFontLoader implements ThemeFontLoader
@@ -90,57 +82,12 @@ public class ThemeFonts
 
       public String getFixedWidthFont()
       {
-         // First choice is the font the user specified (not available until
-         // session info is loaded)
-         String font = "";
-         if (RStudioGinjector.INSTANCE.getSession().getSessionInfo() != null)
-         {
-            UserPrefs prefs = RStudioGinjector.INSTANCE.getUserPrefs();
-            if (prefs.serverEditorFontEnabled().getValue())
-            {
-               font = prefs.serverEditorFont().getValue();
-            }
-
-            if (StringUtil.isNullOrEmpty(font))
-            {
-               // No user preference registered
-               font = "";
-            }
-            else
-            {
-               // User preference registered; remaining fonts are fallbacks
-               font = "\"" + font + "\", ";
-            }
-         }
-         
          if (BrowseCap.isMacintosh())
-            font += "Monaco, monospace";
+            return "Monaco, monospace";
          else if (BrowseCap.isLinux())
-            font += "\"Ubuntu Mono\", \"Droid Sans Mono\", \"DejaVu Sans Mono\", monospace";
+            return "\"Ubuntu Mono\", \"Droid Sans Mono\", \"DejaVu Sans Mono\", monospace";
          else
-            font += "Consolas, \"Lucida Console\", monospace";
-         
-         return font;
+            return "Consolas, \"Lucida Console\", monospace";
       }
-   }
-
-   /**
-    * Empty implementation of theme font loader used for test mock
-    */
-   static class EmptyThemeFontLoader implements ThemeFontLoader
-   {
-
-      @Override
-      public String getProportionalFont()
-      {
-         return "";
-      }
-
-      @Override
-      public String getFixedWidthFont()
-      {
-         return "";
-      }
-      
    }
 }

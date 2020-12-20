@@ -1,7 +1,7 @@
 /*
  * DesktopInfo.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,7 +23,7 @@
 #include <QThread>
 
 #include <core/Algorithm.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 #include <core/system/Process.hpp>
 #include <core/system/Environment.hpp>
 #include <core/system/Process.hpp>
@@ -119,7 +119,7 @@ void buildFontDatabase()
                &result);
 
       bool didReturnFonts =
-            !error &&
+            error == Success() &&
             result.exitStatus == EXIT_SUCCESS &&
             !result.stdOut.empty();
 

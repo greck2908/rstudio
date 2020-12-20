@@ -1,7 +1,7 @@
 /*
  * ToolbarButton.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -25,7 +25,6 @@ import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
 import com.google.gwt.user.client.ui.FocusWidget;
 import com.google.gwt.user.client.ui.Widget;
-import org.rstudio.core.client.ClassIds;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.command.ImageResourceProvider;
 import org.rstudio.core.client.command.SimpleImageResourceProvider;
@@ -55,7 +54,12 @@ public class ToolbarButton extends FocusWidget
                                       final HandlerManager eventBus,
                                       final GwtEvent<? extends T> targetEvent)
    {
-      this(text, title, leftImg, event -> eventBus.fireEvent(targetEvent));
+      this(text, title, leftImg, new ClickHandler() {
+         public void onClick(ClickEvent event)
+         {
+           eventBus.fireEvent(targetEvent);
+         }
+      });
    }
    
    public ToolbarButton(String text,
@@ -70,7 +74,7 @@ public class ToolbarButton extends FocusWidget
                         String title,
                         ImageResource leftImage)
    {
-      this(text, title, new SimpleImageResourceProvider(leftImage), null);
+      this(text, title, new SimpleImageResourceProvider(leftImage), (ClickHandler)null);
    }
    
    public ToolbarButton(String text,
@@ -103,7 +107,6 @@ public class ToolbarButton extends FocusWidget
       super();
 
       setElement(binder.createAndBindUi(this));
-      setClassId(null);
 
       this.setStylePrimaryName(styles_.toolbarButton());
       this.addStyleName(styles_.handCursor());
@@ -158,50 +161,58 @@ public class ToolbarButton extends FocusWidget
       
       hasHandlers_.addHandler(ClickEvent.getType(), clickHandler);
 
-      final HandlerRegistration mouseDown = addMouseDownHandler(event ->
+      final HandlerRegistration mouseDown = addMouseDownHandler(new MouseDownHandler()
       {
-         event.preventDefault();
-         event.stopPropagation();
-
-         addStyleName(styles_.toolbarButtonPushed());
-         down_ = true;
-      });
-
-      final HandlerRegistration mouseOut = addMouseOutHandler(event ->
-      {
-         event.preventDefault();
-         event.stopPropagation();
-
-         removeStyleName(styles_.toolbarButtonPushed());
-         down_ = false;
-      });
-
-      final HandlerRegistration mouseUp = addMouseUpHandler(event ->
-      {
-         event.preventDefault();
-         event.stopPropagation();
-
-         if (down_)
+         public void onMouseDown(MouseDownEvent event)
          {
-            down_ = false;
-            removeStyleName(styles_.toolbarButtonPushed());
+            event.preventDefault();
+            event.stopPropagation();
 
-            NativeEvent clickEvent = Document.get().createClickEvent(
-                  1,
-                  event.getScreenX(),
-                  event.getScreenY(),
-                  event.getClientX(),
-                  event.getClientY(),
-                  event.getNativeEvent().getCtrlKey(),
-                  event.getNativeEvent().getAltKey(),
-                  event.getNativeEvent().getShiftKey(),
-                  event.getNativeEvent().getMetaKey());
-            DomEvent.fireNativeEvent(clickEvent, hasHandlers_);
+            addStyleName(styles_.toolbarButtonPushed());
+            down_ = true;
          }
       });
 
-      final HandlerRegistration keyPress = addKeyPressHandler(event ->
+      final HandlerRegistration mouseOut = addMouseOutHandler(new MouseOutHandler()
       {
+         public void onMouseOut(MouseOutEvent event)
+         {
+            event.preventDefault();
+            event.stopPropagation();
+
+            removeStyleName(styles_.toolbarButtonPushed());
+            down_ = false;
+         }
+      });
+
+      final HandlerRegistration mouseUp = addMouseUpHandler(new MouseUpHandler()
+      {
+         public void onMouseUp(MouseUpEvent event)
+         {
+            event.preventDefault();
+            event.stopPropagation();
+
+            if (down_)
+            {
+               down_ = false;
+               removeStyleName(styles_.toolbarButtonPushed());
+
+               NativeEvent clickEvent = Document.get().createClickEvent(
+                     1,
+                     event.getScreenX(),
+                     event.getScreenY(),
+                     event.getClientX(),
+                     event.getClientY(),
+                     event.getNativeEvent().getCtrlKey(),
+                     event.getNativeEvent().getAltKey(),
+                     event.getNativeEvent().getShiftKey(),
+                     event.getNativeEvent().getMetaKey());
+               DomEvent.fireNativeEvent(clickEvent, hasHandlers_);
+            }
+         }
+      });
+
+      final HandlerRegistration keyPress = addKeyPressHandler(event -> {
          char charCode = event.getCharCode();
          if (charCode == KeyCodes.KEY_ENTER || charCode == KeyCodes.KEY_SPACE)
          {
@@ -211,13 +222,16 @@ public class ToolbarButton extends FocusWidget
          }
       });
 
-      return () ->
+      return new HandlerRegistration()
       {
-         mouseDown.removeHandler();
-         mouseOut.removeHandler();
-         mouseUp.removeHandler();
-         keyPress.removeHandler();
-      };
+         public void removeHandler()
+         {
+            mouseDown.removeHandler();
+            mouseOut.removeHandler();
+            mouseUp.removeHandler();
+            keyPress.removeHandler();
+         }
+      }; 
    }
    
    public void click()
@@ -251,32 +265,6 @@ public class ToolbarButton extends FocusWidget
    public void setLeftImage(ImageResource imageResource)
    {
       leftImageWidget_.setResource(imageResource);
-   }
-
-   public void setClassId(String name)
-   {
-      if (!StringUtil.isNullOrEmpty(displayClassId_))
-         ClassIds.removeClassId(getElement(), displayClassId_);
-
-      displayClassId_ = ClassIds.TOOLBAR_BTN + "_" + ClassIds.idSafeString(getTitle());
-      if (!StringUtil.isNullOrEmpty(name))
-         displayClassId_ += "_" + ClassIds.idSafeString(name);
-
-      ClassIds.assignClassId(getElement(), displayClassId_);
-   }
-
-   public void setText(boolean visible, String text)
-   {
-      if (visible)
-      {
-         setText(text);
-         Roles.getButtonRole().setAriaLabelProperty(getElement(), "");
-      }
-      else
-      {
-         setText("");
-         Roles.getButtonRole().setAriaLabelProperty(getElement(), text);
-      }
    }
 
    public void setText(String label)
@@ -319,13 +307,9 @@ public class ToolbarButton extends FocusWidget
          Roles.getButtonRole().setAriaLabelProperty(getElement(), title);
    }
 
-   // Class name displayed by Help / Diagnostics / Show DOM Elements command. A default value is
-   // set in the constructor, but this can be updated to be more specific.
-   private String displayClassId_;
-
    private boolean down_;
    
-   private final SimpleHasHandlers hasHandlers_ = new SimpleHasHandlers();
+   private SimpleHasHandlers hasHandlers_ = new SimpleHasHandlers();
    
    interface Binder extends UiBinder<Element, ToolbarButton> { }
 

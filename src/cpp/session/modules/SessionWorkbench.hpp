@@ -1,7 +1,7 @@
 /*
  * SessionWorkbench.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -56,7 +56,7 @@ void ammendShellPaths(T* pTarget)
 #ifdef _WIN32
    // msys_ssh path
    core::system::addToPath(pTarget,
-                           session::options().msysSshPath().getAbsolutePath());
+                           session::options().msysSshPath().absolutePath());
 #endif
 }
 

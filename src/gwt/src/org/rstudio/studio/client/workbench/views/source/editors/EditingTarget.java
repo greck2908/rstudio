@@ -1,7 +1,7 @@
 /*
  * EditingTarget.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,6 +18,7 @@ import com.google.gwt.event.logical.shared.HasCloseHandlers;
 import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.ui.HasValue;
 import com.google.gwt.user.client.ui.IsWidget;
+import com.google.inject.Provider;
 
 import org.rstudio.core.client.command.AppCommand;
 import org.rstudio.core.client.events.HasEnsureHeightHandlers;
@@ -27,10 +28,7 @@ import org.rstudio.studio.client.common.ReadOnlyValue;
 import org.rstudio.studio.client.common.filetypes.FileIcon;
 import org.rstudio.studio.client.common.filetypes.FileType;
 import org.rstudio.studio.client.common.filetypes.TextFileType;
-import org.rstudio.studio.client.palette.model.CommandPaletteEntrySource;
 import org.rstudio.studio.client.workbench.model.UnsavedChangesTarget;
-import org.rstudio.studio.client.workbench.views.source.SourceColumn;
-import org.rstudio.studio.client.workbench.views.source.editors.EditingTargetSource.EditingTargetNameProvider;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Position;
 import org.rstudio.studio.client.workbench.views.source.events.CollabEditStartParams;
 import org.rstudio.studio.client.workbench.views.source.model.SourceDocument;
@@ -42,8 +40,7 @@ public interface EditingTarget extends IsWidget,
                                        HasEnsureVisibleHandlers,
                                        HasEnsureHeightHandlers,
                                        HasCloseHandlers<Void>,
-                                       UnsavedChangesTarget,
-                                       CommandPaletteEntrySource
+                                       UnsavedChangesTarget
 {
    String getId();
    
@@ -77,19 +74,13 @@ public interface EditingTarget extends IsWidget,
    void onDeactivate();
 
    void onInitiallyLoaded();
-   
+
    void recordCurrentNavigationPosition();
    void navigateToPosition(SourcePosition position, 
                            boolean recordCurrent);
    void navigateToPosition(SourcePosition position, 
                            boolean recordCurrent,
                            boolean highlightLine);
-   void navigateToPosition(SourcePosition position,
-                           boolean recordCurrent,
-                           boolean highlightLine,
-                           boolean moveCursor,
-                           Command onNavigationCompleted);
-
    void restorePosition(SourcePosition position);
    SourcePosition currentPosition();
    boolean isAtSourceRow(SourcePosition position);
@@ -139,11 +130,10 @@ public interface EditingTarget extends IsWidget,
     */
    void revertChanges(Command onCompleted);
 
-   void initialize(SourceColumn column,
-                   SourceDocument document,
+   void initialize(SourceDocument document,
                    FileSystemContext fileContext,
                    FileType type,
-                   EditingTargetNameProvider defaultNameProvider);
+                   Provider<String> defaultNameProvider);
 
    /**
     * Any bigger than this, and the file should NOT be allowed to open
@@ -156,13 +146,7 @@ public interface EditingTarget extends IsWidget,
    long getLargeFileSize();
    
    String getDefaultNamePrefix();
-
-   /**
-    * @return Summary of the pane's current state for screen readers (read out 
-    * loud by user request)
-    */
-   public String getCurrentStatus();
-
+   
    public final static int DISMISS_TYPE_CLOSE = 0;
    public final static int DISMISS_TYPE_MOVE = 1;
 }

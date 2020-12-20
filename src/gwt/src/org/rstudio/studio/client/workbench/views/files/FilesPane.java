@@ -1,7 +1,7 @@
 /*
  * FilesPane.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -31,12 +31,10 @@ import org.rstudio.core.client.cellview.ColumnSortInfo;
 import org.rstudio.core.client.command.AppCommand;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.resources.ImageResource2x;
-import org.rstudio.core.client.widget.Operation;
 import org.rstudio.core.client.widget.OperationWithInput;
 import org.rstudio.core.client.widget.ProgressOperationWithInput;
 import org.rstudio.core.client.widget.Toolbar;
 import org.rstudio.core.client.widget.ToolbarPopupMenu;
-import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.FileDialogs;
 import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.common.filetypes.FileTypeRegistry;
@@ -48,7 +46,6 @@ import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.model.RemoteFileSystemContext;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.SessionInfo;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 import org.rstudio.studio.client.workbench.ui.WorkbenchPane;
 import org.rstudio.studio.client.workbench.views.console.shell.assist.PopupPositioner;
 import org.rstudio.studio.client.workbench.views.files.model.DirectoryListing;
@@ -64,19 +61,16 @@ public class FilesPane extends WorkbenchPane implements Files.Display
    public FilesPane(GlobalDisplay globalDisplay,
                     FileDialogs fileDialogs,
                     Commands commands,
-                    EventBus events,
                     FileTypeRegistry fileTypeRegistry,
                     Session session,
-                    Provider<FileCommandToolbar> pFileCommandToolbar,
-                    Provider<UserPrefs> pPrefs)
+                    Provider<FileCommandToolbar> pFileCommandToolbar)
    {
-      super("Files", events);
-      globalDisplay_ = globalDisplay;
+      super("Files");
+      globalDisplay_ = globalDisplay ;
       commands_ = commands;
       fileDialogs_ = fileDialogs;
       fileTypeRegistry_ = fileTypeRegistry;
       pFileCommandToolbar_ = pFileCommandToolbar;
-      pPrefs_ = pPrefs;
       session_ = session;
       ensureWidget();
    }
@@ -212,17 +206,13 @@ public class FilesPane extends WorkbenchPane implements Files.Display
                      String targetURL,
                      FileSystemItem targetDirectory, 
                      RemoteFileSystemContext fileSystemContext,
-                     Operation beginOperation,
-                     OperationWithInput<PendingFileUpload> completedOperation,
-                     Operation failedOperation)
+                     OperationWithInput<PendingFileUpload> completedOperation)
    {
       FileUploadDialog dlg = new FileUploadDialog(targetURL, 
                                                   targetDirectory,
                                                   fileDialogs_,
                                                   fileSystemContext,
-                                                  beginOperation,
-                                                  completedOperation,
-                                                  failedOperation);
+                                                  completedOperation);
       dlg.showModal();
    } 
    
@@ -302,10 +292,7 @@ public class FilesPane extends WorkbenchPane implements Files.Display
             session_.getSessionInfo().getCloudFolderEnabled());
 
       // create file list and file progress
-      filesList_ = new FilesList(new DisplayObserverProxy(), fileTypeRegistry_,
-            pPrefs_.get().sortFileNamesNaturally().getValue() ? 
-               FilesList.SortOrder.Natural :
-               FilesList.SortOrder.Lexicographic);
+      filesList_ = new FilesList(new DisplayObserverProxy(), fileTypeRegistry_);
 
       DockLayoutPanel dockPanel = new DockLayoutPanel(Unit.PX);
       dockPanel.addNorth(filePathToolbar_, filePathToolbar_.getHeight());
@@ -345,9 +332,9 @@ public class FilesPane extends WorkbenchPane implements Files.Display
    }
 
    private boolean needsInit = false;
-   private FilesList filesList_;
+   private FilesList filesList_ ;
    private FilePathToolbar filePathToolbar_;
-   private final GlobalDisplay globalDisplay_;
+   private final GlobalDisplay globalDisplay_ ;
    private final FileDialogs fileDialogs_;
    private Files.Display.Observer observer_;
    private final Session session_;
@@ -355,5 +342,4 @@ public class FilesPane extends WorkbenchPane implements Files.Display
    private final FileTypeRegistry fileTypeRegistry_;
    private final Commands commands_;
    private final Provider<FileCommandToolbar> pFileCommandToolbar_;
-   private final Provider<UserPrefs> pPrefs_;
 }

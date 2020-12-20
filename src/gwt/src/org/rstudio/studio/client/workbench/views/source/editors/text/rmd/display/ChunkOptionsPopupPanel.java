@@ -1,7 +1,7 @@
 /*
  * ChunkOptionsPopupPanel.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -27,7 +27,6 @@ import org.rstudio.core.client.dom.DomUtils;
 import org.rstudio.core.client.dom.DomUtils.NativeEventHandler;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.widget.FormLabel;
-import org.rstudio.core.client.widget.LayoutGrid;
 import org.rstudio.core.client.widget.MiniPopupPanel;
 import org.rstudio.core.client.widget.ProgressIndicator;
 import org.rstudio.core.client.widget.ProgressOperationWithInput;
@@ -40,18 +39,23 @@ import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.common.FileDialogs;
 import org.rstudio.studio.client.common.FilePathUtils;
 import org.rstudio.studio.client.common.HelpLink;
+import org.rstudio.studio.client.workbench.WorkbenchContext;
 import org.rstudio.studio.client.workbench.model.RemoteFileSystemContext;
 import org.rstudio.studio.client.workbench.views.source.editors.text.DocDisplay;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Position;
 
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.Scheduler;
+import com.google.gwt.core.client.Scheduler.ScheduledCommand;
 import com.google.gwt.dom.client.NativeEvent;
 import com.google.gwt.dom.client.Style.Unit;
+import com.google.gwt.event.dom.client.ChangeEvent;
+import com.google.gwt.event.dom.client.ChangeHandler;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.event.dom.client.KeyCodes;
 import com.google.gwt.event.dom.client.KeyUpEvent;
+import com.google.gwt.event.dom.client.KeyUpHandler;
 import com.google.gwt.event.logical.shared.ValueChangeEvent;
 import com.google.gwt.event.logical.shared.ValueChangeHandler;
 import com.google.gwt.resources.client.ClientBundle;
@@ -83,7 +87,8 @@ public abstract class ChunkOptionsPopupPanel extends MiniPopupPanel
    protected abstract void revert();
    
    @Inject
-   private void initialize(FileDialogs fileDialogs,
+   private void initialize(WorkbenchContext workbench,
+                           FileDialogs fileDialogs,
                            RemoteFileSystemContext rfsContext)
    {
       fileDialogs_ = fileDialogs;
@@ -97,8 +102,8 @@ public abstract class ChunkOptionsPopupPanel extends MiniPopupPanel
       
       RStudioGinjector.INSTANCE.injectMembers(this);
       
-      chunkOptions_ = new HashMap<>();
-      originalChunkOptions_ = new HashMap<>();
+      chunkOptions_ = new HashMap<String, String>();
+      originalChunkOptions_ = new HashMap<String, String>();
       
       panel_ = new VerticalPanel();
       add(panel_);
@@ -110,37 +115,52 @@ public abstract class ChunkOptionsPopupPanel extends MiniPopupPanel
       
       tbChunkLabel_ = new TextBoxWithCue("Unnamed chunk");
       tbChunkLabel_.addStyleName(RES.styles().textBox());
-      tbChunkLabel_.addChangeHandler(changeEvent -> synchronize());
-      
-      panel_.addHandler(keyUpEvent ->
+      tbChunkLabel_.addChangeHandler(new ChangeHandler()
       {
-         int keyCode = keyUpEvent.getNativeKeyCode();
-         if (keyCode == KeyCodes.KEY_ESCAPE ||
-             keyCode == KeyCodes.KEY_ENTER)
+         @Override
+         public void onChange(ChangeEvent event)
          {
-            ChunkOptionsPopupPanel.this.hide();
-            display_.focus();
-            return;
+            synchronize();
+         }
+      });
+      
+      panel_.addHandler(new KeyUpHandler()
+      {
+         @Override
+         public void onKeyUp(KeyUpEvent event)
+         {
+            int keyCode = event.getNativeKeyCode();
+            if (keyCode == KeyCodes.KEY_ESCAPE ||
+                keyCode == KeyCodes.KEY_ENTER)
+            {
+               ChunkOptionsPopupPanel.this.hide();
+               display_.focus();
+               return;
+            }
          }
       }, KeyUpEvent.getType());
       
-      tbChunkLabel_.addKeyUpHandler(keyUpEvent ->
+      tbChunkLabel_.addKeyUpHandler(new KeyUpHandler()
       {
-         int keyCode = keyUpEvent.getNativeKeyCode();
-         if (keyCode == KeyCodes.KEY_ESCAPE ||
-             keyCode == KeyCodes.KEY_ENTER)
+         @Override
+         public void onKeyUp(KeyUpEvent event)
          {
-            ChunkOptionsPopupPanel.this.hide();
-            display_.focus();
-            return;
+            int keyCode = event.getNativeKeyCode();
+            if (keyCode == KeyCodes.KEY_ESCAPE ||
+                keyCode == KeyCodes.KEY_ENTER)
+            {
+               ChunkOptionsPopupPanel.this.hide();
+               display_.focus();
+               return;
+            }
+            
+            synchronize();
+            
          }
-         
-         synchronize();
-         
       });
       
       int gridRows = includeChunkNameUI ? 2 : 1;
-      LayoutGrid nameAndOutputGrid = new LayoutGrid(gridRows, 2);
+      Grid nameAndOutputGrid = new Grid(gridRows, 2);
 
       chunkLabel_ = new FormLabel("Chunk Name:", tbChunkLabel_);
       chunkLabel_.addStyleName(RES.styles().chunkLabel());
@@ -165,47 +185,49 @@ public abstract class ChunkOptionsPopupPanel extends MiniPopupPanel
       for (String option : options)
          outputComboBox_.addItem(option);
       
-      outputComboBox_.addChangeHandler(changeEvent ->
+      outputComboBox_.addChangeHandler(new ChangeHandler()
       {
-         String value = outputComboBox_.getItemText(outputComboBox_.getSelectedIndex());
-         if (value == OUTPUT_USE_DOCUMENT_DEFAULT)
+         @Override
+         public void onChange(ChangeEvent event)
          {
-            unset("echo");
-            unset("eval");
-            unset("include");
+            String value = outputComboBox_.getItemText(outputComboBox_.getSelectedIndex());
+            if (value == OUTPUT_USE_DOCUMENT_DEFAULT)
+            {
+               unset("echo");
+               unset("eval");
+               unset("include");
+            }
+            else if (value == OUTPUT_SHOW_CODE_AND_OUTPUT)
+            {
+               set("echo", "TRUE");
+               unset("eval");
+               unset("include");
+            }
+            else if (value == OUTPUT_SHOW_OUTPUT_ONLY)
+            {
+               set("echo", "FALSE");
+               unset("eval");
+               unset("include");
+            }
+            else if (value == OUTPUT_SHOW_NOTHING)
+            {
+               unset("echo");
+               unset("eval");
+               set("include", "FALSE");
+            }
+            else if (value == OUTPUT_SKIP_THIS_CHUNK)
+            {
+               set("eval", "FALSE");
+               set("include", "FALSE");
+               unset("echo");
+            }
+            synchronize();
          }
-         else if (value == OUTPUT_SHOW_CODE_AND_OUTPUT)
-         {
-            set("echo", "TRUE");
-            unset("eval");
-            unset("include");
-         }
-         else if (value == OUTPUT_SHOW_OUTPUT_ONLY)
-         {
-            set("echo", "FALSE");
-            unset("eval");
-            unset("include");
-         }
-         else if (value == OUTPUT_SHOW_NOTHING)
-         {
-            unset("echo");
-            unset("eval");
-            set("include", "FALSE");
-         }
-         else if (value == OUTPUT_SKIP_THIS_CHUNK)
-         {
-            set("eval", "FALSE");
-            set("include", "FALSE");
-            unset("echo");
-         }
-         synchronize();
       });
       
       int row = includeChunkNameUI ? 1 : 0;
-      FormLabel outputLabel = new FormLabel("Output:");
-      nameAndOutputGrid.setWidget(row, 0, outputLabel);
+      nameAndOutputGrid.setWidget(row, 0, new Label("Output:"));
       nameAndOutputGrid.setWidget(row, 1, outputComboBox_);
-      outputLabel.setFor(outputComboBox_);
       
       panel_.add(nameAndOutputGrid);
       
@@ -257,13 +279,13 @@ public abstract class ChunkOptionsPopupPanel extends MiniPopupPanel
       figureDimensionsPanel_.getElement().getStyle().setMarginTop(5, Unit.PX);
       
       figWidthBox_ = makeInputBox("fig.width", false);
-      FormLabel widthLabel = new FormLabel("Width (inches):", figWidthBox_);
+      Label widthLabel = new Label("Width (inches):");
       widthLabel.getElement().getStyle().setMarginLeft(20, Unit.PX);
       figureDimensionsPanel_.setWidget(0, 0, widthLabel);
       figureDimensionsPanel_.setWidget(0, 1, figWidthBox_);
       
       figHeightBox_ = makeInputBox("fig.height", false);
-      FormLabel heightLabel = new FormLabel("Height (inches):", figHeightBox_);
+      Label heightLabel = new Label("Height (inches):");
       heightLabel.getElement().getStyle().setMarginLeft(20, Unit.PX);
       figureDimensionsPanel_.setWidget(1, 0, heightLabel);
       figureDimensionsPanel_.setWidget(1, 1, figHeightBox_);
@@ -339,18 +361,28 @@ public abstract class ChunkOptionsPopupPanel extends MiniPopupPanel
       
       revertButton_ = new SmallButton("Revert");
       revertButton_.getElement().getStyle().setMarginRight(8, Unit.PX);
-      revertButton_.addClickHandler(clickEvent ->
+      revertButton_.addClickHandler(new ClickHandler()
       {
-         revert();
-         hideAndFocusEditor();
+         
+         @Override
+         public void onClick(ClickEvent event)
+         {
+            revert();
+            hideAndFocusEditor();
+         }
       });
       buttonPanel.add(revertButton_);
       
       applyButton_ = new SmallButton("Apply");
-      applyButton_.addClickHandler(clickEvent ->
+      applyButton_.addClickHandler(new ClickHandler()
       {
-         synchronize();
-         hideAndFocusEditor();
+         
+         @Override
+         public void onClick(ClickEvent event)
+         {
+            synchronize();
+            hideAndFocusEditor();
+         }
       });
       buttonPanel.add(applyButton_);
       
@@ -383,25 +415,29 @@ public abstract class ChunkOptionsPopupPanel extends MiniPopupPanel
       DomUtils.addKeyHandlers(box, new NativeEventHandler()
       {
          @Override
-         public void onNativeEvent(NativeEvent nativeEvent)
+         public void onNativeEvent(NativeEvent event)
          {
-            Scheduler.get().scheduleDeferred(() ->
+            Scheduler.get().scheduleDeferred(new ScheduledCommand()
             {
-               String text = box.getText().trim();
-               boolean isEmpty = StringUtil.isNullOrEmpty(text);
-               
-               if (enquote && !isEmpty)
+               @Override
+               public void execute()
                {
-                  text = StringUtil.ensureQuoted(text);
-                  text = text.replaceAll("\\\\", "\\\\\\\\");
+                  String text = box.getText().trim();
+                  boolean isEmpty = StringUtil.isNullOrEmpty(text);
+                  
+                  if (enquote && !isEmpty)
+                  {
+                     text = StringUtil.ensureQuoted(text);
+                     text = text.replaceAll("\\\\", "\\\\\\\\");
+                  }
+                  
+                  if (isEmpty)
+                     unset(option);
+                  else
+                     set(option, text);
+                  
+                  synchronize();
                }
-               
-               if (isEmpty)
-                  unset(option);
-               else
-                  set(option, text);
-               
-               synchronize();
             });
          }
       });
@@ -599,7 +635,7 @@ public abstract class ChunkOptionsPopupPanel extends MiniPopupPanel
    
    protected Map<String, String> sortedOptions(Map<String, String> options)
    {
-      List<Map.Entry<String, String>> entries = new ArrayList<>(options.entrySet());
+      List<Map.Entry<String, String>> entries = new ArrayList<Map.Entry<String, String>>(options.entrySet());
 
       Collections.sort(entries, new Comparator<Map.Entry<String, String>>() {
          public int compare(Map.Entry<String, String> a, Map.Entry<String, String> b)
@@ -616,7 +652,7 @@ public abstract class ChunkOptionsPopupPanel extends MiniPopupPanel
          }
       });
 
-      LinkedHashMap<String, String> sortedMap = new LinkedHashMap<>();
+      LinkedHashMap<String, String> sortedMap = new LinkedHashMap<String, String>();
       for (Map.Entry<String, String> entry : entries) {
          sortedMap.put(entry.getKey(), entry.getValue());
       }
@@ -695,4 +731,5 @@ public abstract class ChunkOptionsPopupPanel extends MiniPopupPanel
    // Injected ----
    protected FileDialogs fileDialogs_;
    protected RemoteFileSystemContext rfsContext_;
+   
 }

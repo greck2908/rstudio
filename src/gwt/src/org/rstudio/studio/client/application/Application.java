@@ -1,7 +1,7 @@
 /*
  * Application.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -26,6 +26,8 @@ import com.google.gwt.dom.client.Style.Display;
 import com.google.gwt.dom.client.Style.Unit;
 import com.google.gwt.event.logical.shared.CloseEvent;
 import com.google.gwt.event.logical.shared.CloseHandler;
+import com.google.gwt.event.logical.shared.ValueChangeEvent;
+import com.google.gwt.event.logical.shared.ValueChangeHandler;
 import com.google.gwt.http.client.URL;
 import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.Timer;
@@ -46,11 +48,12 @@ import org.rstudio.core.client.command.Handler;
 import org.rstudio.core.client.dom.DocumentEx;
 import org.rstudio.core.client.dom.DomUtils;
 import org.rstudio.core.client.dom.WindowEx;
-import org.rstudio.core.client.widget.ModalDialogTracker;
+import org.rstudio.core.client.events.BarrierReleasedEvent;
+import org.rstudio.core.client.events.BarrierReleasedHandler;
+import org.rstudio.core.client.widget.Operation;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.ApplicationQuit.QuitContext;
 import org.rstudio.studio.client.application.events.*;
-import org.rstudio.studio.client.application.events.AriaLiveStatusEvent.Timing;
 import org.rstudio.studio.client.application.model.InvalidSessionInfo;
 import org.rstudio.studio.client.application.model.ProductEditionInfo;
 import org.rstudio.studio.client.application.model.ProductInfo;
@@ -60,6 +63,7 @@ import org.rstudio.studio.client.application.ui.AboutDialog;
 import org.rstudio.studio.client.application.ui.RTimeoutOptions;
 import org.rstudio.studio.client.application.ui.RequestLogVisualization;
 import org.rstudio.studio.client.common.GlobalDisplay;
+import org.rstudio.studio.client.common.SimpleRequestCallback;
 import org.rstudio.studio.client.common.SuperDevMode;
 import org.rstudio.studio.client.common.mathjax.MathJaxLoader;
 import org.rstudio.studio.client.common.satellite.Satellite;
@@ -74,18 +78,18 @@ import org.rstudio.studio.client.workbench.Workbench;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.events.LastChanceSaveEvent;
 import org.rstudio.studio.client.workbench.events.SessionInitEvent;
+import org.rstudio.studio.client.workbench.model.Agreement;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.SessionInfo;
 import org.rstudio.studio.client.workbench.model.SessionOpener;
 import org.rstudio.studio.client.workbench.model.SessionUtils;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
-import org.rstudio.studio.client.workbench.prefs.model.UserState;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 
 @Singleton
 public class Application implements ApplicationEventHandlers
 {
    public interface Binder extends CommandBinder<Commands, Application> {}
-
+   
    @Inject
    public Application(ApplicationView view,
                       GlobalDisplay globalDisplay,
@@ -99,8 +103,7 @@ public class Application implements ApplicationEventHandlers
                       ApplicationUncaughtExceptionHandler uncaughtExHandler,
                       ApplicationTutorialApi tutorialApi,
                       SessionOpener sessionOpener,
-                      Provider<UserPrefs> userPrefs,
-                      Provider<UserState> userState,
+                      Provider<UIPrefs> uiPrefs,
                       Provider<Workbench> workbench,
                       Provider<EventBus> eventBusProvider,
                       Provider<ClientStateUpdater> clientStateUpdater,
@@ -111,7 +114,7 @@ public class Application implements ApplicationEventHandlers
                       Provider<ProductEditionInfo> pEdition)
    {
       // save references
-      view_ = view;
+      view_ = view ;
       globalDisplay_ = globalDisplay;
       events_ = events;
       session_ = session;
@@ -120,8 +123,7 @@ public class Application implements ApplicationEventHandlers
       clientStateUpdater_ = clientStateUpdater;
       server_ = server;
       sessionOpener_ = sessionOpener;
-      userPrefs_ = userPrefs;
-      userState_ = userState;
+      uiPrefs_ = uiPrefs;
       workbench_ = workbench;
       eventBusProvider_ = eventBusProvider;
       pClientInit_ = pClientInit;
@@ -132,10 +134,10 @@ public class Application implements ApplicationEventHandlers
 
       // bind to commands
       binder.bind(commands_, this);
-
+      
       // register as main window
       satelliteManager.initialize();
-
+         
       // subscribe to events
       events.addHandler(LogoutRequestedEvent.TYPE, this);
       events.addHandler(UnauthorizedEvent.TYPE, this);
@@ -143,7 +145,7 @@ public class Application implements ApplicationEventHandlers
       events.addHandler(ReloadWithLastChanceSaveEvent.TYPE, this);
       events.addHandler(QuitEvent.TYPE, this);
       events.addHandler(SuicideEvent.TYPE, this);
-      events.addHandler(SessionAbendWarningEvent.TYPE, this);
+      events.addHandler(SessionAbendWarningEvent.TYPE, this);    
       events.addHandler(SessionSerializationEvent.TYPE, this);
       events.addHandler(SessionRelaunchEvent.TYPE, this);
       events.addHandler(ServerUnavailableEvent.TYPE, this);
@@ -152,14 +154,12 @@ public class Application implements ApplicationEventHandlers
       events.addHandler(InvalidSessionEvent.TYPE, this);
       events.addHandler(SwitchToRVersionEvent.TYPE, this);
       events.addHandler(SessionInitEvent.TYPE, this);
-      events.addHandler(FileUploadEvent.TYPE, this);
-      events.addHandler(AriaLiveStatusEvent.TYPE, this);
-
+      
       // register for uncaught exceptions
       uncaughtExHandler.register();
    }
-
-   public void go(final RootLayoutPanel rootPanel,
+     
+   public void go(final RootLayoutPanel rootPanel, 
                   final RTimeoutOptions timeoutOptions,
                   final Command dismissLoadingProgress,
                   final ServerRequestCallback<String> connectionStatusCallback)
@@ -169,6 +169,11 @@ public class Application implements ApplicationEventHandlers
       Widget w = view_.getWidget();
       rootPanel.add(w);
 
+      // a11y landmarks, we are a role=application, but wrapping that in a role=main helps
+      // placate various automated accessibility checks
+      rootPanel.getElement().setAttribute("role", "main");
+      w.getElement().setAttribute("role", "application");
+
       rootPanel.setWidgetTopBottom(w, 0, Style.Unit.PX, 0, Style.Unit.PX);
       rootPanel.setWidgetLeftRight(w, 0, Style.Unit.PX, 0, Style.Unit.PX);
 
@@ -176,43 +181,40 @@ public class Application implements ApplicationEventHandlers
 
          public void onResponseReceived(final SessionInfo sessionInfo)
          {
-            // initialize workbench
-            // if this is a switch project then wait to dismiss the
-            // loading progress animation for 10 seconds. typically
-            // this will be enough time to switch projects. if it
-            // isn't then it's nice to reveal whatever progress
-            // operation or error state is holding up the switch
-            // directly to the user
-            if (ApplicationAction.isSwitchProject())
-            {
-               new Timer() {
-                  @Override
-                  public void run()
+            // initialize workbench after verifying agreement
+            verifyAgreement(sessionInfo, new Operation() {
+               public void execute()
+               {
+                  // if this is a switch project then wait to dismiss the 
+                  // loading progress animation for 10 seconds. typically
+                  // this will be enough time to switch projects. if it
+                  // isn't then it's nice to reveal whatever progress 
+                  // operation or error state is holding up the switch
+                  // directly to the user
+                  if (ApplicationAction.isSwitchProject())
+                  {
+                     new Timer() {
+                        @Override
+                        public void run()
+                        {
+                           dismissLoadingProgress.execute();
+                        }   
+                     }.schedule(10000);  
+                  }
+                  else
                   {
                      dismissLoadingProgress.execute();
                   }
-               }.schedule(10000);
-            }
-            else
-            {
-               dismissLoadingProgress.execute();
-            }
-
-            session_.setSessionInfo(sessionInfo);
-
-            // load MathJax
-            MathJaxLoader.ensureMathJaxLoaded();
-
-            // initialize workbench
-            // refresh prefs incase they were loaded without sessionInfo (this happens exclusively
-            // in desktop mode, though unsure why)
-            userState_.get().writeState(boolArg ->
-            {
-               userPrefs_.get().writeUserPrefs(boolArg1 ->
-               {
+                  
+                  session_.setSessionInfo(sessionInfo);
+                  
+                  // load MathJax
+                  MathJaxLoader.ensureMathJaxLoaded();
+                  
+                  // initialize workbench
                   initializeWorkbench();
-               });
-            });
+               }
+            }); 
          }
 
          public void onError(ServerError error)
@@ -220,32 +222,21 @@ public class Application implements ApplicationEventHandlers
             Debug.logError(error);
             dismissLoadingProgress.execute();
 
-            if (!StringUtil.isNullOrEmpty(error.getRedirectUrl()))
-            {
-               // error is informing us that we should redirect
-               // redirect to the specified URL (as a sub URL of the site's root)
-               String redirectUrl = ApplicationUtils.getHostPageBaseURLWithoutContext(false) +
-            		   error.getRedirectUrl();
-               navigateWindowWithDelay(redirectUrl);
-            }
-            else
-            {
-               globalDisplay_.showErrorMessage("RStudio Initialization Error",
-                                               error.getUserMessage());
-            }
+            globalDisplay_.showErrorMessage("RStudio Initialization Error",
+                                            error.getUserMessage());
          }
       };
-
+      
       final ApplicationClientInit clientInit = pClientInit_.get();
 
       if (timeoutOptions != null)
       {
          timeoutOptions.setObserver(clientInit);
       }
-
+      
       // read options from querystring
       SessionInitOptions options = SessionInitOptions.create(
-            SessionInitOptions.RESTORE_WORKSPACE_DEFAULT,
+            SessionInitOptions.RESTORE_WORKSPACE_DEFAULT, 
             SessionInitOptions.RUN_RPROFILE_DEFAULT);
       try
       {
@@ -273,44 +264,26 @@ public class Application implements ApplicationEventHandlers
       clientInit.execute(callback, options, true);
 
       sessionOpener_.getJobConnectionStatus(connectionStatusCallback);
-   }
-
+   }  
+   
    @Handler
    public void onShowToolbar()
    {
       setToolbarPref(true);
    }
-
+   
    @Handler
    public void onHideToolbar()
    {
       setToolbarPref(false);
    }
-
+   
    @Handler
    public void onToggleToolbar()
    {
       setToolbarPref(!view_.isToolbarShowing());
    }
-
-   @Handler
-   public void onFocusMainToolbar()
-   {
-      view_.focusToolbar();
-   }
-
-   @Handler
-   void onSignOut()
-   {
-      events_.fireEvent(new LogoutRequestedEvent());
-   }
-
-   @Handler
-   void onLoadServerHome()
-   {
-      loadUserHomePage();
-   }
-
+   
    @Handler
    void onShowAboutDialog()
    {
@@ -329,7 +302,7 @@ public class Application implements ApplicationEventHandlers
          }
       });
    }
-
+   
    @Handler
    void onShowLicenseDialog()
    {
@@ -347,68 +320,38 @@ public class Application implements ApplicationEventHandlers
          pEdition_.get().showSessionServerOptionsDialog();
       }
    }
-
-   @Override
+   
    public void onUnauthorized(UnauthorizedEvent event)
    {
-      // if the user is currently uploading a file (which potentially takes a long time)
-      // and we were to navigate them, they would be unable to complete the upload
-      if (!fileUploadInProgress_)
-      {
-         server_.disconnect();
-         navigateToSignIn();
-      }
-   }
-
-   @Override
-   public void onFileUpload(FileUploadEvent event)
-   {
-      fileUploadInProgress_ = event.inProgress();
-   }
-
-   @Override
-   public void onAriaLiveStatus(AriaLiveStatusEvent event)
-   {
-      int delayMs = (event.getTiming() == Timing.IMMEDIATE) ?
-            0 : userPrefs_.get().typingStatusDelayMs().getValue();
-      if (!ModalDialogTracker.dispatchAriaLiveStatus(event.getMessage(), delayMs, event.getSeverity()))
-         view_.reportStatus(event.getMessage(), delayMs, event.getSeverity());
-   }
-
-   @Override
+      navigateToSignIn();
+   }   
+   
    public void onServerOffline(ServerOfflineEvent event)
    {
       cleanupWorkbench();
       view_.showApplicationOffline();
    }
-
-   @Override
+    
    public void onLogoutRequested(LogoutRequestedEvent event)
    {
       cleanupWorkbench();
-
+      
       // create an invisible form to host the sign-out process
       FormElement form = DocumentEx.get().createFormElement();
       form.setMethod("POST");
       form.setAction(absoluteUrl("auth-sign-out", true));
       form.getStyle().setDisplay(Display.NONE);
-
+      
       InputElement csrfToken = DocumentEx.get().createHiddenInputElement();
       csrfToken.setName(CSRF_TOKEN_FIELD);
       csrfToken.setValue(ApplicationCsrfToken.getCsrfToken());
       form.appendChild(csrfToken);
-
+      
       // append the form to the document and submit it
       DocumentEx.get().getBody().appendChild(form);
       form.submit();
-
-      if (Desktop.isRemoteDesktop())
-      {
-         // let the desktop application know that we are signing out
-         Desktop.getFrame().signOut();
-      }
    }
-
+   
    @Handler
    public void onHelpUsingRStudio()
    {
@@ -418,19 +361,30 @@ public class Application implements ApplicationEventHandlers
       else
          globalDisplay_.openRStudioLink("docs");
    }
-
+   
+   private void showAgreement()
+   {
+      globalDisplay_.openWindow(server_.getApplicationURL("agreement"));
+   }
+   
    @Handler
    public void onRstudioCommunityForum()
    {
       globalDisplay_.openRStudioLink("community-forum");
    }
-
+   
    @Handler
    public void onRstudioSupport()
    {
       globalDisplay_.openRStudioLink("support");
    }
 
+   @Handler
+   public void onRstudioAgreement()
+   {
+      showAgreement();
+   }
+   
    @Handler
    public void onUpdateCredentials()
    {
@@ -446,7 +400,7 @@ public class Application implements ApplicationEventHandlers
    public final native void onRaiseException2() /*-{
       $wnd.welfkjweg();
    }-*/;
-
+   
    @Handler
    public void onShowRequestLog()
    {
@@ -487,15 +441,14 @@ public class Application implements ApplicationEventHandlers
    {
       SuperDevMode.reload();
    }
-
-   @Override
+   
    public void onSessionSerialization(SessionSerializationEvent event)
    {
       switch(event.getAction().getType())
       {
       case SessionSerializationAction.LOAD_DEFAULT_WORKSPACE:
          view_.showSerializationProgress(
-                         "Loading workspace" + getSuffix(event),
+                         "Loading workspace" + getSuffix(event), 
                          false, // non-modal, appears to user as std latency
                          500,   // willing to show progress earlier since
                                 // this will always be at workbench startup
@@ -503,13 +456,12 @@ public class Application implements ApplicationEventHandlers
          break;
       case SessionSerializationAction.SAVE_DEFAULT_WORKSPACE:
          view_.showSerializationProgress(
-                          "Saving workspace image" + getSuffix(event),
+                          "Saving workspace image" + getSuffix(event), 
                           true, // modal, inputs will fall dead anyway
                           0,    // show immediately
                           0);   // no timeout
          break;
       case SessionSerializationAction.SUSPEND_SESSION:
-         events_.fireEvent(new ApplicationTutorialEvent(ApplicationTutorialEvent.SESSION_SUSPEND));
          view_.showSerializationProgress(
                           "Backing up R session...",
                           true,    // modal, inputs will fall dead anyway
@@ -535,31 +487,23 @@ public class Application implements ApplicationEventHandlers
       }
    }
 
-   @Override
    public void onSessionRelaunch(SessionRelaunchEvent event)
    {
       switch (event.getType())
       {
       case RELAUNCH_INITIATED:
-         // session needs to be relaunched
-         // redirect to where the server instructed us to go
-         if (!event.getRedirectUrl().isEmpty())
-         {
-            String url = ApplicationUtils.getHostPageBaseURLWithoutContext(false) + event.getRedirectUrl();
-            navigateWindowWithDelay(url);
-         }
-         else
-         {
-            // server did not specify where to redirect - fallback to the home page
-            loadUserHomePage();
-         }
+         view_.showSerializationProgress(
+               "Relaunching R session (this may take awhile)...",
+               true, // modal - we don't want the user using the session while we relaunch it
+               0, // show immediately
+               0); // never timeout
          break;
       case RELAUNCH_COMPLETE:
          view_.hideSerializationProgress();
          break;
       }
    }
-
+   
    private String getSuffix(SessionSerializationEvent event)
    {
       SessionSerializationAction action = event.getAction();
@@ -576,13 +520,12 @@ public class Application implements ApplicationEventHandlers
          return "...";
       }
    }
-
-   @Override
+   
    public void onServerUnavailable(ServerUnavailableEvent event)
    {
       view_.hideSerializationProgress();
    }
-
+   
    @Override
    public void onSwitchToRVersion(final SwitchToRVersionEvent event)
    {
@@ -594,33 +537,35 @@ public class Application implements ApplicationEventHandlers
             String project = session_.getSessionInfo().getActiveProjectFile();
             if (project == null)
                project = Projects.NONE;
-
+            
             // do the quit
             applicationQuit.performQuit(null,
                                         saveChanges,
-                                        project,
+                                        project, 
                                         event.getRVersionSpec());
-         }
+         }   
       });
    }
 
-   @Override
    public void onReload(ReloadEvent event)
    {
       cleanupWorkbench();
-
+      
       reloadWindowWithDelay(false);
    }
-
-   @Override
+   
    public void onReloadWithLastChanceSave(ReloadWithLastChanceSaveEvent event)
    {
       Barrier barrier = new Barrier();
-      barrier.addBarrierReleasedHandler(releasedEvent ->
-      {
-         events_.fireEvent(new ReloadEvent());
-      });
+      barrier.addBarrierReleasedHandler(new BarrierReleasedHandler() {
 
+         @Override
+         public void onBarrierReleased(BarrierReleasedEvent event)
+         {
+            events_.fireEvent(new ReloadEvent());
+         }
+      });
+      
       Token token = barrier.acquire();
       try
       {
@@ -629,9 +574,9 @@ public class Application implements ApplicationEventHandlers
       finally
       {
          token.release();
-      }
+      }  
    }
-
+  
    @Override
    public void onRestartStatus(RestartStatusEvent event)
    {
@@ -645,12 +590,11 @@ public class Application implements ApplicationEventHandlers
          resumeClientStateUpdater();
       }
    }
-
-   @Override
+   
    public void onQuit(QuitEvent event)
    {
       cleanupWorkbench();
-
+      
       // only show the quit state in server mode (desktop mode has its
       // own handling triggered to process exit)
       if (!Desktop.isDesktop())
@@ -660,7 +604,7 @@ public class Application implements ApplicationEventHandlers
             String nextSessionUrl = event.getNextSessionUrl();
             sessionOpener_.switchSession(nextSessionUrl);
          }
-         else
+         else 
          {
             if (session_.getSessionInfo().getMultiSession())
             {
@@ -678,7 +622,7 @@ public class Application implements ApplicationEventHandlers
             }
 
             // attempt to close the window if this is a quit
-            // action (may or may not be able to depending on
+            // action (may or may not be able to depending on 
             // how it was created)
             if (ApplicationAction.isQuit() && !ApplicationAction.isQuitToHome())
             {
@@ -698,21 +642,21 @@ public class Application implements ApplicationEventHandlers
          }
       }
    }
-
+   
    public void loadUserHomePage()
    {
       assert session_.getSessionInfo().getShowUserHomePage();
-
+      
       navigateWindowWithDelay(
             session_.getSessionInfo().getUserHomePageUrl());
    }
-
+   
    public void reloadWindowWithDelay(final boolean baseUrlOnly)
    {
       new Timer() {
          @Override
          public void run()
-         {
+         { 
             if (baseUrlOnly)
                Window.Location.replace(GWT.getHostPageBaseURL());
             else
@@ -720,41 +664,37 @@ public class Application implements ApplicationEventHandlers
          }
       }.schedule(100);
    }
-
+   
    public void navigateWindowWithDelay(final String url)
    {
       new Timer() {
          @Override
          public void run()
-         {
+         { 
             Window.Location.replace(url);
          }
       }.schedule(100);
    }
-
-   @Override
+   
    public void onSuicide(SuicideEvent event)
-   {
+   { 
       cleanupWorkbench();
       view_.showApplicationSuicide(event.getMessage());
    }
-
-   @Override
+   
    public void onClientDisconnected(ClientDisconnectedEvent event)
    {
       cleanupWorkbench();
       view_.showApplicationDisconnected();
    }
-
-   @Override
+   
    public void onInvalidClientVersion(InvalidClientVersionEvent event)
    {
       cleanupWorkbench();
       view_.showApplicationUpdateRequired();
    }
+   
 
-
-   @Override
    public void onInvalidSession(InvalidSessionEvent event)
    {
       // calculate the url without the scope
@@ -779,7 +719,6 @@ public class Application implements ApplicationEventHandlers
       navigateWindowWithDelay(baseURL);
    }
 
-   @Override
    public void onSessionAbendWarning(SessionAbendWarningEvent event)
    {
       view_.showSessionAbendWarning();
@@ -814,16 +753,80 @@ public class Application implements ApplicationEventHandlers
       }
       if (!StringUtil.isNullOrEmpty(warning))
       {
-         globalDisplay_.showWarningBar(false,
+         globalDisplay_.showWarningBar(false, 
                "This R session was started in safe mode. " + warning);
       }
    }
-
+   
+   private void verifyAgreement(SessionInfo sessionInfo,
+                              final Operation verifiedOperation)
+   {
+      // get the agreement (if any)
+      final Agreement agreement = sessionInfo.pendingAgreement();
+      
+      // if there is an agreement then prompt user for agreement (otherwise just
+      // execute the verifiedOperation immediately)
+      if (agreement != null)
+      {
+         // append updated to the title if necessary
+         String title = agreement.getTitle();
+         if (agreement.getUpdated())
+            title += " (Updated)";
+         
+         view_.showApplicationAgreement(
+            
+            // title and contents   
+            title,
+            agreement.getContents(),
+             
+            // bail to sign in page if the user doesn't confirm
+            new Operation()
+            {
+               public void execute()
+               {
+                  if (Desktop.isDesktop())
+                  {
+                     Desktop.getFrame().setPendingQuit(
+                                       DesktopFrame.PENDING_QUIT_AND_EXIT);
+                     server_.quitSession(false,
+                                         null,
+                                         null,
+                                         GWT.getHostPageBaseURL(),
+                                         new SimpleRequestCallback<Boolean>());
+                  }
+                  else
+                     navigateToSignIn();
+               }
+            },
+        
+            // user confirmed
+            new Operation() {
+               public void execute()
+               {
+                  // call verified operation
+                  verifiedOperation.execute();
+                  
+                  // record agreement on server
+                  server_.acceptAgreement(agreement, 
+                                          new VoidServerRequestCallback());
+               } 
+            }
+            
+         );
+         
+      }
+      else
+      {
+         // no agreement pending
+         verifiedOperation.execute();
+      }
+   }
+   
    private void navigateWindowTo(String relativeUrl)
    {
       navigateWindowTo(relativeUrl, true);
    }
-
+   
    private void navigateWindowTo(String relativeUrl, boolean includeContext)
    {
       cleanupWorkbench();
@@ -831,14 +834,14 @@ public class Application implements ApplicationEventHandlers
       // navigate window
       Window.Location.replace(absoluteUrl(relativeUrl, includeContext));
    }
-
+   
    private String absoluteUrl(String relativeUrl, boolean includeContext)
    {
       // ensure there is no session context if requested
-      String url = includeContext ?
+      String url = includeContext ? 
             GWT.getHostPageBaseURL() :
             ApplicationUtils.getHostPageBaseURLWithoutContext(true);
-
+            
       // add relative URL
       url += relativeUrl;
 
@@ -856,11 +859,11 @@ public class Application implements ApplicationEventHandlers
       // hack to go with it here :-)
       // TODO: move this back to the constructor after we revise the
       // interrupt hack(s)
-      events_.addHandler(ClientDisconnectedEvent.TYPE, this);
-
+      events_.addHandler(ClientDisconnectedEvent.TYPE, this); 
+      
       // create workbench
       Workbench wb = workbench_.get();
-      eventBusProvider_.get().fireEvent(new SessionInitEvent());
+      eventBusProvider_.get().fireEvent(new SessionInitEvent()) ;
 
       // disable commands
       SessionInfo sessionInfo = session_.getSessionInfo();
@@ -875,41 +878,16 @@ public class Application implements ApplicationEventHandlers
          commands_.showShellDialog().remove();
          removeTerminalCommands();
       }
-
-      if (!sessionInfo.getPresentationState().isActive())
-         commands_.activatePresentation().remove();
-
-      if (!sessionInfo.getAllowVcs())
-         commands_.showVcsOptions().remove();
-
-      if (!sessionInfo.getAllowPublish())
-         commands_.showPublishingOptions().remove();
-
+      
       if (!sessionInfo.getAllowFullUI())
       {
          removeProjectCommands();
       }
-
-      if (Desktop.isDesktop() && !Desktop.isRemoteDesktop())
-         commands_.signOut().remove();
-      else if (!sessionInfo.getShowIdentity() || !sessionInfo.getAllowFullUI())
-         commands_.signOut().remove();
-
-      if (Desktop.isDesktop() ||
-         !sessionInfo.getAllowFullUI() ||
-         !sessionInfo.getShowUserHomePage() ||
-         StringUtil.isNullOrEmpty(sessionInfo.getUserHomePageUrl()))
-      {
-         commands_.loadServerHome().remove();
-      }
-
+      
       if (!sessionInfo.getLauncherJobsEnabled())
       {
          removeJobLauncherCommands();
       }
-
-      // only enable suspendSession() in devmode
-      commands_.suspendSession().setVisible(SuperDevMode.isActive());
 
       if (!sessionInfo.getAllowPackageInstallation())
       {
@@ -928,28 +906,35 @@ public class Application implements ApplicationEventHandlers
       {
          commands_.uploadFile().remove();
       }
-
+      
       // disable external publishing if requested
-      if (!SessionUtils.showExternalPublishUi(session_, userState_.get()))
+      if (!SessionUtils.showExternalPublishUi(session_, uiPrefs_.get()))
       {
          commands_.publishHTML().remove();
-      }
-
+      } 
+      
+      // hide the agreement menu item if we don't have one
+      if (!session_.getSessionInfo().hasAgreement())
+         commands_.rstudioAgreement().setVisible(false);
+           
       // remove knit params if they aren't supported
       if (!sessionInfo.getKnitParamsAvailable())
          commands_.knitWithParameters().remove();
-
+         
       // show the correct set of data import commands
-      if (userPrefs_.get().useDataimport().getValue())
+      if (uiPrefs_.get().useDataImport().getValue())
       {
          commands_.importDatasetFromFile().remove();
          commands_.importDatasetFromURL().remove();
-
+         
          commands_.importDatasetFromCsvUsingReadr().setVisible(false);
          commands_.importDatasetFromSAV().setVisible(false);
          commands_.importDatasetFromSAS().setVisible(false);
          commands_.importDatasetFromStata().setVisible(false);
-
+         commands_.importDatasetFromXML().setVisible(false);
+         commands_.importDatasetFromODBC().setVisible(false);
+         commands_.importDatasetFromJDBC().setVisible(false);
+         
          try
          {
             String rVersion = sessionInfo.getRVersionsInfo().getRVersion();
@@ -962,11 +947,28 @@ public class Application implements ApplicationEventHandlers
                commands_.importDatasetFromSAV().setVisible(true);
                commands_.importDatasetFromSAS().setVisible(true);
                commands_.importDatasetFromStata().setVisible(true);
+               
+               commands_.importDatasetFromXML().setVisible(true);
+            }
+            if (ApplicationUtils.compareVersions(rVersion, "3.0.0") >= 0)
+            {
+               commands_.importDatasetFromODBC().setVisible(true);
+            }
+            if (ApplicationUtils.compareVersions(rVersion, "2.4.0") >= 0)
+            {
+               commands_.importDatasetFromJDBC().setVisible(true);
             }
          }
          catch (Exception e)
          {
          }
+         
+         // Removing data import dialogs that are NYI
+         commands_.importDatasetFromXML().remove();
+         commands_.importDatasetFromJSON().remove();
+         commands_.importDatasetFromJDBC().remove();
+         commands_.importDatasetFromODBC().remove();
+         commands_.importDatasetFromMongo().remove();
       }
       else
       {
@@ -977,32 +979,26 @@ public class Application implements ApplicationEventHandlers
          commands_.importDatasetFromSAS().remove();
          commands_.importDatasetFromStata().remove();
          commands_.importDatasetFromXLS().remove();
+         commands_.importDatasetFromXML().remove();
+         commands_.importDatasetFromJSON().remove();
+         commands_.importDatasetFromJDBC().remove();
+         commands_.importDatasetFromODBC().remove();
+         commands_.importDatasetFromMongo().remove();
       }
-
-      Element el = Document.get().getElementById("rstudio_container");
-      if (el == null)
-      {
-         // some satellite windows don't have "rstudio_container"
-         el = view_.getWidget().getElement();
-      }
-
-      // "application" role prioritizes application keyboard handling
-      // over screen-reader shortcuts
-      el.setAttribute("role", "application");
-
+   
       // If no project, ensure we show the product-edition title; if there is a project
       // open this was already done
       if (!Desktop.isDesktop() &&
-            session_.getSessionInfo().getActiveProjectFile() == null &&
+            session_.getSessionInfo().getActiveProjectFile() == null && 
             pEdition_.get() != null)
       {
          // set title so tab has product edition name
          Document.get().setTitle(pEdition_.get().editionName());
       }
-
+       
       // show workbench
       view_.showWorkbenchView(wb.getMainView().asWidget());
-
+      
       // hide zoom in and zoom out in web mode
       if (!Desktop.hasDesktopFrame())
       {
@@ -1010,7 +1006,7 @@ public class Application implements ApplicationEventHandlers
          commands_.zoomIn().remove();
          commands_.zoomOut().remove();
       }
-
+      
       // remove main menu commands in desktop mode
       if (Desktop.hasDesktopFrame())
       {
@@ -1026,7 +1022,7 @@ public class Application implements ApplicationEventHandlers
          commands_.showToolsMenu().remove();
          commands_.showHelpMenu().remove();
       }
-
+      
       // show new session when appropriate
       if (!Desktop.hasDesktopFrame())
       {
@@ -1035,13 +1031,13 @@ public class Application implements ApplicationEventHandlers
          else
             commands_.newSession().remove();
       }
-
+      
       // show support link only in RStudio Pro
       if (pEdition_.get() != null)
       {
          if (!pEdition_.get().proLicense())
             commands_.rstudioSupport().remove();
-
+         
          // pro-only menu items
          if (!pEdition_.get().proLicense() || !Desktop.hasDesktopFrame())
          {
@@ -1049,18 +1045,24 @@ public class Application implements ApplicationEventHandlers
             commands_.showSessionServerOptionsDialog().remove();
          }
       }
-
+      
       // toolbar (must be after call to showWorkbenchView because
       // showing the toolbar repositions the workbench view widget)
-      showToolbar(userPrefs_.get().toolbarVisible().getValue(), false);
-
+      showToolbar( uiPrefs_.get().toolbarVisible().getValue());
+      
       // sync to changes in the toolbar visibility state
-      userPrefs_.get().toolbarVisible().addValueChangeHandler(
-            valueChangeEvent -> showToolbar(valueChangeEvent.getValue(), true));
-
+      uiPrefs_.get().toolbarVisible().addValueChangeHandler(
+                                          new ValueChangeHandler<Boolean>() {
+         @Override
+         public void onValueChange(ValueChangeEvent<Boolean> event)
+         {
+            showToolbar(event.getValue());
+         }
+      });
+   
       clientStateUpdaterInstance_ = clientStateUpdater_.get();
-
-      // initiate action if requested. do this after a delay
+      
+      // initiate action if requested. do this after a delay 
       // so that the source database has time to load
       // before we interrogate it for unsaved documents
       if (ApplicationAction.hasAction())
@@ -1087,17 +1089,17 @@ public class Application implements ApplicationEventHandlers
                   handleSwitchProjectAction();
                }
             }
-         }.schedule(500);
+         }.schedule(500); 
       }
    }
-
+   
    private void handleSwitchProjectAction()
-   {
+   { 
       String projectId = ApplicationAction.getId();
       if (projectId.length() > 0)
       {
          server_.getProjectFilePath(
-            projectId,
+            projectId, 
             new ServerRequestCallback<String>() {
 
                @Override
@@ -1114,46 +1116,46 @@ public class Application implements ApplicationEventHandlers
                {
                   Debug.logError(error);
                }
-
+         
             });
-      }
+      } 
    }
-
-
+ 
+   
    private void setToolbarPref(boolean showToolbar)
    {
-      userPrefs_.get().toolbarVisible().setGlobalValue(showToolbar);
-      userPrefs_.get().writeUserPrefs();
+      uiPrefs_.get().toolbarVisible().setGlobalValue(showToolbar);
+      uiPrefs_.get().writeUIPrefs();
    }
-
-   private void showToolbar(boolean showToolbar, boolean announce)
+   
+   private void showToolbar(boolean showToolbar)
    {
       // show or hide the toolbar
-      view_.showToolbar(showToolbar, announce);
-
+      view_.showToolbar(showToolbar);
+         
       // manage commands
       commands_.showToolbar().setVisible(!showToolbar);
       commands_.hideToolbar().setVisible(showToolbar);
    }
-
+      
    private void cleanupWorkbench()
    {
       server_.disconnect();
-
+      
       satelliteManager_.closeAllSatellites();
-
+     
       if (clientStateUpdaterInstance_ != null)
       {
          clientStateUpdaterInstance_.suspend();
          clientStateUpdaterInstance_ = null;
       }
    }
-
+   
    private void navigateToSignIn()
    {
       navigateWindowTo("auth-sign-in");
    }
-
+   
    private void removeTerminalCommands()
    {
       commands_.newTerminal().remove();
@@ -1167,12 +1169,6 @@ public class Application implements ApplicationEventHandlers
       commands_.interruptTerminal().remove();
       commands_.sendTerminalToEditor().remove();
       commands_.sendToTerminal().remove();
-      commands_.showTerminalOptions().remove();
-      commands_.openNewTerminalAtEditorLocation().remove();
-      commands_.sendFilenameToTerminal().remove();
-      commands_.openNewTerminalAtFilePaneLocation().remove();
-      commands_.setTerminalToCurrentDirectory().remove();
-      commands_.closeAllTerminals().remove();
    }
 
    private void removeProjectCommands()
@@ -1202,31 +1198,12 @@ public class Application implements ApplicationEventHandlers
 
    private void removeJobLauncherCommands()
    {
-      // we will not remove the launcher commands if we have session servers defined
-      Command removeCommands = () ->
-      {
-         commands_.startLauncherJob().remove();
-         commands_.sourceAsLauncherJob().remove();
-         commands_.runSelectionAsLauncherJob().remove();
-         commands_.activateLauncherJobs().remove();
-         commands_.sortLauncherJobsRecorded().remove();
-         commands_.sortLauncherJobsState().remove();
-      };
-
-      if (Desktop.hasDesktopFrame())
-      {
-         Desktop.getFrame().getSessionServers(servers ->
-         {
-            if (servers.length() == 0)
-            {
-               removeCommands.execute();
-            }
-         });
-      }
-      else
-      {
-         removeCommands.execute();
-      }
+      commands_.startLauncherJob().remove();
+      commands_.sourceAsLauncherJob().remove();
+      commands_.runSelectionAsLauncherJob().remove();
+      commands_.activateLauncherJobs().remove();
+      commands_.sortLauncherJobsRecorded().remove();
+      commands_.sortLauncherJobsState().remove();
    }
 
    private void pauseClientStateUpdater()
@@ -1234,15 +1211,15 @@ public class Application implements ApplicationEventHandlers
       if (!Desktop.isDesktop() && clientStateUpdaterInstance_ != null)
          clientStateUpdaterInstance_.pauseSendingUpdates();
    }
-
+   
    private void resumeClientStateUpdater()
    {
       if (!Desktop.isDesktop() && clientStateUpdaterInstance_ != null)
          clientStateUpdaterInstance_.resumeSendingUpdates();
    }
-
-   private final ApplicationView view_;
-   private final GlobalDisplay globalDisplay_;
+   
+   private final ApplicationView view_ ;
+   private final GlobalDisplay globalDisplay_ ;
    private final EventBus events_;
    private final Session session_;
    private final Commands commands_;
@@ -1250,8 +1227,7 @@ public class Application implements ApplicationEventHandlers
    private final Provider<ClientStateUpdater> clientStateUpdater_;
    private final Server server_;
    private final SessionOpener sessionOpener_;
-   private final Provider<UserPrefs> userPrefs_;
-   private final Provider<UserState> userState_;
+   private final Provider<UIPrefs> uiPrefs_;
    private final Provider<Workbench> workbench_;
    private final Provider<EventBus> eventBusProvider_;
    private final Provider<ApplicationClientInit> pClientInit_;
@@ -1259,9 +1235,7 @@ public class Application implements ApplicationEventHandlers
    private final Provider<ApplicationInterrupt> pApplicationInterrupt_;
    private final Provider<ProductEditionInfo> pEdition_;
    private final Provider<ApplicationThemes> pAppThemes_;
-
-   private boolean fileUploadInProgress_ = false;
-
+   
    private final String CSRF_TOKEN_FIELD = "csrf-token";
 
    private ClientStateUpdater clientStateUpdaterInstance_;

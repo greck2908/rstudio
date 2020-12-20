@@ -3,7 +3,6 @@
     xmlns:g="urn:import:com.google.gwt.user.client.ui"
     xmlns:rs="urn:import:org.rstudio.core.client.widget">
     <ui:with field="res" type="org.rstudio.core.client.theme.res.ThemeResources"/>
-    <ui:with field="ElementIds" type="org.rstudio.core.client.ElementIds"/>
     <ui:style>
         .mainPanel {
             display: -ms-flexbox;
@@ -94,21 +93,19 @@
         }
     </ui:style>
     <g:HTMLPanel styleName="{style.mainPanel}">
-        <rs:FormLabel ui:field="optionsLabel_" text="Import Options:" styleName="{style.optionsLabel}"/>
-        <div ui:field="optionsGroup_" class="{style.optionsBlock}">
+        <g:Label text="Import Options:" styleName="{style.optionsLabel}"/>
+        <div class="{style.optionsBlock}">
             <table class="{style.optionsColumn}">
                 <tr class="{style.optionsRow}">
-                    <td><rs:FormLabel text="Name:" for="{ElementIds.getDataImportOptionsName}"/></td>
+                    <td>Name:</td>
                     <td>
-                        <rs:FormTextBox ui:field="nameTextBox_" styleName="{style.nameTextBox}"
-                                        elementId="{ElementIds.getDataImportOptionsName}"/>
+                        <g:TextBox ui:field="nameTextBox_" styleName="{style.nameTextBox}"/>
                     </td>
                 </tr>
                 <tr class="{style.optionsRow}">
-                    <td><rs:FormLabel text="Skip:" for="{ElementIds.getDataImportOptionsSkip}"/></td>
+                    <td>Skip:</td>
                     <td>
-                        <rs:FormTextBox ui:field="skipTextBox_" styleName="{style.skipTextBox}"
-                                        elementId="{ElementIds.getDataImportOptionsSkip}"/>
+                        <g:TextBox ui:field="skipTextBox_" styleName="{style.skipTextBox}"/>
                     </td>
                 </tr>
             </table>
@@ -131,17 +128,15 @@
             </table>
             <table class="{style.optionsColumn}">
                 <tr class="{style.optionsRow}">
-                    <td><rs:FormLabel text="Delimiter:" for="{ElementIds.getDataImportOptionsDelimiter}"/></td>
+                    <td>Delimiter:</td>
                     <td>
-                        <rs:FormListBox ui:field="delimiterListBox_" styleName="{style.optionsListBox}"
-                                        elementId="{ElementIds.getDataImportOptionsDelimiter}"/>
+                        <g:ListBox ui:field="delimiterListBox_" styleName="{style.optionsListBox}"/>
                     </td>
                 </tr>
                 <tr class="{style.optionsRow}">
-                    <td><rs:FormLabel text="Quotes:" for="{ElementIds.getDataImportOptionsQuotes}"/></td>
+                    <td>Quotes:</td>
                     <td>
-                        <rs:FormListBox ui:field="quotesListBox_" styleName="{style.optionsListBox}"
-                                        elementId="{ElementIds.getDataImportOptionsQuotes}"/>
+                        <g:ListBox ui:field="quotesListBox_" styleName="{style.optionsListBox}" />
                     </td>
                 </tr>
                 <tr class="{style.optionsRow}">
@@ -155,24 +150,21 @@
             </table>
             <table class="{style.optionsColumn}">
                 <tr class="{style.optionsRow}">
-                    <td><rs:FormLabel text="Escape:" for="{ElementIds.getDataImportOptionsEscape}"/></td>
+                    <td>Escape:</td>
                     <td>
-                        <rs:FormListBox ui:field="escapeListBox_" styleName="{style.optionsListBox}"
-                                        elementId="{ElementIds.getDataImportOptionsEscape}" />
+                        <g:ListBox ui:field="escapeListBox_" styleName="{style.optionsListBox}" />
                     </td>
                 </tr>
                 <tr class="{style.optionsRow}">
-                    <td><rs:FormLabel text="Comment:" for="{ElementIds.getDataImportOptionsComment}"/></td>
+                    <td>Comment:</td>
                     <td>
-                        <rs:FormListBox ui:field="commentListBox_" styleName="{style.optionsListBox}"
-                                        elementId="{ElementIds.getDataImportOptionsComment}"/>
+                        <g:ListBox ui:field="commentListBox_" styleName="{style.optionsListBox}" />
                     </td>
                 </tr>
                 <tr class="{style.optionsRow}">
-                    <td><rs:FormLabel text="NA:" for="{ElementIds.getDataImportOptionsNa}" /></td>
+                    <td>NA:</td>
                     <td>
-                        <rs:FormListBox ui:field="naListBox_" styleName="{style.optionsListBox}"
-                                        elementId="{ElementIds.getDataImportOptionsNa}"/>
+                        <g:ListBox ui:field="naListBox_" styleName="{style.optionsListBox}" />
                     </td>
                 </tr>
             </table>

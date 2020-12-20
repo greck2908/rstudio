@@ -1,7 +1,7 @@
 /*
  * RGraphicsPlotManipulator.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,8 +15,8 @@
 
 #include "RGraphicsPlotManipulator.hpp"
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 
 #include <r/RExec.hpp>
 #include <r/RJson.hpp>
@@ -59,7 +59,7 @@ Error PlotManipulator::save(const FilePath& filePath) const
    // call manipulator save
    r::exec::RFunction manipSave("manipulate:::manipulatorSave");
    manipSave.addParam(sexp_.get());
-   manipSave.addParam(filePath.getAbsolutePath());
+   manipSave.addParam(filePath.absolutePath());
    return manipSave.call();
 }
 
@@ -67,7 +67,7 @@ Error PlotManipulator::load(const FilePath& filePath)
 {
    // call manipulator load
    r::exec::RFunction manipLoad("manipulate:::manipulatorLoad");
-   manipLoad.addParam(filePath.getAbsolutePath());
+   manipLoad.addParam(filePath.absolutePath());
    r::sexp::Protect rProtect;
    SEXP manipSEXP;
    Error error = manipLoad.call(&manipSEXP, &rProtect);
@@ -151,7 +151,7 @@ core::json::Value PlotManipulator::getAsJson(const std::string& name) const
 core::json::Object PlotManipulator::getControlAsJson(SEXP controlSEXP) const
 {
    // field names
-   std::vector<std::string> names;
+   std::vector<std::string> names ;
    Error error = sexp::getNames(controlSEXP, &names);
    if (error)
    {
@@ -204,7 +204,7 @@ core::json::Object PlotManipulator::getControlsAsJson() const
       {
 
          // control names
-         std::vector<std::string> controlNames;
+         std::vector<std::string> controlNames ;
          Error error = sexp::getNames(controlsSEXP, &controlNames);
          if (error)
          {

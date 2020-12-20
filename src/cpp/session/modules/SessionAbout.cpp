@@ -1,7 +1,7 @@
 /*
  * SessionAbout.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,7 @@
 
 #include "SessionAbout.hpp"
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Exec.hpp>
 #include <core/json/JsonRpc.hpp>
 
@@ -40,19 +40,9 @@ Error productInfo(const json::JsonRpcRequest& request,
    result["version"] = RSTUDIO_VERSION;
    result["commit"] = RSTUDIO_GIT_COMMIT;
    result["build"] = RSTUDIO_BUILD_ID;
-   result["release_name"] = RSTUDIO_RELEASE_NAME;
+   result["notice"] = module_context::resourceFileAsString("NOTICE");
    result["date"] = RSTUDIO_BUILD_DATE;
    result["copyright_year"] = RSTUDIO_COPYRIGHT_YEAR;
-   result["os"] = RSTUDIO_PACKAGE_OS;
-   pResponse->setResult(result);
-   return Success();
-}
-
-Error productNotice(const json::JsonRpcRequest& request,
-                    json::JsonRpcResponse* pResponse)
-{
-   json::Object result;
-   result["notice"] = module_context::resourceFileAsString("NOTICE");
    pResponse->setResult(result);
    return Success();
 }
@@ -67,7 +57,6 @@ Error initialize()
    ExecBlock initBlock;
    initBlock.addFunctions()
       (bind(registerRpcMethod, "get_product_info", productInfo))
-      (bind(registerRpcMethod, "get_product_notice", productNotice))
    ;
    return initBlock.execute();
 }

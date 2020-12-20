@@ -1,7 +1,7 @@
 /*
  * CppCompletionSignatureTip.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,6 @@ import java.util.ArrayList;
 
 import org.rstudio.core.client.Rectangle;
 import org.rstudio.core.client.resources.ImageResource2x;
-import org.rstudio.core.client.widget.DecorativeImage;
 import org.rstudio.studio.client.workbench.views.source.editors.text.DocDisplay;
 import org.rstudio.studio.client.workbench.views.source.editors.text.DocDisplay.AnchoredSelection;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Position;
@@ -28,6 +27,8 @@ import org.rstudio.studio.client.workbench.views.source.model.CppCompletion;
 
 import com.google.gwt.core.client.Scheduler;
 import com.google.gwt.core.client.Scheduler.ScheduledCommand;
+import com.google.gwt.event.dom.client.ClickEvent;
+import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.event.dom.client.KeyCodes;
 import com.google.gwt.event.shared.HandlerRegistration;
 import com.google.gwt.user.client.Event;
@@ -35,11 +36,13 @@ import com.google.gwt.user.client.Event.NativePreviewEvent;
 import com.google.gwt.user.client.Event.NativePreviewHandler;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.HorizontalPanel;
+import com.google.gwt.user.client.ui.Image;
 import com.google.gwt.user.client.ui.Label;
 
 public class CppCompletionSignatureTip extends CppCompletionToolTip
 {
-   public CppCompletionSignatureTip(CppCompletion completion, DocDisplay docDisplay)
+   public CppCompletionSignatureTip(CppCompletion completion, 
+                                    DocDisplay docDisplay)
    {
       // save references
       completion_ = completion;
@@ -77,22 +80,28 @@ public class CppCompletionSignatureTip extends CppCompletionToolTip
       HorizontalPanel panel = new HorizontalPanel();
       panel.setStyleName(RES.styles().pagingWidget());
       
-      DecorativeImage upImage = new DecorativeImage(new ImageResource2x(RES.upArrow2x()));
-      upImage.addClickHandler(event ->
-      {
-         setTextIndex(currentTextIndex_ - 1);
-         docDisplay_.setFocus(true);
+      Image upImage = new Image(new ImageResource2x(RES.upArrow2x()));
+      upImage.addClickHandler(new ClickHandler() {
+         @Override
+         public void onClick(ClickEvent event)
+         {
+            setTextIndex(currentTextIndex_ - 1);  
+            docDisplay_.setFocus(true);
+         }
       });
       panel.add(upImage);
       
       pagingLabel_ = new Label();
       panel.add(pagingLabel_);
       
-      DecorativeImage downImage = new DecorativeImage(new ImageResource2x(RES.downArrow2x()));
-      downImage.addClickHandler(event ->
-      {
-         setTextIndex(currentTextIndex_ + 1);
-         docDisplay_.setFocus(true);
+      Image downImage = new Image(new ImageResource2x(RES.downArrow2x()));
+      downImage.addClickHandler(new ClickHandler() {
+         @Override
+         public void onClick(ClickEvent event)
+         {
+            setTextIndex(currentTextIndex_ + 1);  
+            docDisplay_.setFocus(true);
+         }
       });
       panel.add(downImage);
       panel.add(downImage);
@@ -164,7 +173,8 @@ public class CppCompletionSignatureTip extends CppCompletionToolTip
    {
       // clone so we aren't interacting with the list while we
       // are iterating over it
-      ArrayList<CppCompletionSignatureTip> allTips = new ArrayList<>();
+      ArrayList<CppCompletionSignatureTip> allTips = 
+                              new ArrayList<CppCompletionSignatureTip>();
       allTips.addAll(allTips_);
       for (CppCompletionSignatureTip tip : allTips)
          tip.hide();
@@ -237,7 +247,9 @@ public class CppCompletionSignatureTip extends CppCompletionToolTip
    private final DocDisplay docDisplay_;
    private HandlerRegistration nativePreviewReg_;
    
-   private static ArrayList<CppCompletionSignatureTip> allTips_ = new ArrayList<>();
+   private static ArrayList<CppCompletionSignatureTip> allTips_ = 
+         new ArrayList<CppCompletionSignatureTip>();
    
-   private static final CppCompletionResources RES = CppCompletionResources.INSTANCE;
+   private static final CppCompletionResources RES = 
+                                       CppCompletionResources.INSTANCE;
 }

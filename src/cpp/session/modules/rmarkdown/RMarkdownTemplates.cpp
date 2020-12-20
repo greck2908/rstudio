@@ -1,7 +1,7 @@
 /*
  * RMarkdownTemplates.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,11 +15,11 @@
 
 #include "RMarkdownTemplates.hpp"
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Exec.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/StringUtils.hpp>
-#include <shared_core/json/Json.hpp>
+#include <core/json/Json.hpp>
 #include <core/json/JsonRpc.hpp>
 
 #include <r/RSexp.hpp>
@@ -53,8 +53,8 @@ class Worker : public ppe::Worker
    void onWork(const std::string& pkgName, const FilePath& pkgPath)
    {
       // form the path to the template folder
-      FilePath templateRoot = pkgPath.completePath("rmarkdown")
-                                     .completePath("templates");
+      FilePath templateRoot = pkgPath.complete("rmarkdown")
+                                     .complete("templates");
 
       // skip if this folder doesn't exist or isn't a directory
       if (!templateRoot.exists() || !templateRoot.isDirectory())
@@ -62,7 +62,7 @@ class Worker : public ppe::Worker
 
       // get a list of all template folders under the root
       std::vector<FilePath> templateDirs;
-      Error error = templateRoot.getChildren(templateDirs);
+      Error error = templateRoot.children(&templateDirs);
       if (error)
       {
          LOG_ERROR(error);
@@ -92,7 +92,7 @@ class Worker : public ppe::Worker
       r::sexp::Protect protect;
       Error error = r::exec::RFunction(
          ".rs.getTemplateYamlFile", 
-           string_utils::utf8ToSystem(templateDir.getAbsolutePath()))
+           string_utils::utf8ToSystem(templateDir.absolutePath()))
          .call(&templateFile, &protect);
 
       // .rs.getTemplateDetails may return null if the template is not
@@ -106,7 +106,7 @@ class Worker : public ppe::Worker
                                    "multi_file", &multiFile);
 
       dataJson["package_name"] = pkgName;
-      dataJson["path"] = templateDir.getAbsolutePath();
+      dataJson["path"] = templateDir.absolutePath();
       dataJson["template_yaml"] = templateYaml;
       dataJson["multi_file"] = multiFile;
 
@@ -132,11 +132,11 @@ Error getRmdTemplates(const json::JsonRpcRequest&,
    for (auto it: s_templates)
    {
       // skip if not an object type
-      if (!it.isObject())
+      if (it.type() != json::ObjectType)
          continue;
 
       // if we already know this template's name, no need to re-parse
-      json::Object item = it.getObject();
+      json::Object item = it.get_obj();
       if (item.find("name") != item.end())
       {
          result.push_back(item);
@@ -147,8 +147,8 @@ Error getRmdTemplates(const json::JsonRpcRequest&,
       bool multiFile = false;
       std::string templateYaml;
       error = json::readObject(item, 
-            "multi_file",    multiFile,
-            "template_yaml", templateYaml);
+            "multi_file",    &multiFile,
+            "template_yaml", &templateYaml);
       if (error)
          continue;
 

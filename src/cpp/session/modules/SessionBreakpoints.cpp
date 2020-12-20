@@ -1,7 +1,7 @@
 /*
  * SessionBreakpoints.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,10 +21,10 @@
 #include <boost/format.hpp>
 #include <boost/utility.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 #include <core/Exec.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 
 #include <core/json/JsonRpc.hpp>
 
@@ -37,6 +37,7 @@
 #include <r/RInternal.hpp>
 
 #include <session/SessionModuleContext.hpp>
+#include <session/SessionUserSettings.hpp>
 #include <session/projects/SessionProjects.hpp>
 
 using namespace rstudio::core;
@@ -179,10 +180,10 @@ boost::shared_ptr<Breakpoint> breakpointFromJson(const json::Object& obj)
    std::string path;
 
    Error error = json::readObject(obj,
-                                  "type", type,
-                                  "line_number", lineNumber,
-                                  "id", id,
-                                  "path", path);
+                                  "type", &type,
+                                  "line_number", &lineNumber,
+                                  "id", &id,
+                                  "path", &path);
    if (error)
       LOG_ERROR(error);
 
@@ -515,10 +516,10 @@ Error initBreakpoints()
    json::Value breakpointStateValue =
       r::session::clientState().getProjectPersistent("debug-breakpoints",
                                                      "debugBreakpointsState");
-   if (!breakpointStateValue.isNull() &&
+   if (!breakpointStateValue.is_null() &&
        json::isType<core::json::Object>(breakpointStateValue))
    {
-      json::Object breakpointState = breakpointStateValue.getObject();
+      json::Object breakpointState = breakpointStateValue.get_obj();
       
       // Protect against the breakpoint array being serialized as an
       // empty object
@@ -527,19 +528,19 @@ Error initBreakpoints()
       {
          Error error = json::errors::typeMismatch(
                   jsonBreakpointArray,
-                  json::Type::ARRAY,
+                  json::ArrayType,
                   ERROR_LOCATION);
          LOG_ERROR(error);
       }
       else
       {
-         json::Array breakpointArray = jsonBreakpointArray.getArray();
+         json::Array breakpointArray = jsonBreakpointArray.get_array();
          s_breakpoints.clear();
          for (json::Value bp : breakpointArray)
          {
             if (json::isType<core::json::Object>(bp))
             {
-               s_breakpoints.push_back(breakpointFromJson(bp.getObject()));
+               s_breakpoints.push_back(breakpointFromJson(bp.get_obj()));
             }
          }
       }
@@ -560,7 +561,7 @@ Error updateBreakpoints(const json::JsonRpcRequest& request,
    for (json::Value bp : breakpointArr)
    {
       boost::shared_ptr<Breakpoint> breakpoint
-            (breakpointFromJson(bp.getObject()));
+            (breakpointFromJson(bp.get_obj()));
       std::vector<boost::shared_ptr<Breakpoint> >::iterator psbi =
             posOfBreakpointId(breakpoint->id);
 
@@ -601,6 +602,16 @@ Error removeAllBreakpoints(const json::JsonRpcRequest&,
 
 } // anonymous namespace
 
+bool haveSrcrefAttribute()
+{
+   // check whether this is R 2.14 or greater
+   bool haveSrcref = false;
+   Error error = r::exec::evaluateString("getRversion() >= '2.14.0'", &haveSrcref);
+   if (error)
+      LOG_ERROR(error);
+   return haveSrcref;
+}
+
 bool haveAdvancedStepCommands()
 {
    bool haveCommands = false;
@@ -616,7 +627,7 @@ Error initialize()
    using boost::bind;
    using namespace module_context;
 
-   ExecBlock initBlock;
+   ExecBlock initBlock ;
    initBlock.addFunctions()
       (bind(registerRpcMethod, "get_function_state", getFunctionState))
       (bind(registerRpcMethod, "set_function_breakpoints", setBreakpoints))

@@ -1,7 +1,7 @@
 /*
  * RPackageInfo.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,10 +17,9 @@
 
 #include <boost/format.hpp>
 
-#include <core/Log.hpp>
-#include <core/text/DcfParser.hpp>
+#include <core/Error.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/text/DcfParser.hpp>
 
 namespace rstudio {
 namespace core {
@@ -34,7 +33,7 @@ Error fieldNotFoundError(const FilePath& descFilePath,
 {
    return systemError(
             boost::system::errc::protocol_error,
-            fieldName + " field not found in " + descFilePath.getAbsolutePath(),
+            fieldName + " field not found in " + descFilePath.absolutePath(),
             location);
 }
 
@@ -72,7 +71,7 @@ void readField(const Container& container,
 Error RPackageInfo::read(const FilePath& packageDir)
 {
    // parse DCF file
-   FilePath descFilePath = packageDir.completeChildPath("DESCRIPTION");
+   FilePath descFilePath = packageDir.childPath("DESCRIPTION");
    if (!descFilePath.exists())
       return core::fileNotFoundError(descFilePath, ERROR_LOCATION);
    std::string errMsg;
@@ -93,7 +92,6 @@ Error RPackageInfo::read(const FilePath& packageDir)
    readField(fields, "LinkingTo", &linkingTo_);
    readField(fields, "SystemRequirements", &systemRequirements_);
    readField(fields, "Type", &type_, kPackageType);
-   readField(fields, "RdMacros", &rdMacros_);
 
    return Success();
 }
@@ -112,7 +110,7 @@ std::string RPackageInfo::packageFilename(const std::string& extension) const
 
 bool isPackageDirectory(const FilePath& dir)
 {
-   if (dir.completeChildPath("DESCRIPTION").exists())
+   if (dir.childPath("DESCRIPTION").exists())
    {
       RPackageInfo pkgInfo;
       Error error = pkgInfo.read(dir);
@@ -129,7 +127,7 @@ bool isPackageDirectory(const FilePath& dir)
 
 std::string packageNameFromDirectory(const FilePath& dir)
 {
-   if (dir.completeChildPath("DESCRIPTION").exists())
+   if (dir.childPath("DESCRIPTION").exists())
    {
       RPackageInfo pkgInfo;
       Error error = pkgInfo.read(dir);
@@ -139,7 +137,7 @@ std::string packageNameFromDirectory(const FilePath& dir)
          return "";
       }
 
-      return pkgInfo.name();
+      return pkgInfo.name(); 
    }
    else
    {

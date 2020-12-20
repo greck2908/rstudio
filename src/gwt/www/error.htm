@@ -5,18 +5,13 @@
    <meta http-equiv="X-UA-Compatible" content="IE=edge">
    <meta name="viewport" content="width=device-width, initial-scale=1">
    <title>RStudio Server</title>
-   <script>
+   <script type="text/javascript">
       function getBaseUri()
       {
-         var baseUri = "#!base_uri#";
-         if (!baseUri)
-         {
-            baseUri = window.location.href;
-         }
-         var index = baseUri.lastIndexOf("#!request_uri#");
+         var index = window.location.href.lastIndexOf("#!request_uri#");
          if (index > 0)
          {
-            return baseUri.substring(0, index);
+            return window.location.href.substring(0, index);
          }
          return "/";
       }
@@ -33,9 +28,9 @@
       document.getElementsByTagName("head")[0].appendChild(cssLink);
       document.getElementsByTagName("head")[0].appendChild(iconLink);
    </script>
-   <style>
+   <style type="text/css">
       #banner {
-         margin-bottom: 0;
+         margin-bottom: 0px;
       }
       p {
          margin: 20px 20px 10px 20px;
@@ -49,7 +44,7 @@
    <form method="post" id="signOutForm" action="auth-sign-out">
      <input type="hidden" name="csrf-token" id="csrf-token"/>
      <div class="header-box">
-       <img alt class="logo-image" id="logo" src="/images/rstudio-logo.png" />
+       <img class="logo-image" id="logo" src="/images/rstudio-logo.png" />
        <span class="username">
         #!username#
         <input type="image" alt="Sign Out" id="signOut" src="/images/signOut.png" />
@@ -61,15 +56,15 @@
    <p>RStudio encountered an error and the request could not be processed:</p>
 
    <ul>
-      <li><b>#error_description#</b></li>
+      <b>#error_description#</b>
    </ul>
    <ul>
-      <li><b>#error_message#</b></li>
+      <b>#error_message#</b>
    </ul>
 
    <p>Please contact your system administrator for assistance, or click <a id="url" href="#" onClick="history.back();">here</a> to go back.</p>
 
-   <script>
+   <script type="text/javascript">
    
       document.getElementById("signOutForm").action = getBaseUri() + "/auth-sign-out";
       document.getElementById("signOut").src = getBaseUri() + "/images/signOut.png";

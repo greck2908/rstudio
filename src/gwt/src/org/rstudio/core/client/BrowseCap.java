@@ -1,7 +1,7 @@
 /*
  * BrowseCap.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -43,6 +43,11 @@ public class BrowseCap
 
    public static final BrowseCap INSTANCE = GWT.create(BrowseCap.class);
 
+   public boolean suppressBraceHighlighting()
+   {
+      return false;
+   }
+
    public boolean aceVerticalScrollBarIssue()
    {
       return false;
@@ -63,11 +68,16 @@ public class BrowseCap
       return (Desktop.hasDesktopFrame()) || !isSafari();
    }
    
-   public static boolean isInternetExplorer()
+   public boolean isInternetExplorer()
    {
       return isUserAgent("trident");
    }
-
+    
+   public boolean isInternetExplorer10()
+   {
+      return false;
+   }
+   
    public static boolean hasMetaKey()
    {
       return isMacintosh();
@@ -139,27 +149,10 @@ public class BrowseCap
       return isUserAgent("firefox");
    }
    
-   public static boolean isSafariOrFirefox()
-   {
-      return isSafari() || isFirefox();
-   }
-   
    public static boolean isChromeFrame()
    {
       return isUserAgent("chromeframe");
    }
-   
-   public static boolean isQtWebEngine()
-   {
-      return isUserAgent("qtwebengine");
-   }
-   
-   public static final native String qtWebEngineVersion()
-   /*-{
-      var pattern = new RegExp("QtWebEngine/([^\\s]+)", "i");
-      var match = navigator.userAgent.match(pattern)
-      return match[1] || "";
-   }-*/;
    
    public static double devicePixelRatio() 
    {
@@ -188,15 +181,10 @@ public class BrowseCap
          return "Firefox";
       else if (BrowseCap.isSafari())
          return "Safari";
-      else if (BrowseCap.isInternetExplorer())
+      else if (BrowseCap.INSTANCE.isInternetExplorer())
          return "IE";
       else
          return "Unknown";
-   }
-   
-   public static String operatingSystem()
-   {
-      return OPERATING_SYSTEM;
    }
    
    private static native final double getDevicePixelRatio() /*-{

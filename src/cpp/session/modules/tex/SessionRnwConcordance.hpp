@@ -1,7 +1,7 @@
 /*
  * SessionRnwConcordance.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,8 +22,8 @@
 
 #include <boost/utility.hpp>
 
-#include <shared_core/FilePath.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/FilePath.hpp>
+#include <core/SafeConvert.hpp>
 #include <core/tex/TexLogParser.hpp>
 
 namespace rstudio {
@@ -137,7 +137,7 @@ public:
    ~FileAndLine() {}
    // COPYING: via compiler
 
-   bool empty() const { return filePath_.isEmpty(); }
+   bool empty() const { return filePath_.empty(); }
 
    const core::FilePath& filePath() const { return filePath_; }
    int line() const { return line_; }

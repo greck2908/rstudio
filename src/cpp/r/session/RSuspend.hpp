@@ -1,7 +1,7 @@
 /*
  * RSuspend.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,7 +16,7 @@
 #ifndef R_SESSION_SUSPEND_HPP
 #define R_SESSION_SUSPEND_HPP
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 
 namespace rstudio {
 namespace r {

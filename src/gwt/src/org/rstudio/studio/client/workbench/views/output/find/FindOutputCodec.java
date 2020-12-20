@@ -1,7 +1,7 @@
 /*
  * FindOutputCodec.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,6 @@ import com.google.gwt.dom.client.TableCellElement;
 import com.google.gwt.dom.client.TableRowElement;
 import org.rstudio.core.client.CodeNavigationTarget;
 import org.rstudio.core.client.FilePosition;
-import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.widget.HeaderBreaksItemCodec;
 import org.rstudio.studio.client.workbench.views.output.find.FindOutputResources.Styles;
 import org.rstudio.studio.client.workbench.views.output.find.model.FindResult;
@@ -59,10 +58,7 @@ public class FindOutputCodec
 
       TableCellElement td2 = Document.get().createTDElement();
       td2.setClassName(styles_.lineValue());
-      if (!entry.getReplaceIndicator())
-         td2.setInnerHTML(entry.getLineHTML().asString());
-      else
-         td2.setInnerHTML(entry.getLineReplaceHTML().asString());
+      td2.setInnerHTML(entry.getLineHTML().asString());
       tr.appendChild(td2);
 
       return tr;
@@ -75,7 +71,7 @@ public class FindOutputCodec
          return false;
 
       return prevRow == null ||
-             !StringUtil.equals(prevRow.getAttribute(DATA_FILE), row.getAttribute(DATA_FILE));
+             prevRow.getAttribute(DATA_FILE) != row.getAttribute(DATA_FILE);
    }
 
    @Override
@@ -120,7 +116,7 @@ public class FindOutputCodec
       return true;
    }
 
-   private final Styles styles_;
+   private Styles styles_;
 
    private static final String DATA_FILE = "data-file";
    private static final String DATA_LINE = "data-line";

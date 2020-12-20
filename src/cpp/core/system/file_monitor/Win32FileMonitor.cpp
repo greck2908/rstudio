@@ -1,7 +1,7 @@
 /*
  * Win32FileMonitor.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,9 +23,8 @@
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/algorithm/string/classification.hpp>
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 
-#include <core/Thread.hpp>
 #include <core/system/FileScanner.hpp>
 #include <core/system/System.hpp>
 
@@ -42,18 +41,13 @@ namespace {
 // buffer size for notifications (cannot be > 64kb for network drives)
 const std::size_t kBuffSize = 32768;
 
-// handle registry (use a mutex to protect access as we might attempt
-// to register and de-register from main vs. monitor thread)
-boost::mutex s_handleMutex;
-std::set<Handle> s_handleRegistry;
-
 class FileEventContext : boost::noncopyable
 {
 public:
    FileEventContext()
       : recursive(false),
         hDirectory(nullptr),
-        completionsPending(false),
+        readDirChangesPending(false),
         hRestartTimer(nullptr),
         restartCount(0)
    {
@@ -71,15 +65,12 @@ public:
    bool recursive;
    HANDLE hDirectory;
 
-   // flag set to indicate if ReadDirectoryChangesW() has been called,
-   // but the completion handler has not yet been invoked in response
-   bool completionsPending;
-
    // structures/buffers used to reach changes (and flag used to
    // determine whether the system may write into these buffers)
    OVERLAPPED overlapped;
    std::vector<BYTE> receiveBuffer;
    std::vector<BYTE> handlingBuffer;
+   bool readDirChangesPending;
 
    // our own snapshot of the file tree
    tree<FileInfo> fileTree;
@@ -100,8 +91,7 @@ void safeCloseHandle(HANDLE hObject, const ErrorLocation& location)
    {
       if (!::CloseHandle(hObject))
       {
-         auto error = LAST_SYSTEM_ERROR();
-         core::log::logError(error, location);
+         LOG_ERROR(LAST_SYSTEM_ERROR());
       }
    }
 }
@@ -133,13 +123,10 @@ void cleanupContext(FileEventContext* pContext)
       pContext->hRestartTimer = nullptr;
    }
 
-   // let the client know we are unregistered
-   pContext->callbacks.onUnregistered(pContext->handle);
-
-   // delete the context only if there isn't a pending
-   // request for completions -- if there is a pending request,
-   // the completion handler will handle cleanup of the context
-   if (!pContext->completionsPending)
+   // delete pContext only if there are no read dir changes operations
+   // pending -- if there are then we wait to delete pContext until
+   // the completion routine gets ERROR_OPERATION_ABORTED
+   if (!pContext->readDirChangesPending)
       delete pContext;
 }
 
@@ -152,12 +139,12 @@ void ensureLongFilePath(FilePath* pFilePath)
 {
    // get the filename, if it is 12 characters or less and it contains
    // a "~" then it may be a short file name. in that case do the conversion
-   std::string filename = pFilePath->getFilename();
+   std::string filename = pFilePath->filename();
    if (filename.length() <= 12 && filename.find('~') != std::string::npos)
    {
       const std::size_t kBuffSize = (MAX_PATH*2) + 1;
       char buffer[kBuffSize];
-      if (::GetLongPathName(pFilePath->getAbsolutePath().c_str(),
+      if (::GetLongPathName(pFilePath->absolutePath().c_str(),
                             buffer,
                             kBuffSize) > 0)
       {
@@ -182,13 +169,13 @@ void processFileChange(DWORD action,
    // does for any reason we want to prevent it from interfering
    // with the logic below (which assumes a child path)
    if (filePath.isDirectory() &&
-      (filePath.getAbsolutePath() == pTree->begin()->absolutePath()))
+      (filePath.absolutePath() == pTree->begin()->absolutePath()))
    {
       return;
    }
 
    // get an iterator to this file's parent
-   FileInfo parentFileInfo = FileInfo(filePath.getParent());
+   FileInfo parentFileInfo = FileInfo(filePath.parent());
    tree<FileInfo>::iterator parentIt = impl::findFile(pTree->begin(),
                                                       pTree->end(),
                                                       parentFileInfo);
@@ -249,7 +236,7 @@ void processFileChanges(FileEventContext* pContext,
 
    // cycle through the entries in the buffer
    char* pBuffer = (char*)&pContext->handlingBuffer[0];
-   while (true)
+   while(true)
    {
       // check for buffer pointer which has overflowed the end (apparently this
       // can happen if the underlying directory is deleted)
@@ -268,7 +255,7 @@ void processFileChanges(FileEventContext* pContext,
       std::wstring name(fileNotify.FileName,
                         fileNotify.FileNameLength/sizeof(wchar_t));
       removeTrailingSlash(&name);
-      FilePath filePath(pContext->rootPath.getAbsolutePathW() + L"\\" + name);
+      FilePath filePath(pContext->rootPath.absolutePathW() + L"\\" + name);
 
       // ensure this is a long file name (docs say it could be short or long!)
       // (note that the call to GetLongFileNameW will fail if the file has
@@ -316,12 +303,12 @@ bool isRecoverableByRestart(const Error& error)
    return
       // undocumented return value that indicates we should do a restart
       // (see: http://blogs.msdn.com/b/oldnewthing/archive/2011/08/12/10195186.aspx)
-      error.getCode() == ERROR_NOTIFY_ENUM_DIR ||
+      error.code().value() == ERROR_NOTIFY_ENUM_DIR ||
 
       // error which some users have observed occuring if a network
       // volume is being monitored and there are too many simultaneous
       // reads and writes
-      error.getCode() == ERROR_TOO_MANY_CMDS;
+      error.code().value() == ERROR_TOO_MANY_CMDS;
 }
 
 Error readDirectoryChanges(FileEventContext* pContext);
@@ -406,20 +393,36 @@ void enqueRestartMonitoring(FileEventContext* pContext)
    }
 }
 
-VOID CALLBACK FileChangeCompletionRoutine(DWORD dwErrorCode,
+// track number of active requests (we wait for this to get to zero before
+// allowing the exit of the monitoring thread -- this ensures that we have
+// performed full cleanup for all monitoring contexts before exiting.
+volatile LONG s_activeRequests = 0;
+
+VOID CALLBACK FileChangeCompletionRoutine(DWORD dwErrorCode,									// completion code
                                           DWORD dwNumberOfBytesTransfered,
                                           LPOVERLAPPED lpOverlapped)
 {
    // get the context
    FileEventContext* pContext = (FileEventContext*)(lpOverlapped->hEvent);
 
-   // the completion handler is now running, so unset pending flag
-   pContext->completionsPending = false;
+   // note that read changes is no longer pending
+   pContext->readDirChangesPending = false;
 
-   // check for abort or other indication that the context was cleaned up
-   if (dwErrorCode == ERROR_OPERATION_ABORTED || pContext->hDirectory == nullptr)
+   // check for aborted
+   if (dwErrorCode == ERROR_OPERATION_ABORTED)
    {
-      delete pContext;
+      // decrement the active request counter
+      ::InterlockedDecrement(&s_activeRequests);
+
+      // let the client know we are unregistered (note this call should always
+      // be prior to delete pContext below!)
+      pContext->callbacks.onUnregistered(pContext->handle);
+
+      // we wait to delete the pContext until here because it owns the
+      // OVERLAPPED structure and buffers, and so if we deleted it earlier
+      // and the OS tried to access those memory regions we would crash
+      delete pContext; 
+
       return;
    }
 
@@ -432,7 +435,7 @@ VOID CALLBACK FileChangeCompletionRoutine(DWORD dwErrorCode,
    // make sure the root path still exists (if it doesn't then bail)
    if (!pContext->rootPath.exists())
    {
-      Error error = fileNotFoundError(pContext->rootPath.getAbsolutePath(),
+      Error error = fileNotFoundError(pContext->rootPath.absolutePath(),
                                       ERROR_LOCATION);
       terminateWithMonitoringError(pContext, error);
       return;
@@ -441,7 +444,7 @@ VOID CALLBACK FileChangeCompletionRoutine(DWORD dwErrorCode,
    // check for buffer overflow. this means there are too many file changes
    // for the systme to keep up with -- in this case try to restart monitoring
    // (after a 1 second delay) and repeat the restart up to 10 times
-   if (dwNumberOfBytesTransfered == 0)
+   if(dwNumberOfBytesTransfered == 0)
    {
       // attempt to restart monitoring
       enqueRestartMonitoring(pContext);
@@ -472,25 +475,46 @@ VOID CALLBACK FileChangeCompletionRoutine(DWORD dwErrorCode,
 Error readDirectoryChanges(FileEventContext* pContext)
 {
    DWORD dwBytes = 0;
-   BOOL ok = ::ReadDirectoryChangesW(
-       pContext->hDirectory,
-       &(pContext->receiveBuffer[0]),
-       static_cast<DWORD>(pContext->receiveBuffer.size()),
-       pContext->recursive ? TRUE : FALSE,
-       FILE_NOTIFY_CHANGE_FILE_NAME |
-           FILE_NOTIFY_CHANGE_DIR_NAME |
-           FILE_NOTIFY_CHANGE_LAST_WRITE,
-       &dwBytes,
-       &(pContext->overlapped),
-       &FileChangeCompletionRoutine);
-
-   if (!ok)
+   if(!::ReadDirectoryChangesW(pContext->hDirectory,
+                               &(pContext->receiveBuffer[0]),
+                               static_cast<DWORD>(pContext->receiveBuffer.size()),
+                               pContext->recursive ? TRUE : FALSE,
+                               FILE_NOTIFY_CHANGE_FILE_NAME |
+                               FILE_NOTIFY_CHANGE_DIR_NAME |
+                               FILE_NOTIFY_CHANGE_LAST_WRITE,
+                               &dwBytes,
+                               &(pContext->overlapped),
+                               &FileChangeCompletionRoutine))
+   {
       return LAST_SYSTEM_ERROR();
+   }
+   else
+   {
+      pContext->readDirChangesPending = true;
+      return Success();
+   }
+}
 
-   // set flag indicating that completion handler is ready to run
-   pContext->completionsPending = true;
+bool monitorFilter(const FileInfo& fileInfo,
+                   const boost::function<bool(const FileInfo&)>& filter)
+{
+   // screen out '.git' folder
+   if (fileInfo.isDirectory() &&
+       boost::algorithm::ends_with(fileInfo.absolutePath(), "/.git"))
+   {
+      return false;
+   }
 
-   return Success();
+   // screen out 'packrat' folder
+   if (fileInfo.isDirectory() &&
+       boost::algorithm::ends_with(fileInfo.absolutePath(), "/packrat") &&
+       FilePath(fileInfo.absolutePath() + "/packrat.lock").exists())
+   {
+      return false;
+   }
+
+   // delegate to registered filter
+   return filter(fileInfo);
 }
 
 } // anonymous namespace
@@ -510,14 +534,14 @@ Handle registerMonitor(const core::FilePath& filePath,
 
    // save the wide absolute path (notifications only come in wide strings)
    // strip any trailing slash for predictable append semantics
-   std::wstring wpath = filePath.getAbsolutePathW();
+   std::wstring wpath = filePath.absolutePathW();
    removeTrailingSlash(&wpath);
    pContext->rootPath = FilePath(wpath);
    pContext->recursive = recursive;
 
    // open the directory
    pContext->hDirectory = ::CreateFileW(
-                     filePath.getAbsolutePathW().c_str(),
+                     filePath.absolutePathW().c_str(),
                      FILE_LIST_DIRECTORY,
                      FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                      nullptr,
@@ -552,23 +576,24 @@ Handle registerMonitor(const core::FilePath& filePath,
    // the completion callback
    autoPtrContext.release();
 
+   // increment the number of active requests
+   ::InterlockedIncrement(&s_activeRequests);
+
    // scan the files
    core::system::FileScannerOptions options;
    options.recursive = recursive;
    options.yield = true;
-   options.filter = filter;
+   options.filter = boost::bind(monitorFilter, _1, filter);
    error = scanFiles(FileInfo(filePath), options, &pContext->fileTree);
-
    if (error)
    {
-      // cleanup
-      cleanupContext(pContext);
+       // cleanup
+       cleanupContext(pContext);
 
-      // return error
-      callbacks.onRegistrationError(error);
+       // return error
+       callbacks.onRegistrationError(error);
 
-      // otherwise just return empty handle
-      return Handle();
+       return Handle();
    }
 
    // now that we have finished the file listing we know we have a valid
@@ -579,13 +604,6 @@ Handle registerMonitor(const core::FilePath& filePath,
    // notify the caller that we have successfully registered
    callbacks.onRegistered(pContext->handle, pContext->fileTree);
 
-   // register handle
-   LOCK_MUTEX(s_handleMutex)
-   {
-      s_handleRegistry.insert(pContext->handle);
-   }
-   END_LOCK_MUTEX
-
    // return the handle
    return pContext->handle;
 }
@@ -593,28 +611,23 @@ Handle registerMonitor(const core::FilePath& filePath,
 // unregister a file monitor
 void unregisterMonitor(Handle handle)
 {
-   // unregister handle
-   LOCK_MUTEX(s_handleMutex)
-   {
-      s_handleRegistry.erase(handle);
-   }
-   END_LOCK_MUTEX
-
-   // clean up context
+   // this will end up calling the completion routine with
+   // ERROR_OPERATION_ABORTED at which point we'll delete the context
    cleanupContext((FileEventContext*)(handle.pData));
 }
 
 void run(const boost::function<void()>& checkForInput)
 {
+   // initialize active requests to zero
+   s_activeRequests = 0;
+
    // loop waiting for:
    //   - completion routine callbacks (occur during SleepEx); or
    //   - inbound commands (occur during checkForInput)
    while (true)
    {
       // look for changes and keep calling SleepEx as long as we have them
-      while (::SleepEx(1, TRUE) == WAIT_IO_COMPLETION)
-      {
-      }
+      while(::SleepEx(1, TRUE) == WAIT_IO_COMPLETION) ;
 
       checkForInput();
    }
@@ -622,16 +635,11 @@ void run(const boost::function<void()>& checkForInput)
 
 void stop()
 {
-   // stop any active requests
-   LOCK_MUTEX(s_handleMutex)
+   // call ::SleepEx until all active requests hae terminated
+   while (s_activeRequests > 0)
    {
-      for (Handle handle : s_handleRegistry)
-      {
-         FileEventContext* pContext = (FileEventContext*)handle.pData;
-         cleanupContext(pContext);
-      }
+      ::SleepEx(100, TRUE);
    }
-   END_LOCK_MUTEX
 }
 
 } // namespace detail

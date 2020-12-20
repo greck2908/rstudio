@@ -1,7 +1,7 @@
 /*
  * NotebookDocQueue.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -60,12 +60,12 @@ NotebookDocQueue::NotebookDocQueue(const std::string& docId,
    if (error)
       return;
 
-   json::readObject(vals, kChunkDefaultOptions, defaultOptions_);
+   json::readObject(vals, kChunkDefaultOptions, &defaultOptions_);
    
    // read the default working dir; if it specifies a valid directory, use it
    // as the working directory for executing chunks in this document
    std::string docWorkingDir;
-   json::readObject(vals, kChunkWorkingDir, docWorkingDir);
+   json::readObject(vals, kChunkWorkingDir, &docWorkingDir);
    if (!docWorkingDir.empty())
    {
       // working directory set in setup chunk (i.e. knitr root.dir) takes
@@ -79,7 +79,7 @@ NotebookDocQueue::NotebookDocQueue(const std::string& docId,
    }
 
    // read external code chunk contents
-   json::readObject(vals, kChunkExternals, externalChunks_);
+   json::readObject(vals, kChunkExternals, &externalChunks_);
 }
 
 boost::shared_ptr<NotebookQueueUnit> NotebookDocQueue::firstUnit()
@@ -93,7 +93,7 @@ json::Object NotebookDocQueue::toJson() const
 {
    // serialize all the queue units 
    json::Array units;
-   for (const boost::shared_ptr<NotebookQueueUnit>& unit : queue_)
+   for (const boost::shared_ptr<NotebookQueueUnit> unit : queue_)
    {
       units.push_back(unit->toJson());
    }
@@ -102,7 +102,7 @@ json::Object NotebookDocQueue::toJson() const
    json::Object queue;
    queue[kDocQueueId]             = docId_;
    queue[kDocQueueJobDesc]        = jobDesc_;
-   queue[kDocQueueWorkingDir]     = workingDir_.getAbsolutePath();
+   queue[kDocQueueWorkingDir]     = workingDir_.absolutePath();
    queue[kDocQueueCommitMode]     = commitMode_;
    queue[kDocQueuePixelWidth]     = pixelWidth_;
    queue[kDocQueueCharWidth]      = charWidth_;
@@ -117,18 +117,18 @@ core::Error NotebookDocQueue::fromJson(const core::json::Object& source,
    boost::shared_ptr<NotebookDocQueue>* pQueue)
 {
    // extract contained unit for manipulation
-   json::Array units;
+   json::Array units; 
    int commitMode = 0, pixelWidth = 0, charWidth = 0, maxUnits = 0;
    std::string docId, jobDesc, workingDir;
    Error error = json::readObject(source, 
-         kDocQueueId,         docId,
-         kDocQueueJobDesc,    jobDesc,
-         kDocQueueWorkingDir, workingDir,
-         kDocQueueCommitMode, commitMode,
-         kDocQueuePixelWidth, pixelWidth,
-         kDocQueueCharWidth,  charWidth,
-         kDocQueueUnits,      units,
-         kDocQueueMaxUnits,   maxUnits);
+         kDocQueueId,         &docId,
+         kDocQueueJobDesc,    &jobDesc,
+         kDocQueueWorkingDir, &workingDir,
+         kDocQueueCommitMode, &commitMode,
+         kDocQueuePixelWidth, &pixelWidth,
+         kDocQueueCharWidth,  &charWidth,
+         kDocQueueUnits,      &units, 
+         kDocQueueMaxUnits,   &maxUnits);
    if (error)
       return error;
 
@@ -140,12 +140,12 @@ core::Error NotebookDocQueue::fromJson(const core::json::Object& source,
    for (const json::Value val : units)
    {
       // ignore non-objects
-      if (!val.isObject())
+      if (val.type() != json::ObjectType)
          continue;
 
       boost::shared_ptr<NotebookQueueUnit> pUnit = 
          boost::make_shared<NotebookQueueUnit>();
-      Error error = NotebookQueueUnit::fromJson(val.getObject(), &pUnit);
+      Error error = NotebookQueueUnit::fromJson(val.get_obj(), &pUnit);
       if (error)
          LOG_ERROR(error);
       else
@@ -269,13 +269,13 @@ void NotebookDocQueue::setWorkingDir(const std::string& workingDir, WorkingDirSo
       // have one, and the current directory if we don't
       core::FilePath docParentPath = docPath_.empty() ? 
          FilePath::safeCurrentPath(module_context::userHomePath()) :
-         module_context::resolveAliasedPath(docPath_).getParent();
-      dir = docParentPath.completeChildPath(workingDir);
+         module_context::resolveAliasedPath(docPath_).parent();
+      dir = docParentPath.childPath(workingDir);
    }
 
    // remove any trailing / or .
-   if (!dir.isEmpty() && (dir.getStem().empty() || dir.getStem() == "."))
-      dir = dir.getParent();
+   if (!dir.empty() && (dir.stem().empty() || dir.stem() == "."))
+      dir = dir.parent();
 
    // if this is a real directory, use it; otherwise, use an empty path, which
    // causes use to use the document's path as the working directory
@@ -300,14 +300,14 @@ void NotebookDocQueue::setExternalChunks(const json::Object& chunks)
 
 std::string NotebookDocQueue::externalChunk(const std::string& label) const
 {
-   json::Object::Iterator it = externalChunks_.find(label);
+   json::Object::iterator it = externalChunks_.find(label);
    std::string code;
    if (it == externalChunks_.end())
    {
       // no chunk with this label 
       return code;
    }
-   else if (!(*it).getValue().isArray())
+   else if ((*it).value().type() != json::ArrayType)
    {
       // the JSON object representing the external chunks should contain an
       // array of strings representing the lines of code in the chunk
@@ -316,12 +316,12 @@ std::string NotebookDocQueue::externalChunk(const std::string& label) const
    else
    {
       // extract each line of code
-      const json::Array& lines = (*it).getValue().getArray();
-      for (size_t i = 0; i < lines.getSize(); i++)
+      const json::Array& lines = (*it).value().get_array();
+      for (size_t i = 0; i < lines.size(); i++) 
       {
-         if (lines.getValueAt(i).isString())
-            code.append(lines.getValueAt(i).getString());
-         if (i < lines.getSize() - 1)
+         if (lines.at(i).type() == json::StringType)
+            code.append(lines.at(i).get_str());
+         if (i < lines.size() - 1)
             code.append("\n");
       }
    }

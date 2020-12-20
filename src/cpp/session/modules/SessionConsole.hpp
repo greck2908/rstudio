@@ -1,7 +1,7 @@
 /*
  * SessionConsole.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,9 +16,8 @@
 #ifndef SESSION_CONSOLE_HPP
 #define SESSION_CONSOLE_HPP
 
-#define kConsoleText  "text"
-#define kConsoleId    "console"
-#define kConsoleFlags "flags"
+#define kConsoleText "text"
+#define kConsoleId   "console"
 
 namespace rstudio {
 namespace core {
@@ -31,8 +30,6 @@ namespace session {
 namespace modules { 
 namespace console {
    
-void syncConsoleColorEnv();
-
 core::Error initialize();
                        
 } // namespace console

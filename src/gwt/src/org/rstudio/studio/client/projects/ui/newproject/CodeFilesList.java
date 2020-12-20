@@ -1,7 +1,7 @@
 /*
  * CodeFilesList.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,7 +17,6 @@ package org.rstudio.studio.client.projects.ui.newproject;
 import java.util.ArrayList;
 
 import org.rstudio.core.client.files.FileSystemItem;
-import org.rstudio.core.client.widget.FormLabel;
 import org.rstudio.core.client.widget.ProgressIndicator;
 import org.rstudio.core.client.widget.ProgressOperationWithInput;
 import org.rstudio.core.client.widget.SmallButton;
@@ -25,11 +24,13 @@ import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.common.FileDialogs;
 import org.rstudio.studio.client.workbench.model.RemoteFileSystemContext;
 
+
 import com.google.gwt.dom.client.SelectElement;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.HorizontalPanel;
+import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.ListBox;
 import com.google.gwt.user.client.ui.VerticalPanel;
 import com.google.inject.Inject;
@@ -44,14 +45,13 @@ public class CodeFilesList extends Composite
       panel.addStyleName(RES.styles().wizardMainColumn());
       
       HorizontalPanel labelPanel = new HorizontalPanel();
-      FormLabel label = new FormLabel("Create package based on source files:");
+      Label label = new Label("Create package based on source files:");
       label.addStyleName(RES.styles().wizardTextEntryLabel());
       labelPanel.add(label);
       panel.add(labelPanel);
       
       HorizontalPanel dictionariesPanel = new HorizontalPanel();
       listBox_ = new ListBox();
-      label.setFor(listBox_);
       listBox_.setMultipleSelect(true);
       listBox_.addStyleName(RES.styles().codeFilesListBox());
       listBox_.getElement().<SelectElement>cast().setSize(3);

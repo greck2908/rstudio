@@ -1,7 +1,7 @@
 /*
  * ProgressPanel.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -26,7 +26,7 @@ import com.google.gwt.user.client.ui.Widget;
 import org.rstudio.core.client.theme.res.ThemeStyles;
 import org.rstudio.core.client.widget.images.ProgressImages;
 
-public class ProgressPanel extends Composite implements IsHideableWidget
+public class ProgressPanel extends Composite
 {
    public ProgressPanel()
    {
@@ -39,11 +39,6 @@ public class ProgressPanel extends Composite implements IsHideableWidget
    }
    
    public ProgressPanel(Widget progressImage, int verticalOffset)
-   {
-      this(progressImage, verticalOffset, true);
-   }
-   
-   public ProgressPanel(Widget progressImage, int verticalOffset, boolean allowSpinner)
    { 
       timer_ = new Timer()
       {
@@ -69,7 +64,7 @@ public class ProgressPanel extends Composite implements IsHideableWidget
       progressLabel_.getElement().getStyle().setOpacity(0.5);
 
       VerticalPanel panel = new VerticalPanel();
-      Widget spinner = allowSpinner && progressSpinner_.isSupported() ? progressSpinner_ : progressImage_;
+      Widget spinner = progressSpinner_.isSupported() ? progressSpinner_ : progressImage_;
       panel.add(spinner);
       panel.setCellHorizontalAlignment(spinner, DockPanel.ALIGN_CENTER);
       panel.add(progressLabel_);
@@ -113,12 +108,6 @@ public class ProgressPanel extends Composite implements IsHideableWidget
       progressSpinner_.setVisible(false);
       progressLabel_.setVisible(false);
    }
-   
-   @Override
-   public void focus()
-   {
-      // implement to satisfy IsHideableWidget, don't actually take focus when called
-   }
 
    private int getSpinnerColor()
    {
@@ -128,10 +117,9 @@ public class ProgressPanel extends Composite implements IsHideableWidget
       return isDark ? ProgressSpinner.COLOR_WHITE : ProgressSpinner.COLOR_BLACK;
    }
 
-   private final Widget progressImage_;
+   private final Widget progressImage_ ;
    private final ProgressSpinner progressSpinner_;
    private final Label progressLabel_;
    private Timer timer_;
    private String message_;
-  
 }

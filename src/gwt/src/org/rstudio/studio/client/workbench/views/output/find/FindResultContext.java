@@ -1,7 +1,7 @@
 /*
  * FindResultContext.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,7 +20,6 @@ import com.google.gwt.view.client.ProvidesKey;
 import org.rstudio.studio.client.workbench.views.output.find.model.FindResult;
 
 import java.util.HashMap;
-import java.util.ArrayList;
 
 public class FindResultContext
 {
@@ -65,7 +64,7 @@ public class FindResultContext
 
       private final String path_;
       private final ListDataProvider<Match> matchData_ =
-            new ListDataProvider<>(new ProvidesKey<Match>()
+            new ListDataProvider<Match>(new ProvidesKey<Match>()
             {
                @Override
                public Object getKey(Match item)
@@ -105,26 +104,10 @@ public class FindResultContext
          return value_;
       }
 
-      public void setReplace(String value)
-      {
-         replace_ = value;
-      }
-
-      public String getReplace()
-      {
-         return replace_;
-      }
-
       private final File parent_;
       private final int line_;
       private final int column_;
       private final String value_;
-      private String replace_;
-   }
-
-   FindResultContext()
-   {
-      findResults_ = new ArrayList<>();
    }
 
    private File getFile(String path)
@@ -152,7 +135,6 @@ public class FindResultContext
    public void reset()
    {
       data_.getList().clear();
-      findResults_.clear();
       filesByName_.clear();
       maxLineWidth_ = 0;
    }
@@ -170,7 +152,6 @@ public class FindResultContext
          int index = data_.getList().indexOf(file);
          if (index >= 0) // not that we are expecting otherwise...
             data_.getList().set(index, file);
-         findResults_.add(fr.clone());
       }
 
       if (maxLineWidth_ != origMaxLineWidth)
@@ -180,18 +161,7 @@ public class FindResultContext
       }
    }
 
-   public void updateFileMatches(String replace)
-   {
-      for (FindResult fr : findResults_)
-         fr.setReplace(replace);
-   }
-
-   public ArrayList<FindResult> getFindResults()
-   {
-      return findResults_;
-   }
-
-   private final ListDataProvider<File> data_ = new ListDataProvider<>(new ProvidesKey<File>()
+   private final ListDataProvider<File> data_ = new ListDataProvider<File>(new ProvidesKey<File>()
    {
       @Override
       public Object getKey(File item)
@@ -199,7 +169,6 @@ public class FindResultContext
          return item.getPath();
       }
    });
-   private final ArrayList<FindResult> findResults_;
-   private final HashMap<String, File> filesByName_ = new HashMap<>();
+   private final HashMap<String, File> filesByName_ = new HashMap<String, File>();
    private int maxLineWidth_;
 }

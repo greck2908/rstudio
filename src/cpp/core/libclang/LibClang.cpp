@@ -1,7 +1,7 @@
 /*
  * LibClang.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,27 +20,22 @@
 
 #include <boost/regex.hpp>
 
-#include <shared_core/FilePath.hpp>
-#include <shared_core/SafeConvert.hpp>
-
 #include <core/Log.hpp>
+#include <core/FilePath.hpp>
 #include <core/RegexUtils.hpp>
-#include <core/system/Environment.hpp>
+#include <core/SafeConvert.hpp>
+
 #include <core/system/LibraryLoader.hpp>
 
-#define LOAD_CLANG_SYMBOL(name)                                                \
-   do                                                                          \
-   {                                                                           \
-      Error error =                                                            \
-         core::system::loadSymbol(pLib_, "clang_" #name, (void**) &name);      \
-      if (error)                                                               \
-      {                                                                        \
-         Error unloadError = unload();                                         \
-         if (unloadError)                                                      \
-            LOG_ERROR(unloadError);                                            \
-         return error;                                                         \
-      }                                                                        \
-   } while (0);
+#define LOAD_CLANG_SYMBOL(name) \
+   error = core::system::loadSymbol(pLib_, "clang_" #name, (void**)&name); \
+   if (error) \
+   { \
+      Error unloadError = unload(); \
+      if (unloadError) \
+         LOG_ERROR(unloadError); \
+      return error; \
+   }
 
 namespace rstudio {
 namespace core {
@@ -58,12 +53,37 @@ std::vector<std::string> defaultCompileArgs(LibraryVersion version)
 
    // we need to add in the associated libclang headers as
    // they are not discovered / used by default during compilation
-   FilePath llvmPath = s_libraryPath.getParent().getParent();
+   FilePath llvmPath = s_libraryPath.parent().parent();
    boost::format fmt("%1%/lib/clang/%2%/include");
-   fmt % llvmPath.getAbsolutePath() % version.asString();
+   fmt % llvmPath.absolutePath() % version.asString();
    std::string includePath = fmt.str();
    if (FilePath(includePath).exists())
      compileArgs.push_back(std::string("-I") + includePath);
+
+#ifdef __APPLE__
+   // newer versions of macOS (e.g. Mojave) no longer install system
+   // headers into /usr/include by default. attempt to find the headers
+   // made available as part of the default toolchain instead
+   if (!FilePath("/usr/include").exists())
+   {
+      // try multiple locations for path to appropriate system headers
+      std::vector<std::string> usrIncludePaths = {
+         "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include",
+         "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include"
+         "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include",
+      };
+
+      for (auto&& path : usrIncludePaths)
+      {
+         if (FilePath(path).exists())
+         {
+            compileArgs.insert(compileArgs.begin(), path);
+            compileArgs.insert(compileArgs.begin(), "-isystem");
+            break;
+         }
+      }
+   }
+#endif
 
    return compileArgs;
 }
@@ -78,9 +98,10 @@ std::vector<std::string> systemClangVersions()
    // (there seems to be extra orchestration required to get
    // include paths set up; easier to just depend on command
    // line tools since we request their installation in other
-   // contexts as well)
+   // contexts)
    clangVersions = {
-      "/Library/Developer/CommandLineTools/usr/lib/libclang.dylib"
+      "/Library/Developer/CommandLineTools/usr/lib/libclang.dylib",
+      "/usr/local/opt/llvm/lib/libclang.dylib",
    };
 #elif defined(__unix__)
    // default set of versions
@@ -99,14 +120,14 @@ std::vector<std::string> systemClangVersions()
          continue;
       
       std::vector<FilePath> directories;
-      Error error = prefixPath.getChildren(directories);
+      Error error = prefixPath.children(&directories);
       if (error)
          LOG_ERROR(error);
 
       // generate a path for each 'llvm' directory
       for (const FilePath& path : directories)
-         if (path.getFilename().find("llvm") == 0)
-            clangVersions.push_back(path.completePath("lib/libclang.so.1").getAbsolutePath());
+         if (path.filename().find("llvm") == 0)
+            clangVersions.push_back(path.complete("lib/libclang.so.1").absolutePath());
    }
 #endif
    
@@ -141,19 +162,10 @@ bool LibClang::load(EmbeddedLibrary embedded,
    if (!embedded.empty())
       embeddedVersion = embedded.libraryPath();
 
-   // build a list of clang versions to try
+   // build a list of clang versions to try (start with embedded)
    std::vector<std::string> versions;
-   
-   // add version from env var (mostly for debugging)
-   std::string envVersion = core::system::getenv("RSTUDIO_LIBCLANG_PATH");
-   if (!envVersion.empty())
-      versions.push_back(envVersion);
-   
-   // add embedded version
    if (!embeddedVersion.empty())
       versions.push_back(embeddedVersion);
-   
-   // add discovered system versions
    std::vector<std::string> sysVersions = systemClangVersions();
    versions.insert(versions.end(), sysVersions.begin(), sysVersions.end());
 
@@ -163,7 +175,7 @@ bool LibClang::load(EmbeddedLibrary embedded,
       ostr << versionPath << std::endl;
       if (versionPath.exists())
       {
-         Error error = tryLoad(versionPath.getAbsolutePath(), requiredVersion);
+         Error error = tryLoad(versionPath.absolutePath(), requiredVersion);
          if (!error)
          {
             // if this was the embedded version then record it

@@ -1,7 +1,7 @@
 /*
  * HtmlMessageListener.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -26,11 +26,9 @@ import java.util.ArrayList;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.filetypes.FileTypeRegistry;
-import org.rstudio.studio.client.workbench.prefs.events.UserPrefsChangedEvent;
-import org.rstudio.studio.client.workbench.prefs.events.UserPrefsChangedHandler;
-import org.rstudio.studio.client.workbench.prefs.model.PrefLayer;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
-import org.rstudio.studio.client.workbench.prefs.model.UserState;
+import org.rstudio.studio.client.workbench.prefs.events.UiPrefsChangedEvent;
+import org.rstudio.studio.client.workbench.prefs.events.UiPrefsChangedHandler;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.views.source.editors.text.themes.AceTheme;
 
 @Singleton
@@ -39,24 +37,23 @@ public class HtmlMessageListener
    @Inject
    public HtmlMessageListener(FileTypeRegistry fileTypeRegistry,
                                  EventBus eventBus,
-                                 Provider<UserPrefs> pUIPrefs)
+                                 Provider<UIPrefs> pUIPrefs)
    {
       htmlMessageListener_ = this;
       fileTypeRegistry_ = fileTypeRegistry;
-      pUserPrefs_ = pUIPrefs;
+      pUIPrefs_ = pUIPrefs;
       themeSources_ = new ArrayList<JavaScriptObject>();
       
       initializeMessageListeners();
 
-      eventBus.addHandler(UserPrefsChangedEvent.TYPE, new UserPrefsChangedHandler() 
+      eventBus.addHandler(UiPrefsChangedEvent.TYPE, new UiPrefsChangedHandler() 
       {
          @Override
-         public void onUserPrefsChanged(UserPrefsChangedEvent e)
+         public void onUiPrefsChanged(UiPrefsChangedEvent e)
          {
-            if (e.getName() == PrefLayer.LAYER_USER)
+            if (e.getType() == UiPrefsChangedEvent.GLOBAL_TYPE)
             {
-               for (JavaScriptObject themeSource : themeSources_)
-               {
+               for (JavaScriptObject themeSource : themeSources_) {
                   postThemeMessage(themeSource, themeOrigin_);
                }
             }
@@ -123,7 +120,7 @@ public class HtmlMessageListener
       themeOrigin_ = origin;
       themeSources_.add(source);
 
-      AceTheme editorTheme = pUserState_.get().theme().getGlobalValue().cast();
+      AceTheme editorTheme = pUIPrefs_.get().theme().getGlobalValue();
       if (editorTheme != null) {
          postThemeMessage(source, themeOrigin_);
       }
@@ -177,8 +174,7 @@ public class HtmlMessageListener
    
    private final FileTypeRegistry fileTypeRegistry_;
    private static HtmlMessageListener htmlMessageListener_;
-   private Provider<UserPrefs> pUserPrefs_;
-   private Provider<UserState> pUserState_;
+   private Provider<UIPrefs> pUIPrefs_;
 
    private String url_;
    private boolean highlightAllowed_;

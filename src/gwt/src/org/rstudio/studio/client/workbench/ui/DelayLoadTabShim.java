@@ -1,7 +1,7 @@
 /*
  * DelayLoadTabShim.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,9 +17,7 @@ package org.rstudio.studio.client.workbench.ui;
 import com.google.gwt.user.client.ui.IsWidget;
 import com.google.gwt.user.client.ui.Widget;
 import org.rstudio.core.client.AsyncShim;
-import org.rstudio.core.client.events.HasEnsureHeightHandlers;
-import org.rstudio.core.client.events.HasEnsureHiddenHandlers;
-import org.rstudio.core.client.events.HasEnsureVisibleHandlers;
+import org.rstudio.core.client.events.*;
 
 public abstract class DelayLoadTabShim<T extends IsWidget,
       TParentTab extends DelayLoadWorkbenchTab<T>> extends AsyncShim<T>
@@ -41,28 +39,41 @@ public abstract class DelayLoadTabShim<T extends IsWidget,
    {
       super.onDelayLoadSuccess(obj);
       final Widget child = obj.asWidget();
-
+      
       if (child instanceof HasEnsureVisibleHandlers)
       {
-         ((HasEnsureVisibleHandlers)child).addEnsureVisibleHandler(event ->
+         ((HasEnsureVisibleHandlers)child).addEnsureVisibleHandler(
+               new EnsureVisibleHandler()
          {
-            parentTab_.ensureVisible(event.getActivate());
+            public void onEnsureVisible(EnsureVisibleEvent event)
+            {
+               parentTab_.ensureVisible(event.getActivate());
+            }
          });
       }
-
+      
       if (child instanceof HasEnsureHeightHandlers)
       {
-         ((HasEnsureHeightHandlers)child).addEnsureHeightHandler(heightEvent ->
+         ((HasEnsureHeightHandlers)child).addEnsureHeightHandler(
+               new EnsureHeightHandler()
          {
-            parentTab_.ensureHeight(heightEvent.getHeight());
+            @Override
+            public void onEnsureHeight(EnsureHeightEvent event)
+            {
+               parentTab_.ensureHeight(event.getHeight());     
+            }
          });
       }
 
       if (child instanceof HasEnsureHiddenHandlers)
       {
-         ((HasEnsureHiddenHandlers)child).addEnsureHiddenHandler(event ->
+         ((HasEnsureHiddenHandlers)child).addEnsureHiddenHandler(
+               new EnsureHiddenHandler()
          {
-            parentTab_.ensureHidden();
+            public void onEnsureHidden(EnsureHiddenEvent event)
+            {
+               parentTab_.ensureHidden();
+            }
          });
       }
 
@@ -73,7 +84,6 @@ public abstract class DelayLoadTabShim<T extends IsWidget,
    public abstract void onBeforeUnselected();
    public abstract void onBeforeSelected();
    public abstract void onSelected();
-   public abstract void setFocus();
 
    private TParentTab parentTab_;
 }

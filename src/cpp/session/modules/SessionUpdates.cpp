@@ -1,7 +1,7 @@
 /*
  * SessionUpdates.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-13 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,16 +15,15 @@
 
 #include "SessionUpdates.hpp"
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Exec.hpp>
 #include <core/system/Process.hpp>
 #include <core/system/Environment.hpp>
 
 #include <boost/bind.hpp>
 
+#include <session/SessionUserSettings.hpp>
 #include <session/SessionModuleContext.hpp>
-
-#include <session/prefs/UserPrefs.hpp>
 
 #include <string>
 
@@ -74,14 +73,14 @@ void beginUpdateCheck(bool manual,
    // Find the path to the script we need to source
    FilePath modulesPath = session::options().modulesRSourcePath();;
    std::string scriptPath = core::string_utils::utf8ToSystem(
-      modulesPath.completePath("SessionUpdates.R").getAbsolutePath());
+                     modulesPath.complete("SessionUpdates.R").absolutePath());
 
    // Arguments
    std::vector<std::string> args;
    args.push_back("--slave");
    args.push_back("--vanilla");
 #if defined(_WIN32)
-   if (prefs::userPrefs().useInternet2())
+   if (userSettings().useInternet2())
    {
       args.push_back("--internet2");
    }
@@ -116,12 +115,11 @@ void beginUpdateCheck(bool manual,
    core::system::ProcessOptions options;
    options.terminateChildren = true;
 
-   module_context::processSupervisor().runProgram(
-      rProgramPath.getAbsolutePath(),
-      args,
-      std::string(),
-      options,
-      onCompleted);
+   module_context::processSupervisor().runProgram(rProgramPath.absolutePath(),
+                                  args,
+                                  std::string(),
+                                  options,
+                                  onCompleted);
 }
 
 void endRPCUpdateCheck(const json::JsonRpcFunctionContinuation& cont,

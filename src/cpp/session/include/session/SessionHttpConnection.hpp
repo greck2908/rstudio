@@ -1,7 +1,7 @@
 /*
  * SessionHttpConnection.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,8 +20,6 @@
 
 #include <boost/shared_ptr.hpp>
 #include <boost/function.hpp>
-
-#include <core/http/UriHandler.hpp>
 
 /*
  HttpConnection plays two related roles in the system:
@@ -76,8 +74,6 @@ public:
 
    // other useful introspection methods
    virtual std::string requestId() const = 0;
-
-   virtual void setUploadHandler(const core::http::UriAsyncUploadHandlerFunction& uploadHandler) = 0;
 };
 
 

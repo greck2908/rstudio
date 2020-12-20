@@ -1,7 +1,7 @@
 /*
  * SessionPlumber.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,7 @@
 #include <boost/algorithm/string/predicate.hpp>
 
 #include <core/Algorithm.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Exec.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/YamlUtil.hpp>
@@ -70,7 +70,7 @@ std::string onDetectPlumberSourceType(boost::shared_ptr<source_database::SourceD
 
 FilePath plumberTemplatePath(const std::string& name)
 {
-   return session::options().rResourcesPath().completeChildPath("templates/plumber/" + name);
+   return session::options().rResourcesPath().childPath("templates/plumber/" + name);
 }
 
 Error copyTemplateFile(const std::string& templateFileName, const FilePath& target)
@@ -102,7 +102,7 @@ Error createPlumberAPI(const json::JsonRpcRequest& request, json::JsonRpcRespons
    }
    
    FilePath apiDir = module_context::resolveAliasedPath(apiDirString);
-   FilePath plumberDir = apiDir.completePath(apiName);
+   FilePath plumberDir = apiDir.complete(apiName);
    
    // if plumberDir exists and is not an empty directory, bail
    if (plumberDir.exists())
@@ -111,13 +111,13 @@ Error createPlumberAPI(const json::JsonRpcRequest& request, json::JsonRpcRespons
       {
          pResponse->setError(
                   fileExistsError(ERROR_LOCATION),
-                  json::Value("The directory '" + module_context::createAliasedPath(plumberDir) + "' already exists "
-                  "and is not a directory"));
+                  "The directory '" + module_context::createAliasedPath(plumberDir) + "' already exists "
+                  "and is not a directory");
          return Success();
       }
       
       std::vector<FilePath> children;
-      error = plumberDir.getChildren(children);
+      error = plumberDir.children(&children);
       if (error)
          LOG_ERROR(error);
       
@@ -125,8 +125,8 @@ Error createPlumberAPI(const json::JsonRpcRequest& request, json::JsonRpcRespons
       {
          pResponse->setError(
                   fileExistsError(ERROR_LOCATION),
-                  json::Value("The directory '" + module_context::createAliasedPath(plumberDir) + "' already exists "
-                  "and is not empty"));
+                  "The directory '" + module_context::createAliasedPath(plumberDir) + "' already exists "
+                  "and is not empty");
          return Success();
       }
    }
@@ -143,15 +143,15 @@ Error createPlumberAPI(const json::JsonRpcRequest& request, json::JsonRpcRespons
    const std::string templateFile = "plumber.R";
    
    // if file already exists, report that as an error
-   FilePath target = plumberDir.completePath(templateFile);
-   std::string aliasedPath = module_context::createAliasedPath(plumberDir.completePath(templateFile));
+   FilePath target = plumberDir.complete(templateFile);
+   std::string aliasedPath = module_context::createAliasedPath(plumberDir.complete(templateFile));
    result.push_back(aliasedPath);
    if (target.exists())
    {
       std::string message = "The file '" + aliasedPath + "' already exists";
       pResponse->setError(
                fileExistsError(ERROR_LOCATION),
-               json::Value(message));
+               message);
       return Success();
    }
    
@@ -159,7 +159,7 @@ Error createPlumberAPI(const json::JsonRpcRequest& request, json::JsonRpcRespons
    error = copyTemplateFile(templateFile, target);
    if (error)
    {
-      pResponse->setError(error, json::Value("Failed to write '" + module_context::createAliasedPath(target) + "'"));
+      pResponse->setError(error, "Failed to write '" + module_context::createAliasedPath(target) + "'");
       return Success();
    }
    

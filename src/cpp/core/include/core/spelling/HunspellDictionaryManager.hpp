@@ -1,7 +1,7 @@
 /*
  * HunspellDictionaryManager.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,7 @@
 #include <vector>
 #include <string>
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 
 #include <core/spelling/HunspellCustomDictionaries.hpp>
 
@@ -48,14 +48,14 @@ public:
 
    // COPYING: via compiler
 
-   bool empty() const { return affPath_.isEmpty(); }
+   bool empty() const { return affPath_.empty(); }
 
    bool operator==(const HunspellDictionary& other) const
    {
       return affPath_ == other.affPath_;
    }
 
-   std::string id() const { return affPath_.getStem(); }
+   std::string id() const { return affPath_.stem(); }
    std::string name() const;
 
    FilePath dicPath() const;
@@ -72,7 +72,7 @@ public:
                              const FilePath& userDir)
       : coreLanguagesDir_(coreLanguagesDir),
         userDir_(userDir),
-        customDicts_(customLanguagesDir())
+        customDicts_(userDir_.childPath("custom"))
    {
    }
 
@@ -93,9 +93,7 @@ public:
 
 private:
    core::FilePath allLanguagesDir() const;
-   core::FilePath customLanguagesDir() const;
-   core::FilePath legacyAllLanguagesDir() const;
-   core::FilePath legacyCustomLanguagesDir() const;
+   core::FilePath userLanguagesDir() const;
 
 private:
    core::FilePath coreLanguagesDir_;

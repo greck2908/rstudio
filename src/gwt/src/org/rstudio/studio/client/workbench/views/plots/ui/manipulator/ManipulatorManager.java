@@ -1,7 +1,7 @@
 /*
  * ManipulatorManager.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,16 +18,16 @@ import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.widget.ProgressImage;
 import org.rstudio.core.client.widget.ToolbarButton;
 import org.rstudio.studio.client.workbench.commands.Commands;
-import org.rstudio.studio.client.workbench.views.plots.PlotsSurface;
 import org.rstudio.studio.client.workbench.views.plots.model.Manipulator;
 
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
+import com.google.gwt.user.client.ui.Panel;
 import com.google.gwt.user.client.ui.PopupPanel.PositionCallback;
 
 public class ManipulatorManager
 {
-   public ManipulatorManager(PlotsSurface plotsSurface,
+   public ManipulatorManager(Panel plotsSurface,
                              Commands commands,
                              ManipulatorChangedHandler changedHandler,
                              final ClickHandler plotsClickHandler)
@@ -79,6 +79,8 @@ public class ManipulatorManager
    }
    
    
+   
+   
    public void setManipulator(Manipulator manipulator, boolean show)
    {
       if (isNewManipulatorState(manipulator))
@@ -97,14 +99,10 @@ public class ManipulatorManager
          {
             // show if requested and there are controls
             if (show && manipulator_.hasControls())
-            {
-               plotsSurface_.enableSurface();
                showManipulatorPopup();  
-            }
          }
          else
          {
-            plotsSurface_.disableSurface();
             manipulatorPopup_.hide();
          }
       }
@@ -179,14 +177,14 @@ public class ManipulatorManager
                manipulatorPopup_.focusFirstControl();
             }
             
-         });
+         }) ;
          
          
       }
    }
    
    
-   private final PlotsSurface plotsSurface_;
+   private final Panel plotsSurface_;
    private Manipulator manipulator_;
    private ToolbarButton manipulatorButton_;
    private ProgressImage manipulatorProgress_;

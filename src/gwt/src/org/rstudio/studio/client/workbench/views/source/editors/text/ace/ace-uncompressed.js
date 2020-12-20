@@ -62436,10 +62436,6 @@ var Text = function(parentEl) {
                 this.$renderLine(
                     lineElement, row, row == foldStart ? foldLine : false
                 );
-
-                if (heightChanged)
-                    lineElement.style.top = this.$lines.computeLineTop(row, config, this.session) + "px";
-
                 var height = (config.lineHeight * this.session.getRowLength(row)) + "px";
                 if (lineElement.style.height != height) {
                     heightChanged = true;
@@ -62890,16 +62886,12 @@ var Cursor = function(parentEl) {
         for (var i = cursors.length; i--; )
             cursors[i].style.animationDuration = this.blinkInterval + "ms";
 
-        this.$animating = true;
         setTimeout(function() {
-            if (this.$animating) {
-                dom.addCssClass(this.element, "ace_animate-blinking");
-            }
+            dom.addCssClass(this.element, "ace_animate-blinking");
         }.bind(this));
     };
     
     this.$stopCssAnimation = function() {
-        this.$animating = false;
         dom.removeCssClass(this.element, "ace_animate-blinking");
     };
 
@@ -64560,7 +64552,6 @@ var VirtualRenderer = function(container, theme) {
             this.scroller.className = this.scrollLeft <= 0 ? "ace_scroller" : "ace_scroller ace_scroll-left";
         }
         if (changes & this.CHANGE_FULL) {
-            this.$changedLines = null;
             this.$textLayer.update(config);
             if (this.$showGutter)
                 this.$gutterLayer.update(config);
@@ -64572,7 +64563,6 @@ var VirtualRenderer = function(container, theme) {
             return;
         }
         if (changes & this.CHANGE_SCROLL) {
-            this.$changedLines = null;
             if (changes & this.CHANGE_TEXT || changes & this.CHANGE_LINES)
                 this.$textLayer.update(config);
             else
@@ -64593,7 +64583,6 @@ var VirtualRenderer = function(container, theme) {
         }
 
         if (changes & this.CHANGE_TEXT) {
-            this.$changedLines = null;
             this.$textLayer.update(config);
             if (this.$showGutter)
                 this.$gutterLayer.update(config);
@@ -65019,6 +65008,7 @@ var VirtualRenderer = function(container, theme) {
         var col = this.$blockCursor ? Math.floor(offset) : Math.round(offset);
 
         var row = Math.floor((y + this.scrollTop - canvasPos.top) / this.lineHeight);
+
         return this.session.screenToDocumentPosition(row, Math.max(col, 0), offsetX);
     };
     this.textToScreenCoordinates = function(row, column) {
@@ -66575,17 +66565,16 @@ function LineWidgets(session) {
 
 (function() {
     this.getRowLength = function(row) {
-
-        var height =
-            this.lineWidgets &&
-            this.lineWidgets[row] &&
-            this.lineWidgets[row].rowCount || 0;
-
-        if (this.$useWrapMode && this.$wrapData[row])
-            height += this.$wrapData[row].length;
-
-        return Math.ceil(height + 1);
-
+        var h;
+        if (this.lineWidgets)
+            h = this.lineWidgets[row] && this.lineWidgets[row].rowCount || 0;
+        else 
+            h = 0;
+        if (!this.$useWrapMode || !this.$wrapData[row]) {
+            return 1 + h;
+        } else {
+            return this.$wrapData[row].length + 1 + h;
+        }
     };
 
     this.$getWidgetScreenLength = function() {
@@ -66739,7 +66728,7 @@ function LineWidgets(session) {
             w.pixelHeight = w.el.offsetHeight;
         }
         if (w.rowCount == null) {
-            w.rowCount = Math.ceil(w.pixelHeight / renderer.layerConfig.lineHeight);
+            w.rowCount = w.pixelHeight / renderer.layerConfig.lineHeight;
         }
         
         var fold = this.session.getFoldAt(w.row, 0);
@@ -66828,7 +66817,7 @@ function LineWidgets(session) {
                 w.screenWidth = Math.ceil(w.w / config.characterWidth);
             }
             
-            var rowCount = Math.ceil(w.h / config.lineHeight);
+            var rowCount = w.h / config.lineHeight;
             if (w.coverLine) {
                 rowCount -= this.session.getRowLineCount(w.row);
                 if (rowCount < 0)
@@ -66866,14 +66855,13 @@ function LineWidgets(session) {
             var w = lineWidgets[i];
             if (!w || !w.el) continue;
             if (w.hidden) {
-                w.el.style.top = -10000 - (w.pixelHeight || 0) + "px";
+                w.el.style.top = -100 - (w.pixelHeight || 0) + "px";
                 continue;
             }
             if (!w._inDocument) {
                 w._inDocument = true;
                 renderer.container.appendChild(w.el);
             }
-
             var top = renderer.$cursorLayer.getPixelPosition({row: i, column:0}, true).top;
             if (!w.coverLine)
                 top += config.lineHeight * this.session.getRowLineCount(w.row);

@@ -1,7 +1,7 @@
 /*
  * SpanLabel.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,14 +14,20 @@
  */
 package org.rstudio.core.client.widget;
 
-import com.google.gwt.user.client.ui.Widget;
+import com.google.gwt.dom.client.Document;
+import com.google.gwt.user.client.ui.Label;
 
-public class SpanLabel extends FormLabel
+public class SpanLabel extends Label
 {
-   public SpanLabel(String label, Widget labeledWidget, boolean wordWrap)
+   public SpanLabel()
    {
-      super(true /*inline*/, label, NoForId);
+      this("", true);
+   }
+
+   public SpanLabel(String label, boolean wordWrap)
+   {
+      super(Document.get().createSpanElement());
+      setText(label);
       setWordWrap(wordWrap);
-      setFor(labeledWidget);
    }
 }

@@ -1,7 +1,7 @@
 /*
  * LruCache.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2018 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,7 @@
 #include <map>
 #include <deque>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Thread.hpp>
 
 namespace rstudio {

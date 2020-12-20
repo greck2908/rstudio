@@ -1,7 +1,7 @@
 /*
  * AceEditorNative.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,14 +22,11 @@ import com.google.gwt.user.client.Command;
 
 import org.rstudio.core.client.CommandWithArg;
 import org.rstudio.core.client.js.JsMap;
-import org.rstudio.core.client.widget.CanSetControlId;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 
 import java.util.LinkedList;
 
-public class AceEditorNative extends JavaScriptObject
-                             implements CanSetControlId
-{
+public class AceEditorNative extends JavaScriptObject {
    
    protected AceEditorNative() {}
 
@@ -167,7 +164,6 @@ public class AceEditorNative extends JavaScriptObject
            }));
    }-*/;
 
-   @SuppressWarnings("hiding")
    public native final <Tooltip> void onShowGutterTooltip(CommandWithArg<Tooltip> command) /*-{
        this.on("showGutterTooltip",
            $entry(function (arg) {
@@ -202,18 +198,8 @@ public class AceEditorNative extends JavaScriptObject
       };
    }
 
-   public final native Element getTextInputElement() /*-{
+   private native Element getTextInputElement() /*-{
       return this.textInput.getElement();
-   }-*/;
-
-   /**
-    * Forces the use of browser focus scrolling. This is the default on Chrome, but on other
-    * browsers, a complicated hack involving setting the 'ace_nocontext' attribute on all parent
-    * elements is used instead to avoid scroll jitter. This is not necessary in embedded editors,
-    * and causes ProseMirror to go nuts (see issue 8518), so this hook allows us to turn it off.
-    */
-   public final native void useBrowserInputFocus() /*-{
-      this.textInput.$focusScroll = "browser";
    }-*/;
 
    /**
@@ -224,11 +210,6 @@ public class AceEditorNative extends JavaScriptObject
    {
       Element textInput = getTextInputElement();
       textInput.setAttribute("aria-label", label);
-   }
-
-   public final void setElementId(String id)
-   {
-      getTextInputElement().setId(id);
    }
 
    private native static JavaScriptObject addDomListener(
@@ -357,11 +338,19 @@ public class AceEditorNative extends JavaScriptObject
    }-*/;
 
    public final native void autoHeight() /*-{
-      this.setOptions({
-         minLines: 1,
-         maxLines: Infinity,
-         scrollPastEnd: false
-      });
+      var editor = this;
+      function updateEditorHeight() {
+         editor.container.style.height = (Math.max(1, editor.getSession().getScreenLength()) * editor.renderer.lineHeight) + 'px';
+         editor.resize();
+         editor.renderer.scrollToY(0);
+         editor.renderer.scrollToX(0);
+      }
+      if (!editor.autoHeightAttached) {
+         editor.autoHeightAttached = true;
+         editor.getSession().getDocument().on("change", updateEditorHeight);
+         editor.renderer.$textLayer.on("changeCharacterSize", updateEditorHeight);
+      }
+      updateEditorHeight();
    }-*/;
 
    public final native void onCursorChange() /*-{
@@ -574,12 +563,12 @@ public class AceEditorNative extends JavaScriptObject
       $wnd.require("mode/auto_brace_insert").setInsertMatching(value);
    }-*/;
    
-   public final static void syncUiPrefs(UserPrefs userPrefs)
+   public final static void syncUiPrefs(UIPrefs uiPrefs)
    {
       if (uiPrefsSynced_)
          return;
 
-      userPrefs.insertMatching().bind(new CommandWithArg<Boolean>() 
+      uiPrefs.insertMatching().bind(new CommandWithArg<Boolean>() 
       {
          @Override
          public void execute(Boolean arg) 
@@ -588,7 +577,7 @@ public class AceEditorNative extends JavaScriptObject
          }
       });
       
-      userPrefs.verticallyAlignArgumentsIndent().bind(new CommandWithArg<Boolean>()
+      uiPrefs.verticallyAlignArgumentIndent().bind(new CommandWithArg<Boolean>()
       {
          @Override
          public void execute(Boolean arg)
@@ -651,33 +640,6 @@ public class AceEditorNative extends JavaScriptObject
       this.setOption("cursorStyle", style);
    }-*/;
    
-   public final native void setScrollSpeed(double speed) /*-{
-      this.setOption("scrollSpeed", speed);
-   }-*/;
-   
-   public final native void setIndentedSoftWrap(boolean softWrap) /*-{
-      this.setOption("indentedSoftWrap", softWrap);
-   }-*/;
-
-   public final native void setMaxLines(int max) /*-{
-      this.setOption("maxLines", max);
-   }-*/;
-
-   public final native void setMinLines(int min) /*-{
-      this.setOption("minLines", min);
-   }-*/;
-
-   public final native void setTabMovesFocus(boolean movesFocus) /*-{
-      if (movesFocus) {
-         this.commands.bindKey("Tab", null);
-         this.commands.bindKey("Shift+Tab", null);
-      } else {
-         this.commands.bindKey("Tab", "indent");
-         this.commands.bindKey("Shift+Tab", "outdent");
-      }
-   }-*/;
-   
-
    private static final native void initialize()
    /*-{
       // Remove the 'Return' keybinding associated with Emacs.
@@ -692,8 +654,8 @@ public class AceEditorNative extends JavaScriptObject
          delete bindings["return"];
       }
    }-*/;
-
+   
    static { initialize(); }
-
+   
    private static boolean uiPrefsSynced_ = false;
 }

@@ -1,7 +1,7 @@
 /*
  * FindReferences.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -177,7 +177,7 @@ public:
          std::size_t line = startLoc.line - 1;
          std::string message;
          const std::vector<std::string>& lines = fileContents(
-            startLoc.filePath.getAbsolutePath());
+                                 startLoc.filePath.absolutePath());
          if (line < lines.size())
             message = htmlMessage(loc, lines[line]);
 
@@ -330,7 +330,7 @@ core::Error findReferences(const core::libclang::FileLocation& location,
    // determine what translation units to look in -- if this is a package
    // then we look throughout all the source code in the package.
    if (rCompilationDatabase().hasTranslationUnit(
-      location.filePath.getAbsolutePath()))
+                                         location.filePath.absolutePath()))
    {
       // get all translation units to search
       std::vector<std::string> files = rCompilationDatabase()
@@ -395,7 +395,7 @@ core::Error findReferences(const core::libclang::FileLocation& location,
    else
    {
       TranslationUnit tu = rSourceIndex().getTranslationUnit(
-         location.filePath.getAbsolutePath(),
+                                             location.filePath.absolutePath(),
                                              true);
       if (!tu.empty())
          findReferences(USR, tu.getCXTranslationUnit(), pSpelling, pRefs);

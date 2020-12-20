@@ -1,7 +1,7 @@
 /*
  * RSourceIndex.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,15 +19,15 @@
 #include <boost/algorithm/string/predicate.hpp>
 
 #include <core/FileInfo.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 
-#include <session/prefs/UserPrefs.hpp>
+#include <session/SessionUserSettings.hpp>
 
 #include <core/libclang/LibClang.hpp>
 
 #include "RCompilationDatabase.hpp"
 
-using namespace rstudio::core;
+using namespace rstudio::core ;
 using namespace rstudio::core::libclang;
 
 namespace rstudio {
@@ -41,7 +41,7 @@ class RSourceIndex : public SourceIndex
 {
 public:
    RSourceIndex()
-      : SourceIndex(rCompilationDatabase(), prefs::userPrefs().clangVerbose())
+      : SourceIndex(rCompilationDatabase(), userSettings().clangVerbose())
    {
    }
 };
@@ -69,15 +69,15 @@ bool isIndexableFile(const FileInfo& fileInfo,
    if (pkgSrcDir.exists() &&
        filePath.isWithin(pkgSrcDir) &&
        SourceIndex::isSourceFile(filePath) &&
-       !boost::algorithm::starts_with(filePath.getStem(), kCompilationDbPrefix) &&
-       (filePath.getFilename() != "RcppExports.cpp"))
+       !boost::algorithm::starts_with(filePath.stem(), kCompilationDbPrefix) &&
+       (filePath.filename() != "RcppExports.cpp"))
    {
       return true;
    }
    else if (pkgIncludeDir.exists() &&
             filePath.isWithin(pkgIncludeDir) &&
             SourceIndex::isSourceFile(filePath) &&
-            !boost::algorithm::ends_with(filePath.getStem(), "_RcppExports"))
+            !boost::algorithm::ends_with(filePath.stem(), "_RcppExports"))
    {
       return true;
    }

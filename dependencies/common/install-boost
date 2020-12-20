@@ -3,7 +3,7 @@
 #
 # install-boost
 #
-# Copyright (C) 2020 by RStudio, PBC
+# Copyright (C) 2009-12 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -34,10 +34,6 @@ BOOST_MODULES="algorithm asio array bind build chrono circular_buffer config con
    lambda lexical_cast optional program_options predef property_tree random range ref
    regex scope_exit signals signals2 smart_ptr spirit string_algo system
    test thread tokenizer type_traits typeof unordered utility variant"
-
-if [ "${PLATFORM}" = "Darwin" ]; then
-   TOOLSET="toolset=clang-darwin"
-fi
 
 # install if we aren't already installed
 if ! test -e $BOOST_DIR
@@ -72,7 +68,7 @@ then
    sudo ./bootstrap.sh
 
    # build bcp helper
-   sudo ./b2 "${TOOLSET}" tools/bcp
+   sudo ./b2 tools/bcp
 
    # copy back to root
    sudo cp dist/bin/bcp bcp
@@ -97,7 +93,7 @@ then
      sudo ./bjam              \
         "${BOOST_BJAM_FLAGS}" \
         --prefix="$BOOST_DIR" \
-        "${TOOLSET}"          \
+        toolset=clang         \
         "${BJAM_CXXFLAGS}"    \
         "${BJAM_LDFLAGS}"     \
         variant=release       \

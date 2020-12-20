@@ -6,17 +6,12 @@
    height: 425px;
 }
 
-.panelContainerNoChooser {
-   width: 403px;
-   height: 425px;
-}
-
 .buildToolsPanel {
    width: 100%;
 }
 
 .workspaceGrid {
-   margin-bottom: 10px;
+   margin-bottom: 10px; 
    width: 375px;
 }
 
@@ -41,7 +36,7 @@
 }
 
 .encodingChooser {
-   margin-top: 3px;
+   margin-top: 3px; 
    margin-left: 10px;
    margin-bottom: 15px;
 }
@@ -56,7 +51,7 @@
 }
 
 .vcsOriginLabel {
-   margin-left: 5px;
+   margin-left: 5px;	
 }
 
 .vcsOriginUrl {
@@ -107,9 +102,9 @@
 }
 
 .infoLabel {
-   margin-top: 4px;
+   margin-top: 6px;
    font-style: italic;
-   font-size: 0.9em;
+   font-size: 0.9em; 
 }
 
 .websiteOutputFormat {

@@ -1,7 +1,7 @@
 /*
  * SessionConsoleProcessInfoTests.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -37,8 +37,10 @@ const std::string title("/Users/roger/R");
 const std::string handle1("unit-test01");
 const std::string bogusHandle1("unit-test03");
 const int sequence = 1;
+const bool allowRestart = true;
 const InteractionMode mode = InteractionAlways;
 const TerminalShell::ShellType shellType = TerminalShell::ShellType::Default;
+const ChannelMode channelMode = Rpc;
 const std::string channelId("some channel Id");
 const bool altActive = false;
 
@@ -52,6 +54,7 @@ const core::FilePath altCwd("/usr/stuff");
 
 const int cols = core::system::kDefaultCols;
 const int rows = core::system::kDefaultRows;
+const bool restarted = false;
 const bool zombie = false;
 const bool trackEnv = false;
 
@@ -108,11 +111,7 @@ TEST_CASE("ConsoleProcessInfo")
 
       CHECK_FALSE(cpi.getShowOnOutput());
       CHECK_FALSE(cpi.getExitCode());
-#ifdef _WIN32
-      CHECK_FALSE(cpi.getHasChildProcs());
-#else
       CHECK(cpi.getHasChildProcs());
-#endif
       CHECK((cpi.getShellType() == shellType));
       CHECK((cpi.getChannelMode() == Rpc));
       CHECK(cpi.getChannelId().empty());

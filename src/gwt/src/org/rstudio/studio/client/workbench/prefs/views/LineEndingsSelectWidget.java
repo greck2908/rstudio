@@ -1,7 +1,7 @@
 /*
  * LineEndingsSelectWidget.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,7 @@ package org.rstudio.studio.client.workbench.prefs.views;
 import java.util.ArrayList;
 
 import org.rstudio.core.client.widget.SelectWidget;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.EditingPrefs;
 
 public class LineEndingsSelectWidget extends SelectWidget
 {
@@ -54,11 +54,11 @@ public class LineEndingsSelectWidget extends SelectWidget
    {
       ArrayList<String> values = new ArrayList<String>();
       if (includeDefault)
-         values.add(UserPrefs.LINE_ENDING_CONVERSION_DEFAULT);
-      values.add(UserPrefs.LINE_ENDING_CONVERSION_PASSTHROUGH);
-      values.add(UserPrefs.LINE_ENDING_CONVERSION_NATIVE);
-      values.add(UserPrefs.LINE_ENDING_CONVERSION_POSIX);
-      values.add(UserPrefs.LINE_ENDING_CONVERSION_WINDOWS);
+         values.add("-1");
+      values.add(Integer.toString(EditingPrefs.LINEENDINGS_PASSTHROUGH));
+      values.add(Integer.toString(EditingPrefs.LINEENDINGS_NATIVE));
+      values.add(Integer.toString(EditingPrefs.LINEENDINGS_POSIX));
+      values.add(Integer.toString(EditingPrefs.LINEENDINGS_WINDOWS));
       
       return values.toArray(new String[0]);
    }

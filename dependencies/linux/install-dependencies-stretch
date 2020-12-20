@@ -2,7 +2,7 @@
 #
 # install-dependencies-stretch
 #
-# Copyright (C) 2020 by RStudio, PBC
+# Copyright (C) 2009-19 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -49,8 +49,6 @@ sudo apt-get -y install \
   libglib2.0-dev \
   libpam0g-dev \
   libpango-1.0-0 \
-  libpq-dev \
-  libsqlite-dev \
   libssl1.0-dev \
   libuser1-dev \
   libxml-commons-external-java \
@@ -79,4 +77,10 @@ fi
 cd ../common
 ./install-common --install-crashpad-sudo
 cd ../linux
+
+# Qt for desktop
+if [ "$1" != "--exclude-qt-sdk" ]
+then
+   ./install-qt-sdk
+fi
 

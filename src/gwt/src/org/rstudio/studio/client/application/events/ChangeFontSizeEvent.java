@@ -1,7 +1,7 @@
 /*
  * ChangeFontSizeEvent.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,12 +14,11 @@
  */
 package org.rstudio.studio.client.application.events;
 
-import com.google.gwt.event.shared.EventHandler;
 import com.google.gwt.event.shared.GwtEvent;
 
-public class ChangeFontSizeEvent extends GwtEvent<ChangeFontSizeEvent.Handler>
+public class ChangeFontSizeEvent extends GwtEvent<ChangeFontSizeHandler>
 {
-   public static final Type<Handler> TYPE = new Type<>();
+   public static final Type<ChangeFontSizeHandler> TYPE = new Type<ChangeFontSizeHandler>();
 
    public ChangeFontSizeEvent(double fontSize)
    {
@@ -34,19 +33,14 @@ public class ChangeFontSizeEvent extends GwtEvent<ChangeFontSizeEvent.Handler>
    private final double fontSize_;
 
    @Override
-   public Type<Handler> getAssociatedType()
+   public Type<ChangeFontSizeHandler> getAssociatedType()
    {
       return TYPE;
    }
 
    @Override
-   protected void dispatch(Handler handler)
+   protected void dispatch(ChangeFontSizeHandler handler)
    {
       handler.onChangeFontSize(this);
-   }
-
-   public interface Handler extends EventHandler
-   {
-      void onChangeFontSize(ChangeFontSizeEvent event);
    }
 }

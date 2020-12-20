@@ -1,7 +1,7 @@
 #
 # CMakeLists.txt
 #
-# Copyright (C) 2020 by RStudio, PBC
+# Copyright (C) 2009-19 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -49,7 +49,6 @@ include_directories(${SYNCTEX_INCLUDE_DIRS})
 add_library(rstudio-core-synctex STATIC
    ${SYNCTEX_SOURCE_FILES}
    ${SYNCTEX_HEADER_FILES})
-define_source_file_names(rstudio-core-synctex)
 
 # link dependencies
 target_link_libraries(rstudio-core-synctex

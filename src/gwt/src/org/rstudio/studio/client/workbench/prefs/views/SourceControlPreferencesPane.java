@@ -1,7 +1,7 @@
 /*
  * SourceControlPreferencesPane.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -26,12 +26,10 @@ import com.google.gwt.user.client.ui.Label;
 import com.google.inject.Inject;
 
 import org.rstudio.core.client.BrowseCap;
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.prefs.PreferencesDialogBaseResources;
-import org.rstudio.core.client.prefs.RestartRequirement;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.widget.FileChooserTextBox;
-import org.rstudio.core.client.widget.FormLabel;
+import org.rstudio.core.client.widget.HyperlinkLabel;
 import org.rstudio.core.client.widget.MessageDialog;
 import org.rstudio.core.client.widget.TextBoxWithButton;
 import org.rstudio.studio.client.application.Desktop;
@@ -45,7 +43,8 @@ import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.model.RemoteFileSystemContext;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.SessionInfo;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.RPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.SourceControlPrefs;
 
 public class SourceControlPreferencesPane extends PreferencesPane
 {
@@ -55,7 +54,7 @@ public class SourceControlPreferencesPane extends PreferencesPane
                                        GitServerOperations server,
                                        final GlobalDisplay globalDisplay,
                                        final Commands commands,
-                                       RemoteFileSystemContext fsContext,
+                                       RemoteFileSystemContext fsContext,   
                                        FileDialogs fileDialogs)
    {
       res_ = res;
@@ -69,16 +68,16 @@ public class SourceControlPreferencesPane extends PreferencesPane
          public void onValueChange(ValueChangeEvent<Boolean> event)
          {
             manageControlVisibility();
-
+            
             globalDisplay.showMessage(
                MessageDialog.INFO,
                (event.getValue() ? "Enable" : "Disable") + " Version Control",
                "You must restart RStudio for this change to take effect.");
          }
       });
-
-
-      // git exe path chooser
+      
+      
+      // git exe path chooser  
       Command onGitExePathChosen = new Command()
       {
          @Override
@@ -92,7 +91,7 @@ public class SourceControlPreferencesPane extends PreferencesPane
                   String message = "The program '" + gitExePath + "'" +
                      " is unlikely to be a valid git executable.\n" +
                      "Please select a git executable called 'git.exe'.";
-
+                  
                   globalDisplay.showMessage(
                         GlobalDisplay.MSG_WARNING,
                         "Invalid Git Executable",
@@ -101,51 +100,45 @@ public class SourceControlPreferencesPane extends PreferencesPane
             }
          }
       };
-
-      gitExePathLabel_ = new FormLabel("Git executable:");
-      gitExePathChooser_ = new FileChooserTextBox(gitExePathLabel_,
+      
+      gitExePathChooser_ = new FileChooserTextBox("",
                                                   "(Not Found)",
-                                                  ElementIds.TextBoxButtonId.GIT,
-                                                  false,
                                                   null,
                                                   onGitExePathChosen);
+      gitExePathLabel_ = new Label("Git executable:");
       SessionInfo sessionInfo = session.getSessionInfo();
       if (sessionInfo.getAllowVcsExeEdit())
-         addTextBoxChooser(gitExePathLabel_, gitExePathChooser_);
-
+         addTextBoxChooser(gitExePathLabel_, null, null, gitExePathChooser_);
+ 
       // svn exe path chooser
-      svnExePathLabel_ = new FormLabel("SVN executable:");
-      svnExePathChooser_ = new FileChooserTextBox(svnExePathLabel_,
+      svnExePathLabel_ = new Label("SVN executable:");
+      svnExePathChooser_ = new FileChooserTextBox("",
                                                   "(Not Found)",
-                                                  ElementIds.TextBoxButtonId.SVN,
-                                                  false,
                                                   null,
                                                   null);
       if (sessionInfo.getAllowVcsExeEdit())
-         addTextBoxChooser(svnExePathLabel_, svnExePathChooser_);
-
+         addTextBoxChooser(svnExePathLabel_, null, null, svnExePathChooser_);
+      
       // terminal path
-      terminalPathLabel_ = new FormLabel("Terminal executable:");
-      terminalPathChooser_ = new FileChooserTextBox(terminalPathLabel_,
-                                                    "(Not Found)",
-                                                    ElementIds.TextBoxButtonId.VCS_TERMINAL,
-                                                    false,
-                                                    null,
+      terminalPathLabel_ = new Label("Terminal executable:");
+      terminalPathChooser_ = new FileChooserTextBox("", 
+                                                    "(Not Found)", 
+                                                    null, 
                                                     null);
       if (haveTerminalPathPref())
-         addTextBoxChooser(terminalPathLabel_, terminalPathChooser_);
-
+         addTextBoxChooser(terminalPathLabel_, null, null, terminalPathChooser_);
+     
       // ssh key widget
       sshKeyWidget_ = new SshKeyWidget(server, "330px");
       sshKeyWidget_.addStyleName(res_.styles().sshKeyWidget());
       nudgeRight(sshKeyWidget_);
       add(sshKeyWidget_);
-
+            
       HelpLink vcsHelpLink = new VcsHelpLink();
-      nudgeRight(vcsHelpLink);
-      vcsHelpLink.addStyleName(res_.styles().newSection());
+      nudgeRight(vcsHelpLink); 
+      vcsHelpLink.addStyleName(res_.styles().newSection()); 
       add(vcsHelpLink);
-
+                                      
       chkVcsEnabled_.setEnabled(false);
       gitExePathChooser_.setEnabled(false);
       svnExePathChooser_.setEnabled(false);
@@ -153,20 +146,23 @@ public class SourceControlPreferencesPane extends PreferencesPane
    }
 
    @Override
-   protected void initialize(UserPrefs prefs)
+   protected void initialize(RPrefs rPrefs)
    {
+      // source control prefs
+      SourceControlPrefs prefs = rPrefs.getSourceControlPrefs();
+
       chkVcsEnabled_.setEnabled(true);
       gitExePathChooser_.setEnabled(true);
       svnExePathChooser_.setEnabled(true);
       terminalPathChooser_.setEnabled(true);
 
-      chkVcsEnabled_.setValue(prefs.vcsEnabled().getValue());
-      gitExePathChooser_.setText(prefs.gitExePath().getValue());
-      svnExePathChooser_.setText(prefs.svnExePath().getValue());
-      terminalPathChooser_.setText(prefs.terminalPath().getValue());
-
-      sshKeyWidget_.setRsaSshKeyPath(prefs.rsaKeyPath().getValue(),
-                                     prefs.haveRsaKey().getValue());
+      chkVcsEnabled_.setValue(prefs.getVcsEnabled());
+      gitExePathChooser_.setText(prefs.getGitExePath());
+      svnExePathChooser_.setText(prefs.getSvnExePath());
+      terminalPathChooser_.setText(prefs.getTerminalPath());
+      
+      sshKeyWidget_.setRsaSshKeyPath(prefs.getRsaKeyPath(),
+                                     prefs.getHaveRsaKey());
       sshKeyWidget_.setProgressIndicator(getProgressIndicator());
 
       manageControlVisibility();
@@ -191,34 +187,48 @@ public class SourceControlPreferencesPane extends PreferencesPane
    }
 
    @Override
-   public RestartRequirement onApply(UserPrefs prefs)
+   public boolean onApply(RPrefs rPrefs)
    {
-      RestartRequirement restartRequirement = super.onApply(prefs);
+      boolean restartRequired = super.onApply(rPrefs);
 
-      prefs.vcsEnabled().setGlobalValue(chkVcsEnabled_.getValue());
-      prefs.gitExePath().setGlobalValue(gitExePathChooser_.getText());
-      prefs.svnExePath().setGlobalValue(svnExePathChooser_.getText());
-      prefs.terminalPath().setGlobalValue(terminalPathChooser_.getText());
+      SourceControlPrefs prefs = SourceControlPrefs.create(
+            chkVcsEnabled_.getValue(), gitExePathChooser_.getText(),
+            svnExePathChooser_.getText(), terminalPathChooser_.getText());
 
-      return restartRequirement;
+      rPrefs.setSourceControlPrefs(prefs);
+
+      return restartRequired;
    }
-
+   
    private boolean haveTerminalPathPref()
    {
       return Desktop.isDesktop() && BrowseCap.isLinux();
    }
-
-   private void addTextBoxChooser(Label captionLabel, TextBoxWithButton chooser)
+   
+   private void addTextBoxChooser(Label captionLabel, HyperlinkLabel link,
+         String captionPanelStyle, TextBoxWithButton chooser)
    {
       String textWidth = "250px";
 
       HorizontalPanel captionPanel = new HorizontalPanel();
       captionPanel.setWidth(textWidth);
       nudgeRight(captionPanel);
+      if (captionPanelStyle != null)
+         captionPanel.addStyleName(captionPanelStyle);
 
       captionPanel.add(captionLabel);
       captionPanel.setCellHorizontalAlignment(captionLabel,
             HasHorizontalAlignment.ALIGN_LEFT);
+
+      if (link != null)
+      {
+         HorizontalPanel linkPanel = new HorizontalPanel();
+         linkPanel.add(link);
+         captionPanel.add(linkPanel);
+         captionPanel.setCellHorizontalAlignment(linkPanel,
+               HasHorizontalAlignment.ALIGN_RIGHT);
+
+      }
 
       add(tight(captionPanel));
 
@@ -240,16 +250,16 @@ public class SourceControlPreferencesPane extends PreferencesPane
       terminalPathChooser_.setVisible(vcsEnabled && haveTerminalPathPref());
       sshKeyWidget_.setVisible(vcsEnabled);
    }
-
+   
    private final PreferencesDialogResources res_;
 
    private final CheckBox chkVcsEnabled_;
-
-   private FormLabel svnExePathLabel_;
-   private FormLabel gitExePathLabel_;
+   
+   private Label svnExePathLabel_;
+   private Label gitExePathLabel_;
    private TextBoxWithButton gitExePathChooser_;
    private TextBoxWithButton svnExePathChooser_;
-   private FormLabel terminalPathLabel_;
+   private Label terminalPathLabel_;
    private TextBoxWithButton terminalPathChooser_;
    private SshKeyWidget sshKeyWidget_;
 }

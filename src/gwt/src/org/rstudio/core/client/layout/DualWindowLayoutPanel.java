@@ -1,7 +1,7 @@
 /*
  * DualWindowLayoutPanel.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,10 +22,11 @@ import com.google.gwt.user.client.ui.*;
 import org.rstudio.core.client.Debug;
 import org.rstudio.core.client.HandlerRegistrations;
 import org.rstudio.core.client.events.EnsureHeightEvent;
+import org.rstudio.core.client.events.EnsureHeightHandler;
 import org.rstudio.core.client.events.WindowStateChangeEvent;
+import org.rstudio.core.client.events.WindowStateChangeHandler;
 import org.rstudio.core.client.js.JsObject;
 import org.rstudio.core.client.widget.events.GlassVisibilityEvent;
-import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.workbench.model.ClientInitState;
 import org.rstudio.studio.client.workbench.model.ClientState;
@@ -85,7 +86,7 @@ public class DualWindowLayoutPanel extends SimplePanel
          }
 
          double pct = (double)containerHeight / containerHeight_.intValue();
-         return (int)(pct * height_);
+         return (int)(pct * height_);         
       }
 
       private int height_;
@@ -94,7 +95,7 @@ public class DualWindowLayoutPanel extends SimplePanel
    }
 
    private class WindowStateChangeManager
-         implements WindowStateChangeEvent.Handler
+         implements WindowStateChangeHandler
    {
       public WindowStateChangeManager(Session session)
       {
@@ -345,7 +346,7 @@ public class DualWindowLayoutPanel extends SimplePanel
                       + state.getSplitterPos() + "/" + state.getPanelHeight());
             return false;
          }
-
+         
          if (!State.equals(lastKnownValue_, state))
          {
             lastKnownValue_ = state;
@@ -372,38 +373,41 @@ public class DualWindowLayoutPanel extends SimplePanel
       windowB_ = windowB;
       session_ = session;
       setSize("100%", "100%");
-      layout_ = new BinarySplitLayoutPanel(clientStateKeyName, new Widget[] {
+      layout_ = new BinarySplitLayoutPanel(new Widget[] {
             windowA.getNormal(), windowA.getMinimized(),
             windowB.getNormal(), windowB.getMinimized()}, splitterSize);
       layout_.setSize("100%", "100%");
 
       topWindowStateChangeManager_ = new WindowStateChangeManager(session);
-      bottomWindowStateChangeManager_ = (WindowStateChangeEvent event) ->
+      bottomWindowStateChangeManager_ = new WindowStateChangeHandler()
       {
-         WindowState topState;
-         switch (event.getNewState())
+         public void onWindowStateChange(WindowStateChangeEvent event)
          {
-            case NORMAL:
-               topState = NORMAL;
-               break;
-            case MAXIMIZE:
-               topState = MINIMIZE;
-               break;
-            case MINIMIZE:
-               topState = MAXIMIZE;
-               break;
-            case HIDE:
-               topState = EXCLUSIVE;
-               break;
-            case EXCLUSIVE:
-               topState = HIDE;
-               break;
-            default:
-               throw new IllegalArgumentException(
-                     "Unknown WindowState " + event.getNewState());
+            WindowState topState;
+            switch (event.getNewState())
+            {
+               case NORMAL:
+                  topState = NORMAL;
+                  break;
+               case MAXIMIZE:
+                  topState = MINIMIZE;
+                  break;
+               case MINIMIZE:
+                  topState = MAXIMIZE;
+                  break;
+               case HIDE:
+                  topState = EXCLUSIVE;
+                  break;
+               case EXCLUSIVE:
+                  topState = HIDE;
+                  break;
+               default:
+                  throw new IllegalArgumentException(
+                        "Unknown WindowState " + event.getNewState());
+            }
+            windowA_.onWindowStateChange(
+                                    new WindowStateChangeEvent(topState));
          }
-         windowA_.onWindowStateChange(
-                                 new WindowStateChangeEvent(topState));
       };
 
       hookEvents();
@@ -437,37 +441,32 @@ public class DualWindowLayoutPanel extends SimplePanel
             public void onSplitterResized(SplitterResizedEvent event)
             {
                WindowState topState = resizePanes(layout_.getSplitterBottom());
-
+               
                // we're already in normal if the splitter is being invoked
                if (topState != WindowState.NORMAL)
                {
                   topWindowStateChangeManager_.onWindowStateChange(
                      new WindowStateChangeEvent(topState));
                }
-
-               eventBus.fireEvent(new GlassVisibilityEvent(false));
+               
+               eventBus.fireEvent(new GlassVisibilityEvent(false)); 
             }
          });
       }
    }
-
-   public void focusSplitter()
-   {
-      layout_.focusSplitter();
-   }
-
+   
    // resize the panes based on the specified bottom height and return the
    // new window state for the top pane (this implements snap to minimize)
    private WindowState resizePanes(int bottom)
    {
       WindowState topState = null;
-
+      
       int height = layout_.getOffsetHeight();
 
       // If the height of upper or lower panel is smaller than this
       // then that panel will minimize
       final int MIN_HEIGHT = 60;
-
+      
       if (bottom < MIN_HEIGHT)
       {
          topState = WindowState.MAXIMIZE;
@@ -485,14 +484,14 @@ public class DualWindowLayoutPanel extends SimplePanel
                                           height,
                                           Window.getClientHeight());
       }
-
+      
       session_.persistClientState();
-
+      
       return topState;
    }
 
-
-
+  
+   
    private void hookEvents()
    {
       registrations_.add(
@@ -500,9 +499,9 @@ public class DualWindowLayoutPanel extends SimplePanel
       registrations_.add(
             windowB_.addWindowStateChangeHandler(bottomWindowStateChangeManager_));
       registrations_.add(
-         windowA_.addEnsureHeightHandler(new EnsureHeightChangeManager(true)));
+         windowA_.addEnsureHeightHandler(new EnsureHeightChangeManager(true))); 
       registrations_.add(
-         windowB_.addEnsureHeightHandler(new EnsureHeightChangeManager(false)));
+         windowB_.addEnsureHeightHandler(new EnsureHeightChangeManager(false))); 
    }
 
    private void unhookEvents()
@@ -513,12 +512,6 @@ public class DualWindowLayoutPanel extends SimplePanel
    public void replaceWindows(LogicalWindow windowA,
                               LogicalWindow windowB)
    {
-      // If there is nothing to replace, we don't want to reset the state and potentially open
-      // something the user had minimized.
-      if (windowA == windowA_ &&
-          windowB == windowB_)
-         return;
-
       unhookEvents();
       windowA_ = windowA;
       windowB_ = windowB;
@@ -528,9 +521,12 @@ public class DualWindowLayoutPanel extends SimplePanel
             windowA_.getNormal(), windowA_.getMinimized(),
             windowB_.getNormal(), windowB_.getMinimized() });
 
-      Scheduler.get().scheduleFinally(() ->
+      Scheduler.get().scheduleFinally(new ScheduledCommand()
       {
-         windowA_.onWindowStateChange(new WindowStateChangeEvent(NORMAL));
+         public void execute()
+         {
+            windowA_.onWindowStateChange(new WindowStateChangeEvent(NORMAL));
+         }
       });
    }
 
@@ -541,18 +537,17 @@ public class DualWindowLayoutPanel extends SimplePanel
          layout_.onResize();
       }
    }
-
+   
    private void layout(final LogicalWindow top,
                        final LogicalWindow bottom,
                        boolean keepFocus)
    {
-      boolean reducedMotion = RStudioGinjector.INSTANCE.getUserPrefs().reducedMotion().getValue();
       AnimationHelper.create(layout_,
                              top,
                              bottom,
                              normalHeight_.getHeightScaledTo(getOffsetHeight()),
                              layout_.getSplitterHeight(),
-                             isVisible() && isAttached() && !reducedMotion,
+                             isVisible() && isAttached(),
                              keepFocus).animate();
    }
 
@@ -561,68 +556,68 @@ public class DualWindowLayoutPanel extends SimplePanel
       topWindowStateChangeManager_.onWindowStateChange(
             new WindowStateChangeEvent(state));
    }
-
-   private class EnsureHeightChangeManager implements EnsureHeightEvent.Handler
+   
+   private class EnsureHeightChangeManager implements EnsureHeightHandler
    {
       public EnsureHeightChangeManager(boolean isTopWindow)
       {
          isTopWindow_ = isTopWindow;
       }
-
+      
       @Override
       public void onEnsureHeight(EnsureHeightEvent event)
       {
          // constants
          final int FRAME = 52;
          final int MINIMUM = 160;
-
+         
          // get the target window and target height
          LogicalWindow targetWindow = isTopWindow_ ? windowA_ : windowB_;
          int targetHeight = event.getHeight() + FRAME;
-
+         
          // ignore if we are already maximized
          if (targetWindow.getState() == WindowState.MAXIMIZE)
             return;
-
+         
          // ignore if we are already high enough
          if (targetWindow.getActiveWidget().getOffsetHeight() >= targetHeight)
             return;
-
+       
          // calculate height of other pane
          int aHeight = windowA_.getActiveWidget().getOffsetHeight();
          int bHeight = windowB_.getActiveWidget().getOffsetHeight();
          int chromeHeight = layout_.getOffsetHeight() - aHeight - bHeight;
-         int otherHeight = layout_.getOffsetHeight() -
-                           chromeHeight -
+         int otherHeight = layout_.getOffsetHeight() - 
+                           chromeHeight - 
                            targetHeight;
-
-         // see if we need to offset to achieve minimum other height
+         
+         // see if we need to offset to acheive minimum other height
          int offset = 0;
          if (otherHeight < MINIMUM)
             offset = MINIMUM - otherHeight;
-
+         
          // determine the height (only the bottom can be sizes explicitly
          // so for the top we need to derive it's height from the implied
          // bottom height that we already computed)
          int height = isTopWindow_ ? (otherHeight + offset) :
                                      (targetHeight - offset);
-
+         
          // ignore if this will reduce our size
          if (height <= targetWindow.getActiveWidget().getOffsetHeight())
             return;
-
-         // resize bottom
+         
+         // resize bottom 
          WindowState topState = resizePanes(height);
-
+         
          if (topState != null)
          {
             topWindowStateChangeManager_.onWindowStateChange(
-               new WindowStateChangeEvent(topState));
+               new WindowStateChangeEvent(topState));  
          }
       }
-
+      
       private boolean isTopWindow_;
-
+      
    }
 
    private BinarySplitLayoutPanel layout_;
@@ -631,7 +626,7 @@ public class DualWindowLayoutPanel extends SimplePanel
    private LogicalWindow windowB_;
    private final Session session_;
    private WindowStateChangeManager topWindowStateChangeManager_;
-   private WindowStateChangeEvent.Handler bottomWindowStateChangeManager_;
+   private WindowStateChangeHandler bottomWindowStateChangeManager_;
    private HandlerRegistrations registrations_ = new HandlerRegistrations();
 
    private NormalHeight snapMinimizeNormalHeight_;

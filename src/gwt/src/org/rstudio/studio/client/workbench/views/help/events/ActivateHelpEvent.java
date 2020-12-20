@@ -1,7 +1,7 @@
 /*
  * ActivateHelpEvent.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,30 +14,25 @@
  */
 package org.rstudio.studio.client.workbench.views.help.events;
 
-import com.google.gwt.event.shared.EventHandler;
 import com.google.gwt.event.shared.GwtEvent;
 
-public class ActivateHelpEvent extends GwtEvent<ActivateHelpEvent.Handler>
+public class ActivateHelpEvent extends GwtEvent<ActivateHelpHandler>
 {
-   public static final GwtEvent.Type<Handler> TYPE = new GwtEvent.Type<>();
-
+   public static final GwtEvent.Type<ActivateHelpHandler> TYPE =
+      new GwtEvent.Type<ActivateHelpHandler>();
+   
    public ActivateHelpEvent()
    {
    }
-
+   
    @Override
-   protected void dispatch(Handler handler)
+   protected void dispatch(ActivateHelpHandler handler)
    {
       handler.onActivateHelp(this);
    }
 
-   public interface Handler extends EventHandler
-   {
-      void onActivateHelp(ActivateHelpEvent event);
-   }
-
    @Override
-   public GwtEvent.Type<Handler> getAssociatedType()
+   public GwtEvent.Type<ActivateHelpHandler> getAssociatedType()
    {
       return TYPE;
    }

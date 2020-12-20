@@ -1,7 +1,7 @@
 #
 # SessionAuthoring.R
 #
-# Copyright (C) 2020 by RStudio, PBC
+# Copyright (C) 2009-12 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -57,9 +57,11 @@
    sweaveOptions$pdf.version <- "character"
    sweaveOptions$pdf.encoding <- "character"
    sweaveOptions$pdf.compress <-"logical"
-   sweaveOptions$png <- "logical"
-   sweaveOptions$jpeg <- "logical"
-   sweaveOptions$grdevice <- "character"
+   if (getRversion() >= "2.13.0") {
+      sweaveOptions$png <- "logical"
+      sweaveOptions$jpeg <- "logical"
+      sweaveOptions$grdevice <- "character"
+   }
    sweaveOptions$width <- "numeric"
    sweaveOptions$height <- "numeric"
    sweaveOptions$resolution <- "numeric"

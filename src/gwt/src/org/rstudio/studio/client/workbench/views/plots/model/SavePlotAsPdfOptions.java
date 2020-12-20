@@ -1,7 +1,7 @@
 /*
  * SavePlotAsPdfOptions.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,9 +14,9 @@
  */
 package org.rstudio.studio.client.workbench.views.plots.model;
 
-import org.rstudio.studio.client.workbench.prefs.model.UserStateAccessor;
+import com.google.gwt.core.client.JavaScriptObject;
 
-public class SavePlotAsPdfOptions extends UserStateAccessor.SavePlotAsPdfOptions
+public class SavePlotAsPdfOptions extends JavaScriptObject
 {
    protected SavePlotAsPdfOptions()
    {   
@@ -39,12 +39,12 @@ public class SavePlotAsPdfOptions extends UserStateAccessor.SavePlotAsPdfOptions
                                                   boolean cairoPdf,
                                                   boolean viewAfterSave) /*-{
       var options = new Object();
-      options.width = width;
-      options.height = height;
+      options.width = width ;
+      options.height = height ;
       options.portrait = portrait;
       options.cairo_pdf = cairoPdf;
       options.viewAfterSave = viewAfterSave;
-      return options;
+      return options ;
    }-*/;
    
    public static final SavePlotAsPdfOptions adaptToSize(
@@ -70,4 +70,26 @@ public class SavePlotAsPdfOptions extends UserStateAccessor.SavePlotAsPdfOptions
              a.cairo_pdf === b.cairo_pdf &&
              a.viewAfterSave === b.viewAfterSave;    
    }-*/;
+   
+   public final native double getWidth() /*-{
+      return this.width;
+   }-*/;
+   
+   public final native double getHeight() /*-{
+      return this.height;
+   }-*/;
+   
+   public final native boolean getPortrait() /*-{
+      return this.portrait;
+   }-*/;
+   
+   public final native boolean getCairoPdf() /*-{
+      return this.cairo_pdf;
+   }-*/;
+
+   
+   public final native boolean getViewAfterSave() /*-{
+      return this.viewAfterSave;
+   }-*/;
+   
 }

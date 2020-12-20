@@ -1,7 +1,7 @@
 /*
  * WebWindowOpener.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -147,13 +147,12 @@ public class WebWindowOpener implements WindowOpener
       if (name == null)
          name = "_blank";
 
-      if (options.appendClientId()
-          && !name.equals("_blank")
+      if (!name.equals("_blank")
           && !name.equals("_top")
           && !name.equals("_parent")
           && !name.equals("_self"))
       {
-         name += "_" + CLIENT_ID;
+         name += "_" + clientId;
       }
 
       // Need to make the URL absolute because IE resolves relative URLs
@@ -214,6 +213,6 @@ public class WebWindowOpener implements WindowOpener
       return window;
    }-*/;
 
-   public static final String CLIENT_ID = (int)(Math.random() * 10000) + "";
+   private static final String clientId = (int)(Math.random() * 10000) + "";
 
 }

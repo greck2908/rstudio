@@ -1,7 +1,7 @@
 /*
  * JumpToFunctionEvent.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -38,10 +38,6 @@ public class JumpToFunctionEvent
       public final native int getColumnNumber() /*-{
          return this.column_number;
       }-*/;
-
-      public final native boolean getMoveCursor() /*-{
-         return this.move_cursor;
-      }-*/;
    }
 
    public interface Handler extends EventHandler
@@ -58,20 +54,15 @@ public class JumpToFunctionEvent
    {
       return data_.getLineNumber();
    }
-
+   
    public int getColumnNumber()
    {
       return data_.getColumnNumber();
    }
-
+   
    public String getFileName()
    {
       return data_.getFileName();
-   }
-
-   public boolean getMoveCursor()
-   {
-      return data_.getMoveCursor();
    }
 
    @Override
@@ -86,6 +77,6 @@ public class JumpToFunctionEvent
       handler.onJumpToFunction(this);
    }
 
-   public static final Type<Handler> TYPE = new Type<>();
+   public static final Type<Handler> TYPE = new Type<Handler>();
    private final Data data_;
 }

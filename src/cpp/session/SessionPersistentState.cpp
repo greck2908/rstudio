@@ -1,7 +1,7 @@
 /*
  * SessionPersistentState.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,8 +16,8 @@
 #include <session/SessionPersistentState.hpp>
 
 #include <core/Log.hpp>
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/system/System.hpp>
 
@@ -30,7 +30,7 @@
 #include <server_core/UrlPorts.hpp>
 #endif
 
-using namespace rstudio::core;
+using namespace rstudio::core ;
 
 namespace rstudio {
 namespace session {  
@@ -42,7 +42,7 @@ const char * const kAbend = "abend";
    
 PersistentState& persistentState()
 {
-   static PersistentState instance;
+   static PersistentState instance ;
    return instance;
 }
    
@@ -57,14 +57,14 @@ Error PersistentState::initialize()
 
    // scoped/project settings
    FilePath scratchPath = module_context::scopedScratchPath();
-   FilePath statePath = scratchPath.completePath("persistent-state");
+   FilePath statePath = scratchPath.complete("persistent-state");
    Error error = settings_.initialize(statePath);
    if (error)
       return error;
 
    // session settings
    scratchPath = module_context::sessionScratchPath();
-   statePath = scratchPath.completePath("session-persistent-state");
+   statePath = scratchPath.complete("session-persistent-state");
    return sessionSettings_.initialize(statePath);
 }
 
@@ -179,34 +179,6 @@ bool PersistentState::environmentMonitoring() const
 void PersistentState::setEnvironmentMonitoring(bool monitoring)
 {
    return settings_.set("environmentMonitoring", monitoring);
-}
-
-std::string PersistentState::reusedStandalonePort() const
-{
-   if (session::options().getBoolOverlayOption(kLauncherSessionOption))
-      return sessionSettings_.get("reusedStandalonePort", "");
-
-   return std::string();
-}
-
-void PersistentState::setReusedStandalonePort(const std::string& port)
-{
-   if (session::options().getBoolOverlayOption(kLauncherSessionOption))
-      sessionSettings_.set("reusedStandalonePort", port);
-}
-
-std::string PersistentState::reusedSessionProxyPort() const
-{
-   if (session::options().getBoolOverlayOption(kLauncherSessionOption))
-      return sessionSettings_.get("reusedSessionProxyPort", "");
-
-   return std::string();
-}
-
-void PersistentState::setReusedSessionProxyPort(const std::string& port)
-{
-   if (session::options().getBoolOverlayOption(kLauncherSessionOption))
-      sessionSettings_.set("reusedSessionProxyPort", port);
 }
 
 } // namespace session

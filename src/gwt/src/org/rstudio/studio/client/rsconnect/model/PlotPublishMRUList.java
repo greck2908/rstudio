@@ -1,7 +1,7 @@
 /*
  * PlotPublishMRUList.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,6 +24,8 @@ import org.rstudio.core.client.widget.ToolbarPopupMenu;
 import org.rstudio.studio.client.rsconnect.ui.RSConnectResources;
 import org.rstudio.studio.client.workbench.WorkbenchList;
 import org.rstudio.studio.client.workbench.WorkbenchListManager;
+import org.rstudio.studio.client.workbench.events.ListChangedEvent;
+import org.rstudio.studio.client.workbench.events.ListChangedHandler;
 
 import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.ui.MenuItem;
@@ -33,9 +35,9 @@ import com.google.inject.Singleton;
 @Singleton
 public class PlotPublishMRUList
 {
-   public static class Entry
+   public static class Entry 
    {
-      public Entry(String accountIn, String serverIn, String nameIn,
+      public Entry(String accountIn, String serverIn, String nameIn, 
             String titleIn)
       {
          account = accountIn;
@@ -43,19 +45,19 @@ public class PlotPublishMRUList
          name = nameIn;
          title = titleIn;
       }
-
+      
       public String asText()
       {
-         return account + "|" + server + "|" + name +
+         return account + "|" + server + "|" + name + 
                (StringUtil.isNullOrEmpty(title) ? "" : "|" + title);
       }
-
+      
       public static Entry fromText(String text)
       {
          String[] pieces = text.split("\\|");
          if (pieces.length < 3)
             return null;
-
+         
          return new Entry(pieces[0], pieces[1], pieces[2],
                pieces.length > 3 ? pieces[3] : "");
       }
@@ -66,14 +68,21 @@ public class PlotPublishMRUList
       public final String title;
    }
 
-   @Inject
+   @Inject 
    public PlotPublishMRUList(WorkbenchListManager listManager)
    {
       plotMru_ = listManager.getPlotPublishMruList();
-      plotMru_.addListChangedHandler(listChangedEvent -> plotMruList_ = listChangedEvent.getList());
+      plotMru_.addListChangedHandler(new ListChangedHandler()
+      {
+         @Override
+         public void onListChanged(ListChangedEvent event)
+         {
+            plotMruList_ = event.getList();
+         }
+      });
    }
-
-   public void addPlotMruEntries(ToolbarPopupMenu menu,
+   
+   public void addPlotMruEntries(ToolbarPopupMenu menu, 
          final OperationWithInput<Entry> onSelected)
    {
       for (String entry: plotMruList_)
@@ -81,16 +90,16 @@ public class PlotPublishMRUList
          final Entry mruEntry = Entry.fromText(entry);
          if (entry == null)
             continue;
-
+         
          // format the display name: pick title if specified, name if not
          String displayName = StringUtil.isNullOrEmpty(mruEntry.title) ?
                mruEntry.name : mruEntry.title;
          displayName += " (" + mruEntry.server + ")";
-
+         
          menu.addItem(new MenuItem(AppCommand.formatMenuLabel(
-               new ImageResource2x(RSConnectResources.INSTANCE.republishPlot2x()),
-               displayName, null), true,
-               new Command()
+               new ImageResource2x(RSConnectResources.INSTANCE.republishPlot2x()), 
+               displayName, null), true, 
+               new Command() 
          {
             @Override
             public void execute()
@@ -100,14 +109,14 @@ public class PlotPublishMRUList
          }));
       }
    }
-
+   
    public void addPlotMruEntry(String account, String server, String name,
          String title)
    {
       Entry mruEntry = new Entry(account, server, name, title);
       plotMru_.prepend(mruEntry.asText());
    }
-
-   private final WorkbenchList plotMru_;
+   
+   private WorkbenchList plotMru_;
    private ArrayList<String> plotMruList_ = new ArrayList<String>();
 }

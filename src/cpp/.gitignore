@@ -1,8 +1,6 @@
-/.vs
-/build
-/out
+CMakeLists.txt.user*
 .ycm_extra_conf.py
 .ycm_extra_conf.pyc
-CMakeLists.txt.user*
-CMakeSettings.json
+.vs/
 compile_commands.json
+

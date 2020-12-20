@@ -1,7 +1,7 @@
 /*
  * RFileType.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,6 @@ import org.rstudio.core.client.command.AppCommand;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.common.reditor.EditorLanguage;
 import org.rstudio.studio.client.workbench.commands.Commands;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.spelling.TokenPredicate;
 
 import java.util.HashSet;
 
@@ -43,7 +42,7 @@ public class RFileType extends TextFileType
    @Override
    public boolean getWordWrap()
    {
-      return RStudioGinjector.INSTANCE.getUserPrefs().softWrapRFiles().getValue();
+      return RStudioGinjector.INSTANCE.getUIPrefs().softWrapRFiles().getValue();
    }
 
    @Override
@@ -65,20 +64,5 @@ public class RFileType extends TextFileType
       result.add(commands.debugBreakpoint());
       result.add(commands.insertRoxygenSkeleton());
       return result;
-   }
-
-   @Override
-   public TokenPredicate getSpellCheckTokenPredicate()
-   {
-      return (token, row, column) ->
-      {
-         if (reNospellType_.match(token.getType(), 0) != null) {
-            return false;
-         }
-
-         return reCommentType_.match(token.getType(), 0) != null &&
-            reKeywordType_.match(token.getType(), 0) == null &&
-            reIdentifierType_.match(token.getType(), 0) == null;
-      };
    }
 }

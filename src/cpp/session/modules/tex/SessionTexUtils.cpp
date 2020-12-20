@@ -1,7 +1,7 @@
 /*
  * SessionTexUtils.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -53,7 +53,7 @@ core::system::Option inputsEnvVar(const std::string& name,
       boost::algorithm::replace_all(value, "\\", "/");
 #endif
 
-   std::string sysPath = string_utils::utf8ToSystem(extraPath.getAbsolutePath());
+   std::string sysPath = string_utils::utf8ToSystem(extraPath.absolutePath());
    core::system::addToPath(&value, sysPath);
    core::system::addToPath(&value, ""); // trailing : required by tex
 
@@ -65,7 +65,7 @@ shell_utils::ShellArgs buildArgs(const shell_utils::ShellArgs& args,
 {
    shell_utils::ShellArgs procArgs;
    procArgs << args;
-   procArgs << texFilePath.getFilename();
+   procArgs << texFilePath.filename();
    return procArgs;
 }
 
@@ -94,20 +94,19 @@ RTexmfPaths rTexmfPaths()
    }
 
    // R texmf path
-   FilePath rTexmfPath(rHomeSharePath.completePath("texmf"));
+   FilePath rTexmfPath(rHomeSharePath.complete("texmf"));
    if (!rTexmfPath.exists())
    {
-      LOG_ERROR(core::pathNotFoundError(
-         rTexmfPath.getAbsolutePath(),
+      LOG_ERROR(core::pathNotFoundError(rTexmfPath.absolutePath(),
                                         ERROR_LOCATION));
       return RTexmfPaths();
    }
 
    // populate and return struct
    RTexmfPaths texmfPaths;
-   texmfPaths.texInputsPath = rTexmfPath.completeChildPath("tex/latex");
-   texmfPaths.bibInputsPath = rTexmfPath.completeChildPath("bibtex/bib");
-   texmfPaths.bstInputsPath = rTexmfPath.completeChildPath("bibtex/bst");
+   texmfPaths.texInputsPath = rTexmfPath.childPath("tex/latex");
+   texmfPaths.bibInputsPath = rTexmfPath.childPath("bibtex/bib");
+   texmfPaths.bstInputsPath = rTexmfPath.childPath("bibtex/bst");
    return texmfPaths;
 }
 
@@ -152,11 +151,11 @@ Error runTexCompile(const FilePath& texProgramPath,
    procOptions.terminateChildren = true;
    procOptions.redirectStdErrToStdOut = true;
    procOptions.environment = env;
-   procOptions.workingDir = texFilePath.getParent();
+   procOptions.workingDir = texFilePath.parent();
 
    // run the program
    return core::system::runProgram(
-               string_utils::utf8ToSystem(texProgramPath.getAbsolutePath()),
+               string_utils::utf8ToSystem(texProgramPath.absolutePath()),
                buildArgs(args, texFilePath),
                "",
                procOptions,
@@ -174,7 +173,7 @@ core::Error runTexCompile(
                               texProgramPath,
                               buildArgs(args, texFilePath),
                               envVars,
-                              texFilePath.getParent(),
+                              texFilePath.parent(),
                               ignoreOutput,
                               onExited);
 

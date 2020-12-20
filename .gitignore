@@ -2,9 +2,6 @@
 build_*/
 build-*/
 *-build/
-*_build/
-*-build-*/
-*_build_*/
 qtcreator-build
 .DS_Store
 src/gwt/www/js/acesupport.js
@@ -27,7 +24,6 @@ NEWS.html
 CONTRIBUTING.html
 CMakeLists.txt.user
 .idea/
-.vscode/
 **/\.tern-port
 .#*
 *.autosave
@@ -40,5 +36,4 @@ GPATH
 GRTAGS
 GSYMS
 GTAGS
-TODO-INTERNAL
 

@@ -1,7 +1,7 @@
 /*
  * ConsoleWritePromptEvent.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,17 +14,11 @@
  */
 package org.rstudio.studio.client.workbench.views.console.events;
 
-import com.google.gwt.event.shared.EventHandler;
 import com.google.gwt.event.shared.GwtEvent;
 
-public class ConsoleWritePromptEvent extends GwtEvent<ConsoleWritePromptEvent.Handler>
+public class ConsoleWritePromptEvent extends GwtEvent<ConsoleWritePromptHandler>
 {
-   public static final Type<Handler> TYPE = new Type<>();
-
-   public interface Handler extends EventHandler
-   {
-      void onConsoleWritePrompt(ConsoleWritePromptEvent event);
-   }
+   public static final Type<ConsoleWritePromptHandler> TYPE = new Type<ConsoleWritePromptHandler>();
 
    public ConsoleWritePromptEvent(String prompt)
    {
@@ -39,13 +33,13 @@ public class ConsoleWritePromptEvent extends GwtEvent<ConsoleWritePromptEvent.Ha
    private String prompt_;
 
    @Override
-   public Type<Handler> getAssociatedType()
+   public Type<ConsoleWritePromptHandler> getAssociatedType()
    {
       return TYPE;
    }
 
    @Override
-   protected void dispatch(Handler handler)
+   protected void dispatch(ConsoleWritePromptHandler handler)
    {
       handler.onConsoleWritePrompt(this);
    }

@@ -1,7 +1,7 @@
 /*
  * SessionOverlay.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,7 +17,6 @@
 #define SESSION_OVERLAY_HPP
 
 #include <string>
-#include <boost/asio/io_service.hpp>
 
 namespace rstudio {
 namespace core {
@@ -39,11 +38,9 @@ void streamLauncherOutput(const std::string& jobId,
 
 int verifyInstallation();
 
-void initMonitorClient(boost::asio::io_service& ioService);
+void initMonitorClient();
 
 core::Error initialize();
-
-std::string sessionNode();
    
 } // namespace overlay
 } // namespace modules

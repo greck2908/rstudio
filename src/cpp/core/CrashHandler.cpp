@@ -1,7 +1,7 @@
 /*
  * CrashHandler.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2019 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,7 +22,10 @@
 #include <core/StringUtils.hpp>
 #include <core/system/System.hpp>
 #include <core/system/Environment.hpp>
-#include <core/system/Xdg.hpp>
+
+#ifndef _WIN32
+#include <core/system/FileMode.hpp>
+#endif
 
 #include "config.h"
 
@@ -80,8 +83,6 @@ Error setUserHasBeenPromptedForPermission()
 #define kUploadDumpsDefault           true
 #define kUploadProxy                  "upload-proxy"
 #define kUploadProxyDefault           ""
-#define kCrashConfFile                "crash-handler.conf"
-#define kCrashPermissionFile          "crash-handler-permission"
 
 namespace rstudio {
 namespace core {
@@ -95,12 +96,18 @@ ProgramMode s_programMode;
 
 FilePath adminConfFile()
 {
-   return core::system::xdg::systemConfigFile(kCrashConfFile);
+#ifndef _WIN32
+   return FilePath("/etc/rstudio/crash-handler.conf");
+#else
+   return core::system::systemSettingsPath("RStudio", false).complete("crash-handler.conf");
+#endif
 }
 
 FilePath userConfFile()
 {
-   return core::system::xdg::userConfigDir().completeChildPath(kCrashConfFile);
+   return core::system::userSettingsPath(core::system::userHomePath(),
+                                         "R",
+                                         false).complete("crash-handler.conf");
 }
 
 void readOptions()
@@ -123,32 +130,9 @@ void readOptions()
       // can properly see the state at all times
       if (!optionsFile.exists())
       {
-         FilePath oldOptionsFile = core::system::userSettingsPath(
-            core::system::userHomePath(),
-            "R",
-            true).completePath(kCrashConfFile);
-
-         Error error = Success();
-         if (oldOptionsFile.exists())
-         {
-            // Migrate conf from older version of RStudio if present.
-            error = oldOptionsFile.copy(optionsFile);
-            if (error)
-            {
-               LOG_ERROR(error);
-            }
-         }
-
-         // The new file might not exist because we failed to migrate the old file or
-         // because there *was* no old file. Either way, create the new file now.
-         if (!optionsFile.exists())
-         {
-            error = optionsFile.getParent().ensureDirectory();
-            if (!error)
-               error = optionsFile.ensureFile();
-            if (error)
-               LOG_ERROR(error);
-         }
+         Error error = optionsFile.ensureFile();
+         if (error)
+            LOG_ERROR(error);
       }
    }
 
@@ -199,7 +183,9 @@ void logClientCreation(const base::FilePath& handlerPath,
 
 FilePath permissionFile()
 {
-   return core::system::xdg::userDataDir().completeChildPath(kCrashPermissionFile);
+   return core::system::userSettingsPath(core::system::userHomePath(),
+                                         "R",
+                                         false).complete("crash-handler-permission");
 }
 
 } // anonymous namespace
@@ -227,11 +213,11 @@ Error initialize(ProgramMode programMode)
       {
          // server mode - default database path to default tmp location
          FilePath tmpPath;
-         Error error = FilePath::tempFilePath(tmpPath);
+         Error error = FilePath::tempFilePath(&tmpPath);
          if (error)
             return error;
 
-         FilePath databasePath = tmpPath.getParent().completeChildPath("crashpad_database");
+         FilePath databasePath = tmpPath.parent().childPath("crashpad_database");
 
          // ensure that the database path exists
          error = databasePath.ensureDirectory();
@@ -241,23 +227,22 @@ Error initialize(ProgramMode programMode)
          // ensure that it is writeable by all users
          // this is best case and we swallow the error because it is legitimately possible we
          // lack the permissions to perform this (such as if we are an unprivileged rsession user)
-         databasePath.changeFileMode(core::FileMode::ALL_READ_WRITE_EXECUTE);
+         core::system::changeFileMode(databasePath, core::system::EveryoneReadWriteExecuteMode);
 
-         databasePathStr = databasePath.getAbsolutePath();
+         databasePathStr = databasePath.absolutePath();
       }
       else
       {
          // desktop mode - default database path to user settings path
-         databasePathStr = core::system::userSettingsPath(
-            core::system::userHomePath(),
-            "R",
-            true).completeChildPath("crashpad_database").getAbsolutePath();
+         databasePathStr = core::system::userSettingsPath(core::system::userHomePath(),
+                                                          "R",
+                                                          true).childPath("crashpad_database").absolutePath();
       }
 #else
       // desktop mode - default database path to user settings path
       databasePathStr = core::system::userSettingsPath(core::system::userHomePath(),
                                                        "R",
-                                                       true).completeChildPath("crashpad_database").getAbsolutePath();
+                                                       true).childPath("crashpad_database").absolutePath();
 #endif
    }
    base::FilePath databasePath = googleFilePath(databasePathStr);
@@ -287,14 +272,14 @@ Error initialize(ProgramMode programMode)
          // is run with the correct permissions (otherwise ptrace will not work if setuid is used)
          #ifdef RSTUDIO_SERVER
             if (s_programMode == ProgramMode::Server)
-               handlerPath = googleFilePath(exePath.getParent().completeChildPath("crash-handler-proxy").getAbsolutePath());
+               handlerPath = googleFilePath(exePath.parent().childPath("crash-handler-proxy").absolutePath());
             else
-               handlerPath = googleFilePath(exePath.getParent().completeChildPath("crashpad_handler").getAbsolutePath());
+               handlerPath = googleFilePath(exePath.parent().childPath("crashpad_handler").absolutePath());
          #else
-            handlerPath = googleFilePath(exePath.getParent().completeChildPath("crashpad_handler").getAbsolutePath());
+            handlerPath = googleFilePath(exePath.parent().childPath("crashpad_handler").absolutePath());
          #endif
       #else
-         handlerPath = googleFilePath(exePath.getParent().completeChildPath("crashpad_handler.exe").getAbsolutePath());
+         handlerPath = googleFilePath(exePath.parent().childPath("crashpad_handler.exe").absolutePath());
 #endif
    }
 
@@ -309,9 +294,9 @@ Error initialize(ProgramMode programMode)
    if (s_programMode == ProgramMode::Server)
    {
       std::vector<FilePath> dbFolders;
-      FilePath(databasePathStr).getChildren(dbFolders);
+      FilePath(databasePathStr).children(&dbFolders);
       for (const FilePath& subPath : dbFolders)
-         subPath.changeFileMode(core::FileMode::ALL_READ_WRITE_EXECUTE);
+         core::system::changeFileMode(subPath, core::system::EveryoneReadWriteExecuteMode);
    }
 #endif
 
@@ -361,7 +346,7 @@ Error initialize(ProgramMode programMode)
 ConfigSource configSource()
 {
    FilePath settingsPath = s_settings->filePath();
-   if (settingsPath.isEmpty())
+   if (settingsPath.empty())
       return ConfigSource::Default;
 
    if (settingsPath == adminConfFile())
@@ -414,18 +399,10 @@ bool hasUserBeenPromptedForPermission()
 {
    if (!permissionFile().exists())
    {
-      // check for the old (pre RStudio 1.4) permission file
-      FilePath oldPermissionFile = core::system::userSettingsPath(
-         core::system::userHomePath(),
-         "R",
-         false).completePath(kCrashPermissionFile);
-      if (oldPermissionFile.exists())
-          return true;
-
       // if for some reason the parent directory is not writeable
       // we will just treat the user as if they have been prompted
       // to prevent indefinite repeated promptings
-      if (!file_utils::isDirectoryWriteable(permissionFile().getParent()))
+      if (!file_utils::isDirectoryWriteable(permissionFile().parent()))
          return true;
       else
          return false;

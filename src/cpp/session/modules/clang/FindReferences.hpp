@@ -1,7 +1,7 @@
 /*
  * FindReferences.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,7 @@
 
 #include <vector>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 
 #include <core/json/JsonRpc.hpp>
  

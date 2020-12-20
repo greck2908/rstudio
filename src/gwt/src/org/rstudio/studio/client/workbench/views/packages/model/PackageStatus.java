@@ -1,7 +1,7 @@
 /*
  * PackageStatus.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -30,10 +30,10 @@ public class PackageStatus extends JavaScriptObject
                                                    String lib,
                                                    boolean loaded) /*-{
       var status = new Object();
-      status.name = name;
-      status.lib = lib;
+      status.name = name ;
+      status.lib = lib ;
       status.loaded = loaded;
-      return status;
+      return status ;
    }-*/;
    
    public final native String getName() /*-{

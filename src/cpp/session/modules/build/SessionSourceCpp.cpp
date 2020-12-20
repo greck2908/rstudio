@@ -1,7 +1,7 @@
 /*
  * SessionSourceCpp.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,8 +20,8 @@
 #include <boost/algorithm/string/join.hpp>
 
 #include <core/BoostSignals.hpp>
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/StringUtils.hpp>
 
 #include <r/RSexp.hpp>
@@ -31,7 +31,7 @@
 
 #include "SessionBuildErrors.hpp"
 
-using namespace rstudio::core;
+using namespace rstudio::core ;
 
 namespace rstudio {
 namespace session {  
@@ -43,7 +43,7 @@ namespace {
 
 struct SourceCppState
 {
-   bool empty() const { return errors.isEmpty() && outputs.isEmpty(); }
+   bool empty() const { return errors.empty() && outputs.empty(); }
 
    void clear()
    {
@@ -91,7 +91,7 @@ void enqueSourceCppCompleted(const FilePath& sourceFile,
 
    // parse errors
    std::string allOutput = output + "\n" + errorOutput;
-   CompileErrorParser errorParser = gccErrorParser(sourceFile.getParent());
+   CompileErrorParser errorParser = gccErrorParser(sourceFile.parent());
    std::vector<SourceMarker> errors = errorParser(allOutput);
    sourceCppState.errors = sourceMarkersAsJson(errors);
 

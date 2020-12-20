@@ -1,7 +1,7 @@
 /*
  * ServerMeta.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,8 +14,6 @@
  */
 
 #include "ServerMeta.hpp"
-
-#include <core/Log.hpp>
 
 #include <core/http/Request.hpp>
 #include <core/http/Response.hpp>
@@ -44,7 +42,7 @@ void handleMetaRequest(const std::string& username,
 {
    // parse request
    json::JsonRpcRequest jsonRpcRequest;
-   Error parseError = parseJsonRpcRequest(request.body(), &jsonRpcRequest);
+   Error parseError = parseJsonRpcRequest(request.body(), &jsonRpcRequest) ;
    if (parseError)
    {
       LOG_ERROR(parseError);

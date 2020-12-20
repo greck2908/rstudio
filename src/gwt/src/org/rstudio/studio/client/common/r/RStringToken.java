@@ -1,7 +1,7 @@
 /*
  * RStringToken.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,15 +22,15 @@ public class RStringToken extends RToken
                        int length, 
                        boolean wellFormed)
    {
-      super(tokenType, content, offset, length);
+      super(tokenType, content, offset, length) ;
 
-      wellFormed_ = wellFormed;
+      wellFormed_ = wellFormed ;
    }
    
    public boolean isWellFormed()
    {
-      return wellFormed_;
+      return wellFormed_ ;
    }
 
-   private final boolean wellFormed_;
+   private final boolean wellFormed_ ;
 }

@@ -1,7 +1,7 @@
 /*
  * CSRFToken.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -13,10 +13,10 @@
  *
  */
 
-#include <core/http/CSRFToken.hpp>
-
 #include <boost/algorithm/string/predicate.hpp>
 
+#include <core/http/Cookie.hpp>
+#include <core/http/CSRFToken.hpp>
 #include <core/http/Request.hpp>
 #include <core/http/Response.hpp>
 
@@ -28,13 +28,22 @@ namespace rstudio {
 namespace core {
 namespace http {
 
-std::string setCSRFTokenCookie(const http::Request& request,
-                               const boost::optional<boost::posix_time::time_duration>& expiresFromNow,
-                               const std::string& token,
-                               const std::string& path,
-                               bool secure,
-                               http::Cookie::SameSite sameSite,
-                               http::Response* pResponse)
+void setCSRFTokenCookie(const http::Request& request, 
+                        const boost::optional<boost::gregorian::days>& expiry,
+                        const std::string& token,
+                        http::Response* pResponse)
+{
+   boost::optional<boost::posix_time::time_duration> expiresFromNow;
+   if (expiry.is_initialized())
+      expiresFromNow = boost::posix_time::time_duration(24 * expiry->days(), 0, 0);
+
+   setCSRFTokenCookie(request, expiresFromNow, token, pResponse);
+}
+
+void setCSRFTokenCookie(const http::Request& request,
+                        const boost::optional<boost::posix_time::time_duration>& expiresFromNow,
+                        const std::string& token,
+                        http::Response* pResponse)
 {
    // generate UUID for token if unspecified
    std::string csrfToken(token);
@@ -46,17 +55,16 @@ std::string setCSRFTokenCookie(const http::Request& request,
             request,
             kCSRFTokenCookie,
             csrfToken,
-            path,
-            sameSite,
+            "/",  // cookie for root path
             true, // HTTP only
-            secure);
+            // secure if delivered via SSL
+            boost::algorithm::starts_with(request.absoluteUri(), "https"));
 
    // set expiration for cookie
    if (expiresFromNow.is_initialized())
       cookie.setExpires(*expiresFromNow);
 
    pResponse->addCookie(cookie);
-   return csrfToken;
 }
 
 bool validateCSRFForm(const http::Request& request, 

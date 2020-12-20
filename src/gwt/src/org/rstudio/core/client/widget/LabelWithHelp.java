@@ -1,7 +1,7 @@
 /*
  * LabelWithHelp.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,7 @@ package org.rstudio.core.client.widget;
 import com.google.gwt.dom.client.Style.Unit;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.HorizontalPanel;
-import com.google.gwt.user.client.ui.Widget;
+import com.google.gwt.user.client.ui.Label;
 
 public class LabelWithHelp extends Composite
 {
@@ -26,11 +26,10 @@ public class LabelWithHelp extends Composite
     * @param text label text
     * @param helpTopic help topic identifier
     * @param title help button a11y title
-    * @param labeledWidget what label is for
     */
-   public LabelWithHelp(String text, String helpTopic, String title, Widget labeledWidget)
+   public LabelWithHelp(String text, String helpTopic, String title)
    {
-      this(text, helpTopic, true, title, labeledWidget);
+      this(text, helpTopic, true, title);
    }
 
    /**
@@ -38,16 +37,14 @@ public class LabelWithHelp extends Composite
     * @param helpTopic help topic identifier
     * @param includeVersionInfo
     * @param title help button a11y title
-    * @param labeledWidget what label is for
     */
    public LabelWithHelp(String text, 
                         String helpTopic, 
                         boolean includeVersionInfo,
-                        String title,
-                        Widget labeledWidget)
+                        String title)
    {
       HorizontalPanel labelPanel = new HorizontalPanel();
-      FormLabel label = new FormLabel(text, labeledWidget);
+      Label label = new Label(text);
       labelPanel.add(label);
       HelpButton helpButton =  new HelpButton(helpTopic, includeVersionInfo, title);
       helpButton.getElement().getStyle().setMarginLeft(3, Unit.PX);

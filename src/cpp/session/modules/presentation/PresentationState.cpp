@@ -1,7 +1,7 @@
 /*
  * PresentationState.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,7 +16,7 @@
 
 #include "PresentationState.hpp"
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/Settings.hpp>
 
 #include <session/SessionModuleContext.hpp>
@@ -52,11 +52,11 @@ PresentationState s_presentationState;
 
 FilePath presentationStatePath()
 {
-   FilePath path = module_context::scopedScratchPath().completeChildPath("presentation");
+   FilePath path = module_context::scopedScratchPath().childPath("presentation");
    Error error = path.ensureDirectory();
    if (error)
       LOG_ERROR(error);
-   return path.completeChildPath("presentation-state-v2");
+   return path.childPath("presentation-state-v2");
 }
 
 std::string toPersistentPath(const FilePath& filePath)
@@ -66,11 +66,11 @@ std::string toPersistentPath(const FilePath& filePath)
    if (projectContext.hasProject() &&
        filePath.isWithin(projectContext.directory()))
    {
-      return filePath.getRelativePath(projectContext.directory());
+      return filePath.relativePath(projectContext.directory());
    }
    else
    {
-      return filePath.getAbsolutePath();
+      return filePath.absolutePath();
    }
 }
 
@@ -79,7 +79,7 @@ FilePath fromPersistentPath(const std::string& path)
    projects::ProjectContext& projectContext = projects::projectContext();
    if (projectContext.hasProject())
    {
-      return projectContext.directory().completePath(path);
+      return projectContext.directory().complete(path);
    }
    else
    {
@@ -177,19 +177,19 @@ FilePath filePath()
 
 FilePath directory()
 {
-   return s_presentationState.filePath.getParent();
+   return s_presentationState.filePath.parent();
 }
 
 FilePath viewInBrowserPath()
 {
-   if (s_presentationState.viewInBrowserPath.isEmpty())
+   if (s_presentationState.viewInBrowserPath.empty())
    {
       FilePath viewDir = module_context::tempFile("view", "dir");
       Error error = viewDir.ensureDirectory();
       if (!error)
       {
          s_presentationState.viewInBrowserPath =
-            viewDir.completeChildPath("presentation.html");
+                                    viewDir.childPath("presentation.html");
       }
       else
       {

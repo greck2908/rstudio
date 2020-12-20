@@ -1,7 +1,7 @@
 /*
  * RDiscovery.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,8 +15,8 @@
 
 #include <r/session/RDiscovery.hpp>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/system/System.hpp>
 #include <core/system/Environment.hpp>
 
@@ -45,8 +45,8 @@ Error discoverR(RLocations* pLocations)
 
    // set paths
    FilePath rHome(lpszRHome);
-   pLocations->homePath = rHome.getAbsolutePath();
-   pLocations->docPath = rHome.completePath("doc").getAbsolutePath();
+   pLocations->homePath = rHome.absolutePath();
+   pLocations->docPath = rHome.complete("doc").absolutePath();
 
    return Success();
 }

@@ -1,7 +1,7 @@
 /*
  * SessionRmdNotebook.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -36,15 +36,14 @@
 
 #include <core/Exec.hpp>
 #include <core/Algorithm.hpp>
-#include <shared_core/json/Json.hpp>
+#include <core/json/Json.hpp>
 #include <core/json/JsonRpc.hpp>
 #include <core/StringUtils.hpp>
 #include <core/system/System.hpp>
 
 #include <session/SessionModuleContext.hpp>
 #include <session/SessionOptions.hpp>
-
-#include <session/prefs/UserState.hpp>
+#include <session/SessionUserSettings.hpp>
 
 #define kFinishedReplay      0
 #define kFinishedInteractive 1
@@ -106,7 +105,7 @@ Error refreshChunkOutput(const json::JsonRpcRequest& request,
       return error;
 
    json::Object result;
-   json::Array chunkDefs;
+   json::Array chunkDefs; 
 
    // use our own context ID if none supplied
    if (nbCtxId.empty())
@@ -129,22 +128,21 @@ Error refreshChunkOutput(const json::JsonRpcRequest& request,
 }
 
 void emitOutputFinished(const std::string& docId, const std::string& chunkId,
-      const std::string& htmlCallback, int scope)
+      int scope)
 {
    json::Object result;
-   result["doc_id"]        = docId;
-   result["request_id"]    = "";
-   result["chunk_id"]      = chunkId;
-   result["html_callback"] = htmlCallback;
-   result["type"]          = kFinishedInteractive;
-   result["scope"]         = scope;
+   result["doc_id"]     = docId;
+   result["request_id"] = "";
+   result["chunk_id"]   = chunkId;
+   result["type"]       = kFinishedInteractive;
+   result["scope"]      = scope;
    ClientEvent event(client_events::kChunkOutputFinished, result);
    module_context::enqueClientEvent(event);
 }
 
 bool fixChunkFilename(int, const core::FilePath& path)
 {
-   std::string name = path.getFilename();
+   std::string name = path.filename();
    if (name.empty())
       return true;
    
@@ -161,7 +159,7 @@ bool fixChunkFilename(int, const core::FilePath& path)
    // rename file if we had to change it
    if (transformed != name)
    {
-      FilePath target = path.getParent().completeChildPath(transformed);
+      FilePath target = path.parent().childPath(transformed);
       Error error = path.move(target);
       if (error)
          LOG_ERROR(error);
@@ -173,51 +171,9 @@ bool fixChunkFilename(int, const core::FilePath& path)
 
 void onChunkExecCompleted(const std::string& docId, 
                           const std::string& chunkId,
-                          const std::string& code,
-                          const std::string& label,
                           const std::string& nbCtxId)
 {
-   r::sexp::Protect rProtect;
-   SEXP resultSEXP = R_NilValue;
-   std::string callback;
-
-   std::string escapedLabel =
-      core::string_utils::jsLiteralEscape(
-        core::string_utils::htmlEscape(label, true));
-   std::string escapedCode =
-         core::string_utils::jsLiteralEscape(
-               core::string_utils::htmlEscape(code, true));
-   boost::algorithm::replace_all(escapedLabel, "-", "_");
-   boost::algorithm::replace_all(escapedCode, "-", "_");
-
-   r::exec::RFunction func(".rs.executeChunkCallback");
-   func.addParam(escapedLabel);
-   func.addParam(escapedCode);
-
-   core::Error error = func.call(&resultSEXP, &rProtect);
-   if (error)
-      LOG_ERROR(error);
-   else if (!r::sexp::isNull(resultSEXP))
-   {
-      json::Object results;
-      Error error = r::json::jsonValueFromList(resultSEXP, &results);
-      if (error)
-         LOG_ERROR(error);
-      else
-      {
-         if (results.hasMember("html"))
-         {
-            // assumes only one callback is returned
-            if (results["html"].isString())
-               callback = results["html"].getString();
-            else if (results["html"].isArray() &&
-                     results["html"].getArray().getValueAt(0).isString())
-               callback = results["html"].getArray().getValueAt(0).getString();
-         }
-      }
-   }
-
-   emitOutputFinished(docId, chunkId, callback, ExecScopeChunk);
+   emitOutputFinished(docId, chunkId, ExecScopeChunk);
 }
 
 void onDeferredInit(bool)
@@ -227,11 +183,11 @@ void onDeferredInit(bool)
    
    // Fix up chunk entries in the cache that were generated
    // with leading spaces on Windows
-   FilePath patchPath = root.completePath("patch-chunk-names");
+   FilePath patchPath = root.complete("patch-chunk-names");
    if (!patchPath.exists())
    {
       patchPath.ensureFile();
-      Error error = root.getChildrenRecursive(fixChunkFilename);
+      Error error = root.childrenRecursive(fixChunkFilename);
       if (error)
          LOG_ERROR(error);
    }
@@ -253,7 +209,7 @@ Events& events()
 // session should write to it.
 std::string notebookCtxId()
 {
-   return prefs::userState().contextId() + module_context::activeSession().id();
+   return userSettings().contextId() + module_context::activeSession().id();
 }
 
 Error initialize()

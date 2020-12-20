@@ -1,7 +1,7 @@
 /*
  * FilesTab.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -41,8 +41,6 @@ public class FilesTab extends DelayLoadWorkbenchTab<Files>
       public abstract void onSetWorkingDirToFilesPane();
       @Handler
       public abstract void onGoToWorkingDir();
-      @Handler
-      public abstract void onCopyFilesPaneCurrentDirectory();
    }
 
    @Inject

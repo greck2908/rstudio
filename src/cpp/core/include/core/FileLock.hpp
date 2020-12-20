@@ -1,7 +1,7 @@
 /*
  * FileLock.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -27,7 +27,6 @@
 #include <boost/scoped_ptr.hpp>
 #include <boost/asio.hpp>
 
-#include <core/Log.hpp>
 #include <core/Settings.hpp>
 
 // env var to enable distributed locking mode
@@ -46,8 +45,8 @@ public:
    enum LockType { LOCKTYPE_ADVISORY, LOCKTYPE_LINKBASED };
    
    // initialize (read configuration)
-   static void initialize();
-   static void initialize(FileLock::LockType fallbackLockType);
+   static void initialize(FilePath locksConfPath = FilePath());
+   static void initialize(const Settings& settings);
    
    // clean up
    static void cleanUp();
@@ -94,7 +93,7 @@ public:
    static bool isLoadBalanced() { return s_isLoadBalanced; }
    static bool isNoLockAvailable(const Error& error)
    {
-      return error == systemError(boost::system::errc::no_lock_available, ErrorLocation());
+      return error.code() == boost::system::errc::no_lock_available;
    }
    
 protected:

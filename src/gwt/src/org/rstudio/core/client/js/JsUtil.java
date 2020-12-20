@@ -1,7 +1,7 @@
 /*
  * JsUtil.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -108,7 +108,7 @@ public class JsUtil
                @Override
                public boolean hasNext()
                {
-                  return index_ >= 0;
+                  return index_ > 0;
                }
 
                @Override
@@ -235,9 +235,4 @@ public class JsUtil
          list.add(array.get(i));
       return list;
    }
-   
-   public native static boolean isUndefined(int val) /*-{
-      return typeof(val) === "undefined"; 
-   }-*/;
-
 }

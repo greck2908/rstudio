@@ -1,7 +1,7 @@
 /*
  * Pam.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -26,11 +26,6 @@ namespace rstudio {
 namespace core {
 namespace system {
 
-int conv(int num_msg,
-         const struct pam_message** msg,
-         struct pam_response** resp,
-         void * appdata_ptr);
-
 // NOTE: Mac OS X supports PAM but ships with it in a locked-down config
 // which will cause all passwords to be rejected. To make it work run:
 //
@@ -39,18 +34,15 @@ int conv(int num_msg,
 // That configures PAM to send rstudio through the same authentication
 // stack as ftpd uses, which is similar to us.
 
+
 // Low-level C++ wrapper around PAM API.
 class PAM : boost::noncopyable
 {
 public:
-   PAM(const std::string& service,
-       bool silent,
-       bool closeOnDestroy = true,
-       bool requirePasswordPrompt = true);
-
+   PAM(const std::string& service, bool silent, bool closeOnDestroy = true);
    virtual ~PAM();
 
-   std::string lastError();
+   std::pair<int, const std::string> lastError();
 
    int status() const { return status_; }
 
@@ -65,13 +57,6 @@ protected:
     pam_handle_t* pamh_;
     int status_;
     bool closeOnDestroy_;
-    bool requirePasswordPrompt_;
-
-    std::string password_;
-    friend int core::system::conv(int num_msg,
-                                  const struct pam_message** msg,
-                                  struct pam_response** resp,
-                                  void * appdata_ptr);
 };
 
 } // namespace system

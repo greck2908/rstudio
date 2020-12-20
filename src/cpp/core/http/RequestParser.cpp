@@ -1,7 +1,7 @@
 /*
  * RequestParser.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-11 by RStudio, Inc.
  * Copyright (c) 2003-2008 Christopher M. Kohlhoff (chris at kohlhoff dot com)
  *
  * Unless you have received this program directly from RStudio pursuant
@@ -16,6 +16,7 @@
 
 #include <core/http/RequestParser.hpp>
 
+#include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
 
 namespace rstudio {
@@ -23,29 +24,19 @@ namespace core {
 namespace http {
 
 RequestParser::RequestParser()
-   :state_(method_start),
-     contentLength_(0),
-     parsingContentLength_(false),
-     parsingBody_(false),
-     checkContentLength_(false),
-     isForm_(false),
-     paused_(false),
-     bufferPos_(boost::none),
-     bodyBytesRead_(0),
-     MAX_BUFFER_SIZE(defaultMaxBufferSize)
+  : state_(method_start), 
+    content_length_(0), 
+    parsing_content_length_(false), 
+    parsing_body_(false)
 {
 }
 
 void RequestParser::reset()
 {
   state_ = method_start;
-  contentLength_ = 0;
-  parsingContentLength_ = false;
-  parsingBody_ = false;
-  checkContentLength_ = false;
-  isForm_ = paused_ = false;
-  bufferPos_ = boost::none;
-  bodyBytesRead_ = 0;
+  content_length_ = 0 ;
+  parsing_content_length_ = false ;
+  parsing_body_ = false ;
 }
 
 RequestParser::status RequestParser::consume(Request& req, char input)
@@ -267,7 +258,7 @@ RequestParser::status RequestParser::consume(Request& req, char input)
       
       // look for special content-length state
       if ( boost::iequals(req.headers_.back().name, "Content-Length") )
-         parsingContentLength_ = true;
+         parsing_content_length_ = true ;
 
       return incomplete;
     }
@@ -296,10 +287,10 @@ RequestParser::status RequestParser::consume(Request& req, char input)
       state_ = expecting_newline_2;
 
       // if this header was Content-Length then save it
-      if (parsingContentLength_)
+      if (parsing_content_length_)
       {
-         contentLength_ = boost::lexical_cast<uintmax_t>(req.headers_.back().value);
-         parsingContentLength_ = false;
+         content_length_ = boost::lexical_cast<int>(req.headers_.back().value);
+         parsing_content_length_ = false ;
       }
 
       return incomplete;
@@ -326,11 +317,11 @@ RequestParser::status RequestParser::consume(Request& req, char input)
   case expecting_newline_3:
     if ( input == '\n' )
     {
-      return complete;
+      return complete ;
     }
     else
     {
-      return error;
+      return error ;
     }
   default:
     return error;
@@ -364,11 +355,6 @@ bool RequestParser::is_tspecial(int c)
 bool RequestParser::is_digit(int c)
 {
   return c >= '0' && c <= '9';
-}
-
-void RequestParser::cleanup()
-{
-   formHandler_ = FormHandler();
 }
 
 } // namespace http

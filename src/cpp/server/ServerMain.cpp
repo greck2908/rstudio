@@ -1,7 +1,7 @@
 /*
  * ServerMain.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,8 +18,9 @@
 #include <signal.h>
 
 #include <core/CrashHandler.hpp>
+#include <core/Error.hpp>
 #include <core/FileLock.hpp>
-#include <core/Log.hpp>
+#include <core/LogWriter.hpp>
 #include <core/ProgramStatus.hpp>
 #include <core/ProgramOptions.hpp>
 
@@ -36,8 +37,6 @@
 #include <core/gwt/GwtLogHandler.hpp>
 #include <core/gwt/GwtFileHandler.hpp>
 
-#include <server_core/ServerDatabase.hpp>
-
 #include <monitor/MonitorClient.hpp>
 
 #include <session/SessionConstants.hpp>
@@ -53,10 +52,6 @@
 #include <server/ServerSessionProxy.hpp>
 #include <server/ServerSessionManager.hpp>
 #include <server/ServerProcessSupervisor.hpp>
-#include <server/ServerPaths.hpp>
-
-#include <shared_core/Error.hpp>
-#include <shared_core/system/User.hpp>
 
 #include "ServerAddins.hpp"
 #include "ServerBrowser.hpp"
@@ -69,7 +64,7 @@
 
 using namespace rstudio;
 using namespace rstudio::core;
-using namespace rstudio::server;
+using namespace server;
 
 // forward-declare overlay methods
 namespace rstudio {
@@ -151,22 +146,7 @@ boost::shared_ptr<http::AsyncServer> s_pHttpServer;
 
 Error httpServerInit()
 {
-   http::Headers additionalHeaders;
-   for (const std::string& headerStr : options().serverAddHeaders())
-   {
-      size_t pos = headerStr.find(':');
-      if (pos == std::string::npos)
-      {
-         LOG_WARNING_MESSAGE("Invalid header " + headerStr +
-                             " will be skipped and not be written to outgoing requests");
-         continue;
-      }
-
-      additionalHeaders.emplace_back(string_utils::trimWhitespace(headerStr.substr(0, pos)),
-                                     string_utils::trimWhitespace(headerStr.substr(pos+1)));
-   }
-
-   s_pHttpServer.reset(server::httpServerCreate(additionalHeaders));
+   s_pHttpServer.reset(server::httpServerCreate());
 
    // set server options
    s_pHttpServer->setAbortOnResourceError(true);
@@ -174,7 +154,7 @@ Error httpServerInit()
                                     boost::posix_time::milliseconds(500));
 
    // initialize
-   return rstudio::server::httpServerInit(s_pHttpServer.get());
+   return server::httpServerInit(s_pHttpServer.get());
 }
 
 void pageNotFoundHandler(const http::Request& request,
@@ -183,9 +163,8 @@ void pageNotFoundHandler(const http::Request& request,
    std::ostringstream os;
    std::map<std::string, std::string> vars;
    vars["request_uri"] = string_utils::jsLiteralEscape(request.uri());
-   vars["base_uri"] = string_utils::jsLiteralEscape(request.baseUri(core::http::BaseUriUse::External));
 
-   FilePath notFoundTemplate = FilePath(options().wwwLocalPath()).completeChildPath("404.htm");
+   FilePath notFoundTemplate = FilePath(options().wwwLocalPath()).childPath("404.htm");
    core::Error err = core::text::renderTemplate(notFoundTemplate, vars, os);
 
    if (err)
@@ -205,18 +184,6 @@ void pageNotFoundHandler(const http::Request& request,
    pResponse->setStatusCode(core::http::status::NotFound);
 }
 
-void rootPathRequestFilter(
-            boost::asio::io_service& ioService,
-            http::Request* pRequest,
-            http::RequestFilterContinuation continuation)
-{
-   // for all requests, be sure to inject the configured root path
-   // this way proxied requests will redirect correctly and cookies
-   // will have the correct path
-   pRequest->setRootPath(options().wwwRootPath());
-   continuation(boost::shared_ptr<http::Response>());
-}
-
 void httpServerAddHandlers()
 {
    // establish json-rpc handlers
@@ -227,7 +194,7 @@ void httpServerAddHandlers()
 
    // establish content handlers
    uri_handlers::add("/graphics", secureAsyncHttpHandler(proxyContentRequest));
-   uri_handlers::addUploadHandler("/upload", secureAsyncUploadHandler(proxyUploadRequest));
+   uri_handlers::add("/upload", secureAsyncUploadHandler(proxyContentRequest));
    uri_handlers::add("/export", secureAsyncHttpHandler(proxyContentRequest));
    uri_handlers::add("/source", secureAsyncHttpHandler(proxyContentRequest));
    uri_handlers::add("/content", secureAsyncHttpHandler(proxyContentRequest));
@@ -240,9 +207,7 @@ void httpServerAddHandlers()
    uri_handlers::add("/mathjax", secureAsyncHttpHandler(proxyContentRequest));
    uri_handlers::add("/connections", secureAsyncHttpHandler(proxyContentRequest));
    uri_handlers::add("/theme", secureAsyncHttpHandler(proxyContentRequest));
-   uri_handlers::add("/fonts", secureAsyncHttpHandler(proxyContentRequest));
    uri_handlers::add("/python", secureAsyncHttpHandler(proxyContentRequest));
-   uri_handlers::add("/tutorial", secureAsyncHttpHandler(proxyContentRequest));
 
    // content handlers which might be accessed outside the context of the
    // workbench get secure + authentication when required
@@ -255,7 +220,7 @@ void httpServerAddHandlers()
    uri_handlers::add("/rmd_output", secureAsyncHttpHandler(proxyContentRequest, true));
    uri_handlers::add("/grid_data", secureAsyncHttpHandler(proxyContentRequest, true));
    uri_handlers::add("/grid_resource", secureAsyncHttpHandler(proxyContentRequest, true));
-   uri_handlers::add("/chunk_output", secureAsyncHttpHandler(proxyContentRequest, true));
+   uri_handlers::add("/chunk_output", secureAsyncHttpHandler(proxyContentRequest, true)); 
    uri_handlers::add("/profiles", secureAsyncHttpHandler(proxyContentRequest, true));
    uri_handlers::add("/rmd_data", secureAsyncHttpHandler(proxyContentRequest, true));
    uri_handlers::add("/profiler_resource", secureAsyncHttpHandler(proxyContentRequest, true));
@@ -278,7 +243,7 @@ void httpServerAddHandlers()
 
    // establish progress handler
    FilePath wwwPath(server::options().wwwLocalPath());
-   FilePath progressPagePath = wwwPath.completePath("progress.htm");
+   FilePath progressPagePath = wwwPath.complete("progress.htm");
    uri_handlers::addBlocking("/progress",
                                secureHttpHandler(boost::bind(
                                core::text::handleSecureTemplateRequest,
@@ -301,7 +266,7 @@ void httpServerAddHandlers()
 
 Error initLog()
 {
-   return core::system::initializeSystemLog(kProgramIdentity, core::log::LogLevel::WARN, false);
+   return initializeSystemLog(kProgramIdentity, core::system::kLogLevelWarning, false);
 }
 
 bool reloadLoggingConfiguration()
@@ -444,12 +409,6 @@ void add(const std::string& prefix,
    s_pHttpServer->addHandler(prefix, handler);
 }
 
-void addUploadHandler(const std::string& prefix,
-         const http::AsyncUriUploadHandlerFunction& handler)
-{
-   s_pHttpServer->addUploadHandler(prefix, handler);
-}
-
 void addProxyHandler(const std::string& prefix,
                      const http::AsyncUriHandlerFunction& handler)
 {
@@ -516,17 +475,6 @@ int main(int argc, char * const argv[])
       // ignore SIGPIPE (don't log error because we should never call
       // syslog prior to daemonizing)
       core::system::ignoreSignal(core::system::SigPipe);
-      
-#ifdef __APPLE__
-      // warn if the rstudio pam profile does not exist
-      // (note that this only effects macOS development configurations)
-      FilePath pamProfilePath("/etc/pam.d/rstudio");
-      if (!pamProfilePath.exists())
-      {
-         std::cerr << "WARNING: /etc/pam.d/rstudio does not exist; authentication may fail!" << std::endl;
-         std::cerr << "Run 'sudo cp /etc/pam.d/cups /etc/pam.d/rstudio' to set a default PAM profile for RStudio." << std::endl;
-      }
-#endif
 
       // read program options 
       std::ostringstream osWarnings;
@@ -538,11 +486,11 @@ int main(int argc, char * const argv[])
          if (!optionsWarnings.empty())
             program_options::reportWarnings(optionsWarnings, ERROR_LOCATION);
 
-         return status.exitCode();
+         return status.exitCode() ;
       }
       
       // daemonize if requested
-      if (options.serverDaemonize() && options.dbCommand().empty())
+      if (options.serverDaemonize())
       {
          Error error = core::system::daemonize(options.serverPidFile());
          if (error)
@@ -551,9 +499,6 @@ int main(int argc, char * const argv[])
          error = core::system::ignoreTerminalSignals();
          if (error)
             return core::system::exitFailure(error, ERROR_LOCATION);
-
-         // Reload the loggers after succesful daemonize to clear out old FDs.
-         core::log::reloadAllLogDestinations();
 
          // set file creation mask to 022 (might have inherted 0 from init)
          if (options.serverSetUmask())
@@ -574,78 +519,6 @@ int main(int argc, char * const argv[])
       if (error)
          return core::system::exitFailure(error, ERROR_LOCATION);
 
-      // initialize server data directory
-      FilePath serverDataDir = options.serverDataDir();
-      error = serverDataDir.ensureDirectory();
-      if (error)
-         return core::system::exitFailure(error, ERROR_LOCATION);
-
-      boost::optional<system::User> serverUser;
-      if (core::system::effectiveUserIsRoot())
-      {
-         auto shouldChown = [&](int depth, const FilePath& file)
-         {
-            // don't chown user sockets - they belong to the user
-            if (depth == 3 &&
-                boost::ends_with(file.getParent().getParent().getFilename(), "-ds"))
-               return false;
-
-            if (depth == 1 &&
-                (boost::ends_with(file.getFilename(), "-d") ||
-                 boost::ends_with(file.getFilename(), "-d.pid")))
-               return false;
-
-            return true;
-         };
-
-         system::User serverUserObj;
-         error = system::User::getUserFromIdentifier(options.serverUser(), serverUserObj);
-         if (error)
-            return core::system::exitFailure(error, ERROR_LOCATION);
-
-         serverUser = serverUserObj;
-
-         error = serverDataDir.changeOwnership(serverUserObj, true, shouldChown);
-         if (error)
-         {
-            error.addProperty("description",
-                              "Could not change owner for path " + serverDataDir.getAbsolutePath() +
-                                 ". Is root squash enabled?");
-            LOG_ERROR(error);
-         }
-      }
-
-      // ensure permissions - the folder needs to be readable and writeable
-      // by all users of the system, and the sticky bit must be set to ensure
-      // that users do not delete each others' sockets
-      struct stat st;
-      if (::stat(serverDataDir.getAbsolutePath().c_str(), &st) == -1)
-      {
-         Error error = systemError(errno,
-                                   "Could not determine permissions on specified 'server-data-dir' "
-                                      "directory (" + serverDataDir.getAbsolutePath() + ")",
-                                   ERROR_LOCATION);
-         return core::system::exitFailure(error, ERROR_LOCATION);
-      }
-
-      unsigned desiredMode = S_IRWXU | S_IRWXG | S_IRWXO | S_ISVTX;
-      if ((st.st_mode & desiredMode) != desiredMode)
-      {
-         // permissions aren't correct - attempt to fix them
-         Error error = serverDataDir.changeFileMode(core::FileMode::ALL_READ_WRITE_EXECUTE, true);
-         if (error)
-         {
-            LOG_ERROR_MESSAGE("Could not change permissions for specified 'server-data-dir' - "
-                                 "the directory (" + serverDataDir.getAbsolutePath() + ") must be "
-                                 "writeable by all users and have the sticky bit set");
-            return core::system::exitFailure(error, ERROR_LOCATION);
-         }
-      }
-
-      // export important environment variables
-      core::system::setenv(kServerDataDirEnvVar, serverDataDir.getAbsolutePath());
-      core::system::setenv(kSessionTmpDirEnvVar, sessionTmpDir().getAbsolutePath());
-
       // initialize File Lock
       FileLock::initialize();
 
@@ -654,21 +527,6 @@ int main(int argc, char * const argv[])
 
       // initialize secure cookie module
       error = core::http::secure_cookie::initialize(options.secureCookieKeyFile());
-      if (error)
-         return core::system::exitFailure(error, ERROR_LOCATION);
-
-      // execute any database commands if passed
-      if (!options.dbCommand().empty())
-      {
-         Error error = server_core::database::execute(options.databaseConfigFile(), serverUser, options.dbCommand());
-         if (error)
-            return core::system::exitFailure(error, ERROR_LOCATION);
-
-         return EXIT_SUCCESS;
-      }
-
-      // initialize database connectivity
-      error = server_core::database::initialize(options.databaseConfigFile(), true, serverUser);
       if (error)
          return core::system::exitFailure(error, ERROR_LOCATION);
 
@@ -690,23 +548,13 @@ int main(int argc, char * const argv[])
 
       // initialize monitor (needs to happen post http server init for access
       // to the server's io service)
-      monitor::initializeMonitorClient(monitorSocketPath().getAbsolutePath(),
+      monitor::initializeMonitorClient(kMonitorSocketPath,
                                        server::options().monitorSharedSecret(),
                                        s_pHttpServer->ioService());
 
-      if (!options.verifyInstallation())
-      {
-         // add a monitor log writer
-         core::log::addLogDestination(
-            monitor::client().createLogDestination(core::log::LogLevel::WARN, kProgramIdentity));
-      }
-
-      // overlay may replace this
-      if (server::options().wwwRootPath() != kRequestDefaultRootPath) 
-      {
-         // inject the path prefix as the root path for all requests
-         uri_handlers::setRequestFilter(rootPathRequestFilter);
-      }
+      // add a monitor log writer
+      core::system::addLogWriter(
+                monitor::client().createLogWriter(kProgramIdentity));
 
       // call overlay initialize
       error = overlay::initialize();
@@ -728,7 +576,7 @@ int main(int argc, char * const argv[])
       if (error)
          return core::system::exitFailure(error, ERROR_LOCATION);
 
-      // add handlers and initialize addins (offline has distinct behavior)
+      // add handlers and initiliaze addins (offline has distinct behavior)
       if (server::options().serverOffline())
       {
          offline::httpServerAddHandlers();
@@ -801,5 +649,7 @@ int main(int argc, char * const argv[])
    CATCH_UNEXPECTED_EXCEPTION
    
    // if we got this far we had an unexpected exception
-   return EXIT_FAILURE;
+   return EXIT_FAILURE ;
 }
+
+

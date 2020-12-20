@@ -1,7 +1,7 @@
 /*
  * Renderer.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -141,10 +141,6 @@ public class Renderer extends JavaScriptObject
 
    public native final void forceImmediateRender() /*-{
       this.$renderChanges(this.CHANGE_FULL);
-   }-*/;
-   
-   public native final void renderCursor() /*-{
-      this.$renderChanges(this.CHANGE_CURSOR);
    }-*/;
    
    public native final void renderMarkers() /*-{

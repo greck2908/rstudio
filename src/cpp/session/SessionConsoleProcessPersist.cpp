@@ -1,7 +1,7 @@
 /*
  * SessionConsoleProcessPersist.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -51,10 +51,7 @@ namespace console_persist {
 //                Added autoClose, zombie
 // 2017/06/16 - console05 -> console06
 //                Added trackEnv
-// 2019/07/30 - console06 -> console07
-//                Changed shell type from int to string to align with user
-//                preferences
-#define kConsoleDir "console07"
+#define kConsoleDir "console06"
 
 namespace {
 
@@ -71,13 +68,13 @@ void initialize()
        session::options().programMode() == kSessionProgramModeServer)
    {
       // In multi-session mode, persist per session
-      s_consoleProcPath = module_context::sessionScratchPath().completePath(kConsoleDir);
+      s_consoleProcPath = module_context::sessionScratchPath().complete(kConsoleDir);
    }
    else
    {
       // In single-session mode, persist in external project storage (not internally in the project
       // since contents include environment values and can be sensitive)
-      s_consoleProcPath = projects::projectContext().externalStoragePath().completePath(kConsoleDir);
+      s_consoleProcPath = projects::projectContext().externalStoragePath().complete(kConsoleDir);
    }
 
    Error error = s_consoleProcPath.ensureDirectory();
@@ -86,7 +83,7 @@ void initialize()
       LOG_ERROR(error);
       return;
    }
-   s_consoleProcIndexPath = s_consoleProcPath.completePath(kConsoleIndex);
+   s_consoleProcIndexPath = s_consoleProcPath.complete(kConsoleIndex);
    s_inited = true;
 }
 
@@ -111,7 +108,7 @@ Error getLogFilePath(const std::string& handle, FilePath* pFile)
       return error;
    }
 
-   *pFile = getConsoleProcPath().completePath(handle);
+   *pFile = getConsoleProcPath().complete(handle);
    return Success();
 }
 
@@ -126,7 +123,7 @@ Error getEnvFilePath(const std::string& handle, FilePath* pFile)
 
    std::string envHandle = handle;
    envHandle.append(s_envFileExt);
-   *pFile = getConsoleProcPath().completePath(envHandle);
+   *pFile = getConsoleProcPath().complete(envHandle);
    return Success();
 }
 
@@ -286,7 +283,7 @@ void deleteOrphanedLogs(bool (*validHandle)(const std::string&))
 
    // Delete orphaned buffer files
    std::vector<FilePath> children;
-   Error error = getConsoleProcPath().getChildren(children);
+   Error error = getConsoleProcPath().children(&children);
    if (error)
    {
       LOG_ERROR(error);
@@ -295,12 +292,12 @@ void deleteOrphanedLogs(bool (*validHandle)(const std::string&))
    for (const FilePath& child : children)
    {
       // Don't erase the INDEXnnn or any subfolders
-      if (!child.getFilename().compare(kConsoleIndex) || child.isDirectory())
+      if (!child.filename().compare(kConsoleIndex) || child.isDirectory())
       {
          continue;
       }
 
-      if (!validHandle(child.getStem()))
+      if (!validHandle(child.stem()))
       {
          error = child.remove();
          if (error)
@@ -319,9 +316,9 @@ void saveConsoleEnvironment(const std::string& handle, const core::system::Optio
       return;
    }
 
-   json::Object envJson = json::Object(environment);
+   json::Object envJson = json::toJsonObject(environment);
    std::ostringstream ostr;
-   envJson.writeFormatted(ostr);
+   json::writeFormatted(envJson, ostr);
    error = rstudio::core::writeStringToFile(log, ostr.str());
    if (error)
    {
@@ -351,7 +348,7 @@ void loadConsoleEnvironment(const std::string& handle, core::system::Options* pE
    }
 
    json::Value envJson;
-   if (envJson.parse(jsonStr) ||
+   if (!json::parse(jsonStr, &envJson) ||
        !json::isType<json::Object>(envJson))
    {
       LOG_ERROR(systemError(boost::system::errc::protocol_error,
@@ -360,7 +357,7 @@ void loadConsoleEnvironment(const std::string& handle, core::system::Options* pE
       return;
    }
 
-   core::system::Options loadedEnvironment = envJson.getObject().toStringPairList();
+   core::system::Options loadedEnvironment = json::optionsFromJson(envJson.get_obj());
    for (const core::system::Option& var : loadedEnvironment)
    {
       core::system::setenv(pEnv, var.first, var.second);

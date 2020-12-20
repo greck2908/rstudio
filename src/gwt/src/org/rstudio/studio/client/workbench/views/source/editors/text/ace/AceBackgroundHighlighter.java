@@ -1,7 +1,7 @@
 /*
  * AceBackgroundHighlighter.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,18 +19,20 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.rstudio.core.client.HandlerRegistrations;
 import org.rstudio.core.client.JsVector;
 import org.rstudio.core.client.JsVectorInteger;
 import org.rstudio.core.client.ListUtil;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.regex.Pattern;
 import org.rstudio.studio.client.RStudioGinjector;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.views.source.editors.text.AceEditor;
 import org.rstudio.studio.client.workbench.views.source.editors.text.events.DocumentChangedEvent;
 import org.rstudio.studio.client.workbench.views.source.editors.text.events.EditorModeChangedEvent;
 
 import com.google.gwt.core.client.JavaScriptObject;
+import com.google.gwt.event.logical.shared.AttachEvent;
 import com.google.gwt.event.logical.shared.ValueChangeEvent;
 import com.google.gwt.event.logical.shared.ValueChangeHandler;
 import com.google.gwt.event.shared.HandlerRegistration;
@@ -39,7 +41,8 @@ import com.google.inject.Inject;
 
 public class AceBackgroundHighlighter
       implements EditorModeChangedEvent.Handler,
-                 DocumentChangedEvent.Handler
+                 DocumentChangedEvent.Handler,
+                 AttachEvent.Handler
 {
    private static class HighlightPattern
    {
@@ -52,7 +55,7 @@ public class AceBackgroundHighlighter
       public Pattern begin;
       public Pattern end;
    }
-  
+   
    private class Worker
    {
       public Worker()
@@ -104,6 +107,13 @@ public class AceBackgroundHighlighter
          for (int row = startRow; row < endRow; row++)
          {
             int state = rowStates_.get(row);
+            
+            // don't show background highlighting if this
+            // chunk lies within a fold
+            AceFold fold = session_.getFoldAt(row, 0);
+            if (fold != null)
+               continue;
+            
             int marker = markerIds_.get(row, 0);
             
             // bail early if no action is necessary
@@ -162,7 +172,9 @@ public class AceBackgroundHighlighter
       session_ = editor.getSession();
       
       highlightPatterns_ = new ArrayList<HighlightPattern>();
-      editor.addEditorModeChangedHandler(this);
+      handlers_ = new HandlerRegistrations(
+            editor.addEditorModeChangedHandler(this),
+            editor.addAttachHandler(this));
       
       int n = editor.getRowCount();
       rowStates_ = JavaScriptObject.createArray(n).cast();
@@ -195,7 +207,7 @@ public class AceBackgroundHighlighter
    }
    
    @Inject
-   private void initialize(UserPrefs prefs)
+   private void initialize(UIPrefs prefs)
    {
       prefs_ = prefs;
    }
@@ -258,6 +270,20 @@ public class AceBackgroundHighlighter
       }
       
       synchronizeFrom(startRow);
+   }
+   
+   @Override
+   public void onAttachOrDetach(AttachEvent event)
+   {
+      if (!event.isAttached())
+      {
+         handlers_.removeHandler();
+         if (documentChangedHandler_ != null)
+         {
+            documentChangedHandler_.removeHandler();
+            documentChangedHandler_ = null;
+         }
+      }
    }
    
    // Private Methods ----
@@ -433,6 +459,7 @@ public class AceBackgroundHighlighter
    private final AceEditor editor_;
    private final EditSession session_;
    private final List<HighlightPattern> highlightPatterns_;
+   private final HandlerRegistrations handlers_;
    
    private HighlightPattern activeHighlightPattern_;
    private String activeModeId_;
@@ -450,7 +477,7 @@ public class AceBackgroundHighlighter
    private static final Map<String, List<HighlightPattern>> HIGHLIGHT_PATTERN_REGISTRY;
    
    // Injected ----
-   private UserPrefs prefs_;
+   private UIPrefs prefs_;
    
    // Static Members ----
    

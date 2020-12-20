@@ -1,7 +1,7 @@
 /*
  * SessionConsoleProcessApi.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,10 +21,8 @@
 
 #include <core/Algorithm.hpp>
 #include <core/Exec.hpp>
-#include <core/text/AnsiCodeParser.hpp>
 
 #include <session/SessionModuleContext.hpp>
-#include <session/prefs/UserPrefs.hpp>
 
 #include <r/RRoutines.hpp>
 #include <r/RExec.hpp>
@@ -144,7 +142,7 @@ SEXP rs_terminalCreate(SEXP captionSEXP, SEXP showSEXP, SEXP shellTypeSEXP)
                core::FilePath() /*cwd*/,
                core::system::kDefaultCols, core::system::kDefaultRows,
                false /*zombie*/,
-               prefs::userPrefs().terminalTrackEnvironment()));
+               session::userSettings().terminalTrackEnv()));
 
    pCpi->setHasChildProcs(false);
 
@@ -153,7 +151,7 @@ SEXP rs_terminalCreate(SEXP captionSEXP, SEXP showSEXP, SEXP shellTypeSEXP)
    if (error)
    {
       std::string msg = "Failed to create terminal: '";
-      msg += error.getSummary();
+      msg += error.summary();
       msg += "'";
       r::exec::error(msg);
       return R_NilValue;
@@ -170,7 +168,7 @@ SEXP rs_terminalCreate(SEXP captionSEXP, SEXP showSEXP, SEXP shellTypeSEXP)
    if (error)
    {
       std::string msg = "Failed to start terminal: '";
-      msg += error.getSummary();
+      msg += error.summary();
       msg += "'";
 
       reapConsoleProcess(*ptrProc);
@@ -410,7 +408,7 @@ SEXP rs_terminalActivate(SEXP idSEXP, SEXP showSEXP)
          {
             LOG_ERROR(err);
             reapConsoleProcess(*proc);
-            r::exec::error(err.getSummary());
+            r::exec::error(err.summary());
             return R_NilValue;
          }
       }
@@ -455,7 +453,7 @@ SEXP rs_terminalExecute(SEXP commandSEXP,
       if (!cwd.exists() || !cwd.isDirectory())
       {
          std::string message = "Invalid directory: '";
-         message += cwd.getAbsolutePathNative();
+         message += cwd.absolutePathNative();
          message += "'";
          r::exec::error(message);
          return R_NilValue;
@@ -496,7 +494,7 @@ SEXP rs_terminalExecute(SEXP commandSEXP,
    if (error)
    {
       std::string msg = "Failed to create terminal for job execution: '";
-      msg += error.getSummary();
+      msg += error.summary();
       msg += "'";
       r::exec::error(msg);
       return R_NilValue;
@@ -513,7 +511,7 @@ SEXP rs_terminalExecute(SEXP commandSEXP,
    if (error)
    {
       std::string msg = "Failed to start job in terminal: '";
-      msg += error.getSummary();
+      msg += error.summary();
       msg += "'";
 
       reapConsoleProcess(*ptrProc);
@@ -964,7 +962,7 @@ Error initializeApi()
    RS_REGISTER_CALL_METHOD(rs_terminalExecute, 4);
    RS_REGISTER_CALL_METHOD(rs_terminalExitCode, 1);
 
-   ExecBlock initBlock;
+   ExecBlock initBlock ;
    initBlock.addFunctions()
       (bind(registerRpcMethod, "process_start", procStart))
       (bind(registerRpcMethod, "process_interrupt", procInterrupt))

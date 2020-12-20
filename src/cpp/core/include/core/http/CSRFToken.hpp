@@ -1,7 +1,7 @@
 /*
  * CSRFToken.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,8 +20,6 @@
 #include <boost/optional.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 
-#include <core/http/Cookie.hpp>
-
 #define kCSRFTokenHeader "X-CSRF-Token"
 #define kCSRFTokenCookie "csrf-token"
 
@@ -29,23 +27,21 @@ namespace rstudio {
 namespace core {
 namespace http {
 
-class Request;
-class Response;
-
 // Adds a CSRF (cross site request forgery) cookie. This is simply a cookie with
-// a random value (token). Returns the input or the generated token (if empty)
-std::string setCSRFTokenCookie(const Request& request,
+// a random value (token).
+void setCSRFTokenCookie(const Request& request, 
+      const boost::optional<boost::gregorian::days>& expiry,
+      const std::string& token,
+      core::http::Response* pResponse);
+
+void setCSRFTokenCookie(const Request& request,
       const boost::optional<boost::posix_time::time_duration>& expiresFromNow,
       const std::string& token,
-      const std::string& path,
-      bool secure,
-      core::http::Cookie::SameSite sameSite,
       core::http::Response* pResponse);
 
 // Validates an HTTP POST request by ensuring that the submitted fields include
 // a valid CSRF token.
-bool validateCSRFForm(const Request& request,
-                      Response* response);
+bool validateCSRFForm(const Request&, Response*);
 
 // Validates any other HTTP request by ensuring that the CSRF HTTP header matches the accompanying
 // token cookie.
@@ -56,3 +52,4 @@ bool validateCSRFHeaders(const Request& request);
 } // namespace rstudio
 
 #endif // CORE_HTTP_CSRF_TOKEN_HPP
+

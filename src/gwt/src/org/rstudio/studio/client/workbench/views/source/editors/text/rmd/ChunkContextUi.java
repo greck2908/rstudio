@@ -1,7 +1,7 @@
 /*
  * ChunkContextUi.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,14 +20,16 @@ import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.widget.Operation;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.common.GlobalDisplay;
+import org.rstudio.studio.client.common.r.knitr.RMarkdownChunkHeaderParser;
 import org.rstudio.studio.client.workbench.views.console.shell.assist.PopupPositioner;
 import org.rstudio.studio.client.workbench.views.source.editors.text.DocDisplay;
+import org.rstudio.studio.client.workbench.views.source.editors.text.PinnedLineWidget;
 import org.rstudio.studio.client.workbench.views.source.editors.text.Scope;
 import org.rstudio.studio.client.workbench.views.source.editors.text.TextEditingTarget;
 import org.rstudio.studio.client.workbench.views.source.editors.text.TextEditingTargetScopeHelper;
+import org.rstudio.studio.client.workbench.views.source.editors.text.ace.LineWidget;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Position;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Range;
-import org.rstudio.studio.client.workbench.views.source.editors.text.assist.RChunkHeaderParser;
 import org.rstudio.studio.client.workbench.views.source.editors.text.rmd.display.ChunkOptionsPopupPanel;
 import org.rstudio.studio.client.workbench.views.source.editors.text.rmd.display.CustomEngineChunkOptionsPopupPanel;
 import org.rstudio.studio.client.workbench.views.source.editors.text.rmd.display.DefaultChunkOptionsPopupPanel;
@@ -36,68 +38,28 @@ import org.rstudio.studio.client.workbench.views.source.editors.text.rmd.events.
 
 import com.google.gwt.core.client.JsArrayString;
 
-public abstract class ChunkContextUi implements ChunkContextToolbar.Host
+public class ChunkContextUi implements ChunkContextToolbar.Host
 {
-   public ChunkContextUi(TextEditingTarget outerEditor, 
-                         Scope outerChunk,
-                         DocDisplay innerEditor,
-                         boolean dark)
+   public ChunkContextUi(TextEditingTarget target, int renderPass, 
+         boolean dark, Scope chunk, PinnedLineWidget.Host lineWidgetHost)
    {
-      outerEditor_ = outerEditor;
-      outerChunk_ = outerChunk;
-      innerEditor_ = innerEditor;
-      int preambleRow = outerChunk.getPreamble().getRow();
+      target_ = target;
+      chunk_ = chunk;
+      int preambleRow = chunk.getPreamble().getRow();
+      preambleRow_ = preambleRow;
       isSetup_ = isSetupChunk(preambleRow);
+      host_ = lineWidgetHost;
       dark_ = dark;
+      renderPass_ = renderPass;
       engine_ = getEngine(preambleRow);
       createToolbar(preambleRow);
    }
    
-   // Public static methods ---------------------------------------------------
-
-   public static String extractChunkLabel(String extractedChunkHeader)
-   {
-      // if there are no spaces within the chunk header,
-      // there cannot be a label
-      int firstSpaceIdx = extractedChunkHeader.indexOf(' ');
-      if (firstSpaceIdx == -1)
-         return "";
-
-      // find the indices of the first '=' and ',' characters
-      int firstEqualsIdx = extractedChunkHeader.indexOf('=');
-      int firstCommaIdx  = extractedChunkHeader.indexOf(',');
-
-      // if we found neither an '=' nor a ',', then the label
-      // must be all the text following the first space
-      if (firstEqualsIdx == -1 && firstCommaIdx == -1)
-      {
-         extractedChunkHeader = extractedChunkHeader.substring(firstSpaceIdx + 1).trim();
-         if (extractedChunkHeader.endsWith("}"))
-            extractedChunkHeader = extractedChunkHeader.substring(0, extractedChunkHeader.length() -1);
-         return extractedChunkHeader;
-      }
-
-      // if we found an '=' before we found a ',' (or we didn't find
-      // a ',' at all), that implies a chunk header like:
-      //
-      //    ```{r message=TRUE, echo=FALSE}
-      //
-      // and so there is no label.
-      if (firstCommaIdx == -1)
-         return "";
-
-      if (firstEqualsIdx != -1 && firstEqualsIdx < firstCommaIdx)
-         return "";
-
-      // otherwise, the text from the first space to that comma gives the label
-      return extractedChunkHeader.substring(firstSpaceIdx + 1, firstCommaIdx).trim();
-   }
-
    // Public methods ----------------------------------------------------------
 
    public int getPreambleRow()
    {
-      return getRow();
+      return lineWidget_.getRow();
    }
    
    public void setState(int state)
@@ -105,9 +67,19 @@ public abstract class ChunkContextUi implements ChunkContextToolbar.Host
       toolbar_.setState(state);
    }
    
+   public LineWidget getLineWidget()
+   {
+      return lineWidget_.getLineWidget();
+   }
+   
+   public void detach()
+   {
+      lineWidget_.detach();
+   }
+   
    public void syncToChunk()
    {
-      int row = getRow();
+      int row = lineWidget_.getRow();
       boolean isSetup = isSetupChunk(row);
       if (isSetup_ != isSetup)
       {
@@ -120,7 +92,16 @@ public abstract class ChunkContextUi implements ChunkContextToolbar.Host
          engine_ = engine;
          toolbar_.setEngine(engine);
       }
-      toolbar_.setClassId(getLabel(row));
+   }
+   
+   public void setRenderPass(int pass)
+   {
+      renderPass_ = pass;
+   }
+   
+   public int getRenderPass()
+   {
+      return renderPass_;
    }
 
    // ChunkContextToolbar.Host implementation ---------------------------------
@@ -128,15 +109,16 @@ public abstract class ChunkContextUi implements ChunkContextToolbar.Host
    @Override
    public void runPreviousChunks()
    {
-      outerEditor_.executeChunks(chunkPosition(), 
+      target_.executeChunks(chunkPosition(), 
             TextEditingTargetScopeHelper.PREVIOUS_CHUNKS);
+      target_.focus();
    }
 
    @Override
    public void runChunk()
    {
-      outerEditor_.executeChunk(chunkPosition());
-      outerEditor_.focus();
+      target_.executeChunk(chunkPosition());
+      target_.focus();
    }
 
    @Override
@@ -144,7 +126,7 @@ public abstract class ChunkContextUi implements ChunkContextToolbar.Host
    {
       ChunkOptionsPopupPanel panel = createPopupPanel();
       
-      panel.init(innerEditor_, Position.create(getInnerRow(), 0));
+      panel.init(target_.getDocDisplay(), chunkPosition());
       panel.show();
       panel.focus();
       PopupPositioner.setPopupPosition(panel, x, y, 10);
@@ -153,8 +135,7 @@ public abstract class ChunkContextUi implements ChunkContextToolbar.Host
    @Override
    public void interruptChunk()
    {
-      outerEditor_.fireEvent(new InterruptChunkEvent(
-            outerChunk_.getPreamble().getRow()));
+      target_.fireEvent(new InterruptChunkEvent(preambleRow_));
    }
 
    @Override
@@ -172,7 +153,7 @@ public abstract class ChunkContextUi implements ChunkContextToolbar.Host
                @Override
                public void execute()
                {
-                  outerEditor_.dequeueChunk(getRow());
+                  target_.dequeueChunk(lineWidget_.getRow());
                }
             }, 
             null,  // cancel operation 
@@ -183,12 +164,12 @@ public abstract class ChunkContextUi implements ChunkContextToolbar.Host
    @Override
    public void switchChunk(String chunkType)
    {
-      if (outerChunk_ != null)
+      if (chunk_ != null)
       {
-         DocDisplay docDisplay = outerEditor_.getDocDisplay();
+         DocDisplay docDisplay = target_.getDocDisplay();
          
-         Position start = outerChunk_.getPreamble();
-         Position end = outerChunk_.getEnd();
+         Position start = chunk_.getPreamble();
+         Position end = chunk_.getEnd();
          
          String chunkText = docDisplay.getTextForRange(Range.fromPoints(start, end));
          JsArrayString chunkLines = StringUtil.split(chunkText, "\n");
@@ -202,64 +183,47 @@ public abstract class ChunkContextUi implements ChunkContextToolbar.Host
 
             docDisplay.replaceRange(Range.fromPoints(start, linedEnd), newFirstLine);
             
-            outerEditor_.getNotebook().clearChunkOutput(outerChunk_);
+            target_.getNotebook().clearChunkOutput(chunk_);
          }
       }
    }
-   
-   public void setScope(Scope scope)
-   {
-      outerChunk_ = scope;
-   }
-   
-   public ChunkContextToolbar getToolbar()
-   {
-      return toolbar_;
-   }
-
-   // Protected methods -------------------------------------------------------
-
-   protected void createToolbar(int row)
-   {
-      toolbar_ = new ChunkContextToolbar(this, dark_, !isSetup_, engine_);
-      toolbar_.setHeight("0px"); 
-      toolbar_.setClassId(getLabel(row));
-   }
-   
-   protected abstract int getRow();
-   
-   protected abstract int getInnerRow();
 
    // Private methods ---------------------------------------------------------
    
    private Position chunkPosition()
    {
-      return Position.create(getRow(), 0);
+      return Position.create(lineWidget_.getRow(), 0);
    }
    
    private boolean isSetupChunk(int row)
    {
-      String line = outerEditor_.getDocDisplay().getLine(row);
+      String line = target_.getDocDisplay().getLine(row);
       return line.contains("r setup");
+   }
+   
+   private void createToolbar(int row)
+   {
+      toolbar_ = new ChunkContextToolbar(this, dark_, !isSetup_, engine_);
+      toolbar_.setHeight("0px"); 
+      lineWidget_ = new PinnedLineWidget(
+            ChunkContextToolbar.LINE_WIDGET_TYPE, target_.getDocDisplay(), 
+            toolbar_, row, null, host_);
    }
 
    private String getEngine(int row)
    {
-      String line = outerEditor_.getDocDisplay().getLine(row);
-      Map<String, String> options = RChunkHeaderParser.parse(line);
+      String line = target_.getDocDisplay().getLine(row);
+
+      Map<String, String> options = 
+         RMarkdownChunkHeaderParser.parse(line);
+      
       String engine = StringUtil.stringValue(options.get("engine"));
       return engine;
    }
    
-   private String getLabel(int row)
-   {
-      String line = outerEditor_.getDocDisplay().getLine(row);
-      return extractChunkLabel(line);
-   }
-
    private ChunkOptionsPopupPanel createPopupPanel()
    {
-      int row = getRow();
+      int row = lineWidget_.getRow();
       if (isSetupChunk(row))
          return new SetupChunkOptionsPopupPanel();
       
@@ -271,13 +235,16 @@ public abstract class ChunkContextUi implements ChunkContextToolbar.Host
       return new DefaultChunkOptionsPopupPanel(engine_);
    }
 
-   protected ChunkContextToolbar toolbar_;
-   protected final TextEditingTarget outerEditor_;
-   protected final DocDisplay innerEditor_;
-   protected Scope outerChunk_;
-
+   private final TextEditingTarget target_;
+   private final PinnedLineWidget.Host host_;
+   private final int preambleRow_;
    private final boolean dark_;
+   private final Scope chunk_;
 
+   private ChunkContextToolbar toolbar_;
+   private PinnedLineWidget lineWidget_;
+   private int renderPass_;
+   
    private boolean isSetup_;
    private String engine_;
 }

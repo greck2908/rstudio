@@ -1,7 +1,7 @@
 /*
  * ShortcutViewer.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,13 +16,9 @@
 package org.rstudio.core.client.command;
 
 
-import com.google.inject.Provider;
 import org.rstudio.core.client.widget.ShortcutInfoPanel;
 import org.rstudio.core.client.widget.VimKeyInfoPanel;
-import org.rstudio.studio.client.application.AriaLiveService;
 import org.rstudio.studio.client.application.Desktop;
-import org.rstudio.studio.client.application.events.AriaLiveStatusEvent.Severity;
-import org.rstudio.studio.client.application.events.AriaLiveStatusEvent.Timing;
 import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.workbench.commands.Commands;
 
@@ -38,7 +34,6 @@ import com.google.gwt.user.client.Event.NativePreviewHandler;
 import com.google.gwt.user.client.ui.RootLayoutPanel;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 
 @Singleton
 public class ShortcutViewer implements NativePreviewHandler
@@ -49,16 +44,13 @@ public class ShortcutViewer implements NativePreviewHandler
    public ShortcutViewer(
          Binder binder,
          Commands commands,
-         Provider<UserPrefs> pPrefs,
-         Provider<AriaLiveService> pAriaLive,
          GlobalDisplay globalDisplay)
    {
       binder.bind(commands, this);
-      pPrefs_ = pPrefs;
-      pAriaLive_ = pAriaLive;
+      
       globalDisplay_ = globalDisplay;
    }
-
+   
    @Handler
    public void onHelpKeyboardShortcuts()
    {
@@ -67,21 +59,19 @@ public class ShortcutViewer implements NativePreviewHandler
       {
          return;
       }
-
-      Command showAllShortcutsPage = ()->
+      showShortcutInfoPanel(new ShortcutInfoPanel(new Command()
       {
-         if (Desktop.hasDesktopFrame())
-            Desktop.getFrame().showKeyboardShortcutHelp();
-         else
-            openApplicationURL("docs/keyboard.htm");
-      };
-
-      if (pPrefs_.get().enableScreenReader().getValue())
-         showAllShortcutsPage.execute();
-      else
-         showShortcutInfoPanel(new ShortcutInfoPanel(showAllShortcutsPage));
+         @Override
+         public void execute()
+         {
+            if (Desktop.hasDesktopFrame())
+               Desktop.getFrame().showKeyboardShortcutHelp();
+            else 
+               openApplicationURL("docs/keyboard.htm");
+         }
+      }));
    }
-
+   
    public void showVimKeyboardShortcuts()
    {
       // prevent reentry
@@ -89,16 +79,9 @@ public class ShortcutViewer implements NativePreviewHandler
       {
          return;
       }
-      if (pPrefs_.get().enableScreenReader().getValue())
-      {
-         pAriaLive_.get().announce(AriaLiveService.INACCESSIBLE_FEATURE,
-               "Vim keyboard shortcut help not screen reader accessible. Press any key to close.",
-               Timing.IMMEDIATE,
-               Severity.ALERT);
-      }
       showShortcutInfoPanel(new VimKeyInfoPanel());
    }
-
+   
    private void showShortcutInfoPanel(ShortcutInfoPanel panel)
    {
       shortcutInfo_ = panel;
@@ -111,8 +94,8 @@ public class ShortcutViewer implements NativePreviewHandler
    {
       if (event.isCanceled())
          return;
-
-      if (event.getTypeInt() == Event.ONKEYDOWN ||
+      
+      if (event.getTypeInt() == Event.ONKEYDOWN || 
           event.getTypeInt() == Event.ONMOUSEDOWN)
       {
          if (event.getTypeInt() == Event.ONMOUSEDOWN &&
@@ -122,7 +105,7 @@ public class ShortcutViewer implements NativePreviewHandler
          // Don't dismiss the dialog if the click is targeted for a child
          // of the shortcut info panel's root element
          EventTarget et = event.getNativeEvent().getEventTarget();
-         if (Element.is(et) && event.getTypeInt() == Event.ONMOUSEDOWN)
+         if (Element.is(et) && event.getTypeInt() == Event.ONMOUSEDOWN) 
          {
             Element e = Element.as(et);
             while (e != null)
@@ -149,12 +132,8 @@ public class ShortcutViewer implements NativePreviewHandler
       String url = GWT.getHostPageBaseURL() + relativeURL;
       globalDisplay_.openWindow(url);
    }
-
+   
    private ShortcutInfoPanel shortcutInfo_ = null;
    private HandlerRegistration preview_;
-
-   // injected
-   private final Provider<UserPrefs> pPrefs_;
-   private final Provider<AriaLiveService> pAriaLive_;
-   private final GlobalDisplay globalDisplay_;
+   private GlobalDisplay globalDisplay_;
 }

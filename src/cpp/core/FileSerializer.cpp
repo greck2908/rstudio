@@ -1,7 +1,7 @@
 /*
  * FileSerializer.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,81 +24,16 @@
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/iostreams/copy.hpp>
-#include <boost/thread.hpp>
 
-#include <shared_core/FilePath.hpp>
-#include <core/DateTime.hpp>
-#include <core/Log.hpp>
+#include <core/FilePath.hpp>
 #include <core/StringUtils.hpp>
 
 namespace rstudio {
 namespace core {
 
-namespace {
-
-bool isFileLockedError(const Error& error)
-{
-   // exclusive file access is only present on Windows
-#ifndef _WIN32
-   return false;
-#else
-   return (error && error.getCode() == ERROR_SHARING_VIOLATION);
-#endif
-}
-
-Error openFileForWritingWithRetry(const FilePath& filePath,
-                                  bool truncate,
-                                  int maxOpenRetrySeconds,
-                                  std::shared_ptr<std::ostream>* pOfs)
-{
-   using namespace boost::posix_time;
-
-   ptime startTime = second_clock::universal_time();
-   Error lastError;
-
-   // do not allow negative values - regular signed int was chosen here for
-   // easier integration with other parts of the codebase
-   if (maxOpenRetrySeconds < 0)
-      maxOpenRetrySeconds = 0;
-
-   int numTries = 0;
-   while (true)
-   {
-      lastError = filePath.openForWrite(*pOfs, truncate);
-
-      // if the error is a non file lock error, then we should just return it
-      if (!isFileLockedError(lastError))
-      {
-         if (lastError)
-            LOG_ERROR(lastError);
-
-         return lastError;
-      }
-
-      lastError.addOrUpdateProperty("open-attempts", ++numTries);
-
-      // stop retrying if we've spent more than the requested amount of time
-      if ((second_clock::universal_time() - startTime) >= seconds(maxOpenRetrySeconds))
-      {
-         lastError.addProperty("description", "Timed out while attempting to reopen the file");
-         break;
-      }
-
-      // wait a moment before retrying
-      boost::this_thread::sleep(milliseconds(500));
-   }
-
-   if (lastError)
-      LOG_ERROR(lastError);
-
-   return lastError;
-}
-
-} // anonymous namespace
-
 std::string stringifyStringPair(const std::pair<std::string,std::string>& pair)
 {
-   return pair.first + "=\"" + string_utils::jsonLiteralEscape(pair.second) + "\"";
+   return pair.first + "=\"" + string_utils::jsonLiteralEscape(pair.second) + "\"" ;
 }
 
 Error writeStringMapToFile(const core::FilePath& filePath,
@@ -107,32 +42,32 @@ Error writeStringMapToFile(const core::FilePath& filePath,
    return writeCollectionToFile<std::map<std::string,std::string> >(
                                                       filePath, 
                                                       map, 
-                                                      stringifyStringPair);
+                                                      stringifyStringPair) ; 
 }
 
 ReadCollectionAction parseStringPair(
                      const std::string& line, 
                      std::pair<const std::string,std::string>* pPair)
 {
-   std::string::size_type pos = line.find("=");
+   std::string::size_type pos = line.find("=") ;
    if ( pos != std::string::npos )
    {
-      std::string name = line.substr(0, pos);
+      std::string name = line.substr(0, pos) ;
       boost::algorithm::trim(name);
-      std::string value = line.substr(pos + 1);
-      boost::algorithm::trim(value);
+      std::string value = line.substr(pos + 1) ;
+      boost::algorithm::trim(value) ;
       if (value.length() >= 2 && value[0] == '"' && value[value.length() - 1] == '"')
       {
          value = string_utils::jsonLiteralUnescape(value);
       }
     
       // HACK: workaround the fact that std::map uses const for the Key
-      std::string* pFirst = const_cast<std::string*>(&(pPair->first));
-      *pFirst = name;
+      std::string* pFirst = const_cast<std::string*>(&(pPair->first)) ;
+      *pFirst = name ;
 
-      pPair->second = value;
+      pPair->second = value ;
 
-      return ReadCollectionAddLine;
+      return ReadCollectionAddLine ;
    } 
    else
    {
@@ -147,7 +82,7 @@ Error readStringMapFromFile(const core::FilePath& filePath,
    return readCollectionFromFile<std::map<std::string,std::string> >(
                                                       filePath,
                                                       pMap,
-                                                      parseStringPair);
+                                                      parseStringPair) ;
 }
 
    
@@ -169,8 +104,8 @@ Error writeStringVectorToFile(const core::FilePath& filePath,
    
 ReadCollectionAction parseString(const std::string& line, std::string* pStr)
 {
-   *pStr = line;
-   return ReadCollectionAddLine;
+   *pStr = line ;
+   return ReadCollectionAddLine ;
 }
    
 Error readStringVectorFromFile(const core::FilePath& filePath,
@@ -181,21 +116,20 @@ Error readStringVectorFromFile(const core::FilePath& filePath,
          filePath, pVector, parseString, trimAndIgnoreBlankLines);
    
 }
-
+   
 Error writeStringToFile(const FilePath& filePath,
                         const std::string& str,
                         string_utils::LineEnding lineEnding,
-                        bool truncate,
-                        int maxOpenRetrySeconds)
+                        bool truncate)
 {
-   using namespace boost::system::errc;
+   using namespace boost::system::errc ;
    
    // open file
-   std::shared_ptr<std::ostream> pOfs;
-   Error error = openFileForWritingWithRetry(filePath, truncate, maxOpenRetrySeconds, &pOfs);
+   boost::shared_ptr<std::ostream> pOfs;
+   Error error = filePath.open_w(&pOfs, truncate);
    if (error)
       return error;
-
+   
    try
    {
       // set exception mask (required for proper reporting of errors)
@@ -215,7 +149,7 @@ Error writeStringToFile(const FilePath& filePath,
       Error error = systemError(boost::system::errc::io_error, 
                                 ERROR_LOCATION);
       error.addProperty("what", e.what());
-      error.addProperty("path", filePath.getAbsolutePath());
+      error.addProperty("path", filePath.absolutePath());
       return error;
    }
 }
@@ -228,11 +162,11 @@ Error readStringFromFile(const FilePath& filePath,
                          int startCharacter,
                          int endCharacter)
 {
-   using namespace boost::system::errc;
+   using namespace boost::system::errc ;
    
    // open file
-   std::shared_ptr<std::istream> pIfs;
-   Error error = filePath.openForRead(pIfs);
+   boost::shared_ptr<std::istream> pIfs;
+   Error error = filePath.open_r(&pIfs);
    if (error)
       return error;
 
@@ -300,7 +234,7 @@ Error readStringFromFile(const FilePath& filePath,
       Error error = systemError(boost::system::errc::io_error, 
                                 ERROR_LOCATION);
       error.addProperty("what", e.what());
-      error.addProperty("path", filePath.getAbsolutePath());
+      error.addProperty("path", filePath.absolutePath());
       return error;
    }
 }

@@ -1,7 +1,7 @@
 /*
  * DebugCommander.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -28,7 +28,9 @@ import org.rstudio.studio.client.common.filetypes.events.OpenSourceFileEvent;
 import org.rstudio.studio.client.common.filetypes.model.NavigationMethods;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.events.BusyEvent;
+import org.rstudio.studio.client.workbench.events.BusyHandler;
 import org.rstudio.studio.client.workbench.events.SessionInitEvent;
+import org.rstudio.studio.client.workbench.events.SessionInitHandler;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.views.console.events.SendToConsoleEvent;
 import org.rstudio.studio.client.workbench.views.environment.events.DebugModeChangedEvent;
@@ -40,12 +42,12 @@ import com.google.inject.Singleton;
 
 // DebugCommander is responsible for managing top-level metadata concerning
 // debug sessions (both function and top-level) and for processing the basic
-// debug commands (run, step, etc) in the appropriate context.
+// debug commands (run, step, etc) in the appropriate context. 
 @Singleton
 public class DebugCommander
-         implements SessionInitEvent.Handler,
+         implements SessionInitHandler,
                     RestartStatusEvent.Handler,
-                    BusyEvent.Handler
+                    BusyHandler
 {
    public interface Binder
       extends CommandBinder<Commands, DebugCommander> {}
@@ -69,13 +71,13 @@ public class DebugCommander
       session_ = session;
       commands_ = commands;
       interrupt_ = interrupt;
-
+      
       eventBus_.addHandler(SessionInitEvent.TYPE, this);
       eventBus_.addHandler(RestartStatusEvent.TYPE, this);
       eventBus_.addHandler(BusyEvent.TYPE, this);
-
+      
       binder.bind(commands, this);
-
+     
       setDebugCommandsEnabled(false);
       commands_.debugBreakpoint().setEnabled(false);
    }
@@ -88,7 +90,7 @@ public class DebugCommander
       eventBus_.fireEvent(new SendToConsoleEvent(
             CONTINUE_COMMAND, true, true));
    }
-
+   
    @Handler
    void onDebugStop()
    {
@@ -116,19 +118,19 @@ public class DebugCommander
    {
       eventBus_.fireEvent(new SendToConsoleEvent(NEXT_COMMAND, true, true));
    }
-
+   
    @Handler
    void onDebugStepInto()
    {
       eventBus_.fireEvent(new SendToConsoleEvent(STEP_INTO_COMMAND, true, true));
    }
-
+   
    @Handler
    void onDebugFinish()
    {
       eventBus_.fireEvent(new SendToConsoleEvent(FINISH_COMMAND, true, true));
    }
-
+   
    @Override
    public void onRestartStatus(RestartStatusEvent event)
    {
@@ -154,7 +156,7 @@ public class DebugCommander
          commands_.debugFinish().remove();
       }
    }
-
+   
    @Override
    public void onBusy(BusyEvent event)
    {
@@ -166,7 +168,7 @@ public class DebugCommander
    public void enterDebugMode(DebugMode mode)
    {
       // when entering function debug context, save the current top-level debug
-      // mode so we can restore it later
+      // mode so we can restore it later 
       if (mode == DebugMode.Function)
       {
          setDebugging(true);
@@ -174,28 +176,28 @@ public class DebugCommander
       setAdvancedCommandsVisible(mode == DebugMode.Function);
       debugMode_ = mode;
    }
-
+   
    public void leaveDebugMode()
    {
       setDebugging(false);
       debugMode_ = DebugMode.Normal;
       debugFile_ = "";
    }
-
+   
    public DebugMode getDebugMode()
    {
       return debugMode_;
    }
-
+   
    // Private methods ---------------------------------------------------------
 
    private void highlightDebugPosition(LineData lineData, boolean finished)
    {
       FileSystemItem sourceFile = FileSystemItem.createFile(debugFile_);
       DebugFilePosition position = DebugFilePosition.create(
-            lineData.getLineNumber(),
-            lineData.getEndLineNumber(),
-            lineData.getCharacterNumber(),
+            lineData.getLineNumber(), 
+            lineData.getEndLineNumber(), 
+            lineData.getCharacterNumber(), 
             lineData.getEndCharacterNumber());
       eventBus_.fireEvent(new OpenSourceFileEvent(sourceFile,
                              (FilePosition) position.cast(),
@@ -214,7 +216,7 @@ public class DebugCommander
          eventBus_.fireEvent(new DebugModeChangedEvent(debugging_));
       }
    }
-
+   
    private void setDebugCommandsEnabled(boolean enabled)
    {
       commands_.debugContinue().setEnabled(enabled);
@@ -223,18 +225,18 @@ public class DebugCommander
       commands_.debugStepInto().setEnabled(enabled);
       commands_.debugFinish().setEnabled(enabled);
    }
-
+   
    private void setAdvancedCommandsVisible(boolean visible)
    {
       commands_.debugFinish().setVisible(visible);
       commands_.debugStepInto().setVisible(visible);
    }
-
+   
    private void stopDebugging()
-   {
+   { 
       eventBus_.fireEvent(new SendToConsoleEvent(STOP_COMMAND, true, true));
    }
-
+   
    public static final String STOP_COMMAND = "Q";
    public static final String NEXT_COMMAND = "n";
    public static final String CONTINUE_COMMAND = "c";
@@ -245,7 +247,7 @@ public class DebugCommander
    private final Session session_;
    private final Commands commands_;
    private final ApplicationInterrupt interrupt_;
-
+   
    private DebugMode debugMode_ = DebugMode.Normal;
    private String debugFile_ = "";
    private LineData previousLineData_ = null;

@@ -45,7 +45,7 @@
                     width="150px">
        </g:HTMLPanel>
        <g:Image styleName="{style.interrupt}" resource="{res.interruptChunk2x}" 
-                ui:field="interruptButton_" altText="Interrupt">
+                ui:field="interruptButton_">
        </g:Image>
      </g:HorizontalPanel>
    </g:HTMLPanel>

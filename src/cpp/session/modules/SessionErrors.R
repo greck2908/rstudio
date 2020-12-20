@@ -1,7 +1,7 @@
 #
 # SessionErrors.R
 #
-# Copyright (C) 2020 by RStudio, PBC
+# Copyright (C) 2009-16 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -15,17 +15,9 @@
 
 .rs.addFunction("isSourceCall", function(call)
 {
-   symbols <- list(
-      quote(source),
-      quote(debugSource)
-   )
-   
-   fun <- call[[1L]]
-   for (symbol in symbols)
-      if (identical(fun, symbol))
-         return(TRUE)
-   
-   FALSE
+   fun <- deparse(call[[1]])
+   return (fun == "source" ||
+           fun == "debugSource")
 })
 
 .rs.addFunction("recordTraceback", function(userOnly, minDepth, errorReporter)
@@ -221,39 +213,39 @@ attrs = list(hideFromDebugger = TRUE))
    .rs.recordTraceback(FALSE, 5, .rs.enqueueError)
 },
 attrs = list(hideFromDebugger = TRUE,
-             errorHandlerType = "traceback"))
+             errorHandlerType = 1L))
 
 .rs.addFunction("recordUserTraceback", function()
 {
    .rs.recordTraceback(TRUE, 5, .rs.enqueueError)
 },
 attrs = list(hideFromDebugger = TRUE,
-             errorHandlerType = "traceback"))
+             errorHandlerType = 1L))
 
 .rs.addFunction("breakOnAnyError", function()
 {
    .rs.breakOnError(FALSE)
 },
 attrs = list(hideFromDebugger = TRUE, 
-             errorHandlerType = "break"))
+             errorHandlerType = 2L))
 
 .rs.addFunction("breakOnUserError", function()
 {
    .rs.breakOnError(TRUE)
 },
 attrs = list(hideFromDebugger = TRUE,
-             errorHandlerType = "break"))
+             errorHandlerType = 2L))
 
 .rs.addFunction("setErrorManagementType", function(type, userOnly)
 {
-   if (identical(type, "message"))
+   if (type == 0)
       options(error = NULL)
-   else if (identical(type, "traceback") && userOnly)
+   else if (type == 1 && userOnly)
       options(error = .rs.recordUserTraceback) 
-   else if (identical(type, "traceback") && !userOnly)
+   else if (type == 1 && !userOnly)
       options(error = .rs.recordAnyTraceback)
-   else if (identical(type, "break") && userOnly)
+   else if (type == 2 && userOnly)
       options(error = .rs.breakOnUserError)
-   else if (identical(type, "break") && !userOnly)
+   else if (type == 2 && !userOnly)
       options(error = .rs.breakOnAnyError)
 })

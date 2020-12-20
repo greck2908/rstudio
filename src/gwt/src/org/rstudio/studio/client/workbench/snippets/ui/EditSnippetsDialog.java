@@ -1,7 +1,7 @@
 /*
  * EditSnippetsPanel.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -38,7 +38,7 @@ import org.rstudio.studio.client.common.filetypes.FileTypeRegistry;
 import org.rstudio.studio.client.common.filetypes.TextFileType;
 import org.rstudio.studio.client.server.Void;
 import org.rstudio.studio.client.server.VoidServerRequestCallback;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.snippets.SnippetHelper;
 import org.rstudio.studio.client.workbench.snippets.model.SnippetData;
 import org.rstudio.studio.client.workbench.ui.FontSizeManager;
@@ -88,7 +88,7 @@ public class EditSnippetsDialog extends ModalDialogBase implements TextDisplay
    void initialize(EventBus events, 
                    GlobalDisplay globalDisplay,
                    FontSizeManager fontSizeManager,
-                   UserPrefs uiPrefs,
+                   UIPrefs uiPrefs,
                    LintServerOperations server)
    {
       events_ = events;
@@ -132,7 +132,6 @@ public class EditSnippetsDialog extends ModalDialogBase implements TextDisplay
       snippetTypes_.addItem(new EditableSnippets(FileTypeRegistry.JAVA));
       snippetTypes_.addItem(new EditableSnippets(FileTypeRegistry.PYTHON));
       snippetTypes_.addItem(new EditableSnippets(FileTypeRegistry.STAN));
-      snippetTypes_.addItem(new EditableSnippets(FileTypeRegistry.YAML));
      
       panel_.addWest(snippetTypes_, 150);
      
@@ -312,7 +311,7 @@ public class EditSnippetsDialog extends ModalDialogBase implements TextDisplay
    private EventBus events_;
    private GlobalDisplay globalDisplay_;
    private FontSizeManager fontSizeManager_;
-   private UserPrefs uiPrefs_;
+   private UIPrefs uiPrefs_;
    private LintServerOperations server_;
   
 

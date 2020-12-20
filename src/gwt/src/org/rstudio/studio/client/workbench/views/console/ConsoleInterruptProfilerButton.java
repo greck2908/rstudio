@@ -1,7 +1,7 @@
 /*
  * ConsoleInterruptProfilerButton.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,6 +20,7 @@ import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.theme.res.ThemeResources;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.filetypes.FileIconResources;
+import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.views.source.editors.profiler.RprofEvent;
 
 import com.google.gwt.dom.client.Style.Position;
@@ -44,7 +45,8 @@ public class ConsoleInterruptProfilerButton extends Composite
    }
    
    @Inject
-   public ConsoleInterruptProfilerButton(final EventBus events)
+   public ConsoleInterruptProfilerButton(final EventBus events,
+                                         Commands commands)
    {
       fadeInHelper_ = new DelayFadeInHelper(this);
 
@@ -52,7 +54,7 @@ public class ConsoleInterruptProfilerButton extends Composite
       // effect to work.
       SimplePanel panel = new SimplePanel();
       panel.getElement().getStyle().setPosition(Position.RELATIVE);
-
+      
       ImageResource icon = new ImageResource2x(FileIconResources.INSTANCE.iconProfiler2x());
       Image button = CreateProfilerButton();
 
@@ -62,19 +64,23 @@ public class ConsoleInterruptProfilerButton extends Composite
 
       initWidget(panel);
       setVisible(false);
-
-      events.addHandler(RprofEvent.TYPE, event ->
+      
+      events.addHandler(RprofEvent.TYPE, new RprofEvent.Handler()
       {
-         switch (event.getEventType())
+         @Override
+         public void onRprofEvent(RprofEvent event)
          {
-            case START:
-               fadeInHelper_.beginShow();
-               break;
-            case STOP:
-               fadeInHelper_.hide();
-               break;
-            default:
-               break;
+            switch (event.getEventType())
+            {
+               case START:
+                  fadeInHelper_.beginShow();
+                  break;
+               case STOP:
+                  fadeInHelper_.hide();
+                  break;
+               default:
+                  break;
+            }
          }
       });
    }

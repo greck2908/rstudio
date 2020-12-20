@@ -1,7 +1,7 @@
 /*
  * DebouncedCommand.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2016 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -48,11 +48,6 @@ public abstract class DebouncedCommand
    public void resume()
    {
       suspended_ = false;
-   }
-   
-   public boolean isRunning()
-   {
-      return timer_.isRunning();
    }
    
    protected abstract void execute();

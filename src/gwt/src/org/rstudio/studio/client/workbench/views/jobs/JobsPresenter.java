@@ -1,7 +1,7 @@
 /*
  * JobsPresenter.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -60,7 +60,6 @@ public class JobsPresenter extends BasePresenter
       display_ = display;
       globalDisplay_ = globalDisplay;
       pJobManager_ = pJobManager;
-      commands_ = commands;
       binder.bind(commands, this);
     }
 
@@ -129,8 +128,6 @@ public class JobsPresenter extends BasePresenter
    @Handler
    public void onActivateJobs()
    {
-      // Ensure that console pane is not minimized
-      commands_.activateConsolePane().execute();
       display_.bringToFront();
    }
   
@@ -139,6 +136,5 @@ public class JobsPresenter extends BasePresenter
    // injected
    private final Display display_;
    private final GlobalDisplay globalDisplay_;
-   private final Commands commands_;
    private final Provider<JobManager> pJobManager_;
 }

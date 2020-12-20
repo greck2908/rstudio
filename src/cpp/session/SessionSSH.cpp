@@ -1,7 +1,7 @@
 /*
  * SessionSSH.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -75,12 +75,12 @@ core::system::ProcessOptions ProcessOptionsCreator::processOptions() const
 #else
          path += ":";
 #endif
-         path += pathDir.getAbsolutePathNative();
+         path += pathDir.absolutePathNative();
       }
       core::system::setenv(&envOpts, "PATH", path);
    }
 
-   if (!workingDir_.isEmpty())
+   if (!workingDir_.empty())
    {
       options.workingDir = workingDir_;
    }

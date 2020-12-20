@@ -1,7 +1,7 @@
 /*
  * SaveActionChangedEvent.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,41 +14,37 @@
  */
 package org.rstudio.studio.client.application.events;
 
-import com.google.gwt.event.shared.EventHandler;
 import com.google.gwt.event.shared.GwtEvent;
 
 import org.rstudio.studio.client.application.model.SaveAction;
 
-public class SaveActionChangedEvent extends GwtEvent<SaveActionChangedEvent.Handler>
+public class SaveActionChangedEvent extends GwtEvent<SaveActionChangedHandler>
 {   
-   public static final Type<Handler> TYPE = new Type<>();
-
+   public static final GwtEvent.Type<SaveActionChangedHandler> TYPE =
+      new GwtEvent.Type<SaveActionChangedHandler>();
+   
    public SaveActionChangedEvent(SaveAction action)
    {
       action_ = action;
    }
-
+   
    public SaveAction getAction()
    {
       return action_;
    }
-
+   
    @Override
-   protected void dispatch(Handler handler)
+   protected void dispatch(SaveActionChangedHandler handler)
    {
       handler.onSaveActionChanged(this);
    }
 
    @Override
-   public GwtEvent.Type<Handler> getAssociatedType()
+   public GwtEvent.Type<SaveActionChangedHandler> getAssociatedType()
    {
       return TYPE;
    }
-
+   
+   
    private SaveAction action_;
-
-   public interface Handler extends EventHandler
-   {
-      void onSaveActionChanged(SaveActionChangedEvent event);
-   }
 }

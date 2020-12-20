@@ -1,7 +1,7 @@
 /*
  * SerializedCommandQueue.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -13,6 +13,8 @@
  *
  */
 package org.rstudio.core.client;
+
+import com.google.gwt.user.client.Command;
 
 import java.util.ArrayList;
 
@@ -80,10 +82,13 @@ public class SerializedCommandQueue
       }
 
       SerializedCommand head = commands_.remove(0);
-      head.onExecute(() ->
+      head.onExecute(new Command()
       {
-         log("continuation");
-         executeNextCommand();
+         public void execute()
+         {
+            log("continuation");
+            executeNextCommand();
+         }
       });
    }
 
@@ -96,6 +101,7 @@ public class SerializedCommandQueue
    }
 
    private boolean running_ = false;
-   private final ArrayList<SerializedCommand> commands_ = new ArrayList<>();
+   private ArrayList<SerializedCommand> commands_
+         = new ArrayList<SerializedCommand>();
    private final boolean log_;
 }

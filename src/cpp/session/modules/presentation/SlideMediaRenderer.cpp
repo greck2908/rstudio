@@ -1,7 +1,7 @@
 /*
  * SlideMediaRenderer.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,7 +22,7 @@
 #include <boost/format.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
-#include <shared_core/json/Json.hpp>
+#include <core/json/Json.hpp>
 
 #include <session/SessionModuleContext.hpp>
 
@@ -76,17 +76,17 @@ std::vector<MediaSource> discoverMediaSources(
    }
 
    std::vector<MediaSource> sources;
-   FilePath mediaFile = baseDir.completePath(filename);
+   FilePath mediaFile = baseDir.complete(filename);
    if (mediaFile.exists())
    {
       // get the filename without extension
-      std::string stem = mediaFile.getStem();
+      std::string stem = mediaFile.stem();
       for (std::string fmt : formats)
       {
-         FilePath targetPath = mediaFile.getParent().completePath(stem + "." + fmt);
+         FilePath targetPath = mediaFile.parent().complete(stem + "." + fmt);
          if (targetPath.exists())
          {
-            std::string file = targetPath.getRelativePath(baseDir);
+            std::string file = targetPath.relativePath(baseDir);
             if (boost::algorithm::starts_with(fmt, "og"))
                fmt = "ogg";
             sources.push_back(MediaSource(file, type + "/" + fmt));
@@ -96,7 +96,7 @@ std::vector<MediaSource> discoverMediaSources(
    else
    {
       module_context::consoleWriteError("Media file " +
-                                           mediaFile.getAbsolutePath() +
+                                        mediaFile.absolutePath() +
                                         " does not exist");
    }
 
@@ -106,12 +106,14 @@ std::vector<MediaSource> discoverMediaSources(
 std::string atCommandsAsJsonArray(const std::vector<AtCommand>& atCommands)
 {
    json::Array cmdsArray;
-   for (const AtCommand& atCmd : atCommands)
+   for (const AtCommand atCmd : atCommands)
    {
       cmdsArray.push_back(atCmd.asJson());
    }
 
-   return cmdsArray.write();
+   std::ostringstream ostr;
+   json::write(cmdsArray, ostr);
+   return ostr.str();
 }
 
 } // anonymous namespace

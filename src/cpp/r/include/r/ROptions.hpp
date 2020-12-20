@@ -1,7 +1,7 @@
 /*
  * ROptions.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,7 @@
 
 #include <string>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 
 #include <r/RSexp.hpp>
@@ -38,7 +38,7 @@ namespace rstudio {
 namespace r {
 namespace options {
 
-core::Error saveOptions(const core::FilePath& filePath);
+core::Error saveOptions(const core::FilePath& filePath);  
 core::Error restoreOptions(const core::FilePath& filePath);
 
 // console width
@@ -63,58 +63,45 @@ T getOption(const std::string& name,
    if (name.empty())
       return defaultValue;
    
-   // retrieve option (err if not found)
    SEXP valueSEXP = getOption(name);
-   if (valueSEXP == R_NilValue)
+   if (valueSEXP != R_NilValue)
+   {
+      T value;
+      core::Error error = sexp::extract(valueSEXP, &value);
+      if (error)
+      {
+         error.addProperty("symbol (option)", name);
+         LOG_ERROR(error);
+         return defaultValue;
+      }
+      
+      return value;
+   }
+   else
    {
       core::Error error(errc::SymbolNotFoundError, ERROR_LOCATION);
       error.addProperty("symbol (option)", name);
       if (logNotFound)
          LOG_ERROR(error);
-      
       return defaultValue;
    }
-   
-   // attempt to extract SEXP value
-   T value;
-   core::Error error = sexp::extract(valueSEXP, &value);
-   if (error)
-   {
-      error.addProperty("symbol (option)", name);
-      LOG_ERROR(error);
-      return defaultValue;
-   }
-      
-   return value;
 }
    
 template <typename T>
 core::Error setOption(const std::string& name, const T& value)
 {
-   core::Error error = r::exec::RFunction("base:::options")
-         .addParam(name, value)
-         .call();
-   
+   r::exec::RFunction optionsFunction("options");
+   optionsFunction.addParam(name, value);
+   core::Error error = optionsFunction.call();
    if (error)
    {
       error.addProperty("option-name", name);
       return error;
    }
-   
-   return core::Success();
-}
-
-template <typename T>
-core::Error setOptionDefault(const std::string& name, const T& value)
-{
-   // retrieve option (bail if unset)
-   SEXP optionSEXP = getOption(name);
-   if (optionSEXP != R_NilValue)
+   else
+   {
       return core::Success();
-   
-   // otherwise, override it
-   setOption(name, value);
-   return core::Success();
+   }
 }
 
 SEXP setErrorOption(SEXP value);

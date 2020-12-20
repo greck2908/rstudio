@@ -1,7 +1,7 @@
 /*
  * AdminNotificationEvent.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2017 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,40 +15,35 @@
 
 package org.rstudio.studio.client.workbench.events;
 
-import com.google.gwt.event.shared.EventHandler;
 import com.google.gwt.event.shared.GwtEvent;
 import org.rstudio.studio.client.workbench.model.AdminNotification;
 
-public class AdminNotificationEvent extends GwtEvent<AdminNotificationEvent.Handler>
+public class AdminNotificationEvent extends GwtEvent<AdminNotificationHandler>
 {
-   public static final GwtEvent.Type<Handler> TYPE = new GwtEvent.Type<>();
-
-   public interface Handler extends EventHandler
-   {
-      void onAdminNotification(AdminNotificationEvent event);
-   }
-
+   public static final GwtEvent.Type<AdminNotificationHandler> TYPE =
+      new GwtEvent.Type<AdminNotificationHandler>();
+   
    public AdminNotificationEvent(AdminNotification notification)
    {
       adminNotification_ = notification;
    }
-
+   
    public AdminNotification getAdminNotification()
    {
       return adminNotification_;
    }
-
+   
    @Override
-   protected void dispatch(Handler handler)
+   protected void dispatch(AdminNotificationHandler handler)
    {
       handler.onAdminNotification(this);
    }
 
    @Override
-   public GwtEvent.Type<Handler> getAssociatedType()
+   public GwtEvent.Type<AdminNotificationHandler> getAssociatedType()
    {
       return TYPE;
    }
-
+   
    private final AdminNotification adminNotification_;
 }

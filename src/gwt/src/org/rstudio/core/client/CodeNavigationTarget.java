@@ -1,7 +1,7 @@
 /*
  * CodeNavigationTarget.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,41 +16,27 @@ package org.rstudio.core.client;
 
 public class CodeNavigationTarget
 {
-   public CodeNavigationTarget(String file,
-                               FilePosition pos,
-                               XRef xref)
-   {
-      file_ = file;
-      pos_  = pos;
-      xref_ = xref;
-   }
-
    public CodeNavigationTarget(String file)
    {
-      this(file, null, XRef.create());
+      this(file, null);
    }
-
+   
    public CodeNavigationTarget(String file, FilePosition pos)
    {
-      this(file, pos, XRef.create());
+      file_ = file;
+      pos_ = pos;
    }
-
-   public final String getFile()
+   
+   public String getFile()
    {
       return file_;
    }
-
-   public final FilePosition getPosition()
+   
+   public FilePosition getPosition()
    {
       return pos_;
    }
-
-   public final XRef getXRef()
-   {
-      return xref_;
-   }
-
+   
    private final String file_;
    private final FilePosition pos_;
-   private final XRef xref_;
 }

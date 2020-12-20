@@ -1,7 +1,7 @@
 /*
  * RStdCallbacks.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,8 +17,6 @@
 
 #include <gsl/gsl>
 
-#include <iostream>
-
 #include <boost/function.hpp>
 #include <boost/regex.hpp>
 
@@ -26,7 +24,6 @@
 #include <r/ROptions.hpp>
 #include <r/RSourceManager.hpp>
 #include <r/RUtil.hpp>
-#include <r/RCntxtUtils.hpp>
 #include <r/session/RClientState.hpp>
 #include <r/session/RConsoleActions.hpp>
 #include <r/session/RConsoleHistory.hpp>
@@ -86,17 +83,17 @@ class JumpToTopException
 FilePath rSaveGlobalEnvironmentFilePath()
 {
    FilePath rEnvironmentDir = utils::rEnvironmentDir();
-   return rEnvironmentDir.completePath(".RData");
+   return rEnvironmentDir.complete(".RData");
 }
 
 void rSuicideError(const Error& error)
 {
    // provide error message if the error was unexpected
-   std::string errorStr;
-   if (!error.isExpected())
-      errorStr = core::log::writeError(error);
+   std::string msg;
+   if (!error.expected())
+      msg = core::log::errorAsLogEntry(error);
 
-   rSuicide(errorStr);
+   rSuicide(msg);
 }
 
 SA_TYPE saveAsk()
@@ -161,7 +158,7 @@ void doHistoryFileOperation(SEXP args,
    // perform operation
    Error error = fileOp(historyFilePath);
    if (error)
-      throw r::exec::RErrorException(error.getMessage());
+      throw r::exec::RErrorException(error.code().message());
 }
    
 bool consoleInputHook(const std::string& prompt,
@@ -178,7 +175,7 @@ bool consoleInputHook(const std::string& prompt,
    {
       if (!s_callbacks.handleUnsavedChanges())
       {
-         REprintf("%s\n", "User cancelled quit operation");
+         REprintf("User cancelled quit operation\n");
          return false;
       }
 
@@ -189,7 +186,7 @@ bool consoleInputHook(const std::string& prompt,
       std::string quitErr;
       bool didQuit = win32Quit(input, &quitErr);
       if (!didQuit)
-         REprintf("%s\n", quitErr.c_str());
+         REprintf((quitErr + "\n").c_str());
 
       // always return false (since we take over the command fully)
       return false;
@@ -222,7 +219,7 @@ Error saveDefaultGlobalEnvironment()
    r::exec::IgnoreInterruptsScope ignoreInterrupts;
          
    // save global environment
-   std::string path = string_utils::utf8ToSystem(globalEnvPath.getAbsolutePath());
+   std::string path = string_utils::utf8ToSystem(globalEnvPath.absolutePath());
    Error error = r::exec::executeSafely(
                     boost::bind(R_SaveGlobalEnvToFile, path.c_str()));
    
@@ -294,7 +291,8 @@ int RReadConsole (const char *pmt,
                error = initError;
 
             // log the error if it was unexpected
-            LOG_ERROR(error);
+            if (!error.expected())
+               LOG_ERROR(error);
             
             // terminate the session (use suicide so that no special
             // termination code runs -- i.e. call to setAbnormalEnd(false)
@@ -315,15 +313,15 @@ int RReadConsole (const char *pmt,
 
       // get the next input
       bool addToHistory = (hist == 1);
-      RConsoleInput consoleInput(kConsoleInputCancel);
-      if (s_callbacks.consoleRead(promptString, addToHistory, &consoleInput))
+      RConsoleInput consoleInput("");
+      if (s_callbacks.consoleRead(promptString, addToHistory, &consoleInput) )
       {
          // add prompt to console actions (we do this after consoleRead
          // completes so that we don't send both a console prompt event
          // AND include the same prompt in the actions history)
          consoleActions().add(kConsoleActionPrompt, prompt);
 
-         if (consoleInput.isCancel())
+         if (consoleInput.cancel)
          {
             // notify of interrupt
             consoleActions().notifyInterrupt();
@@ -332,20 +330,10 @@ int RReadConsole (const char *pmt,
             // c++ stack unwinding to occur before jumping
             throw r::exec::InterruptException();
          }
-         
-         // handle EOF. note that we only want to return 0 here if we
-         // know that the session is waiting for input; otherwise we'll
-         // end up quitting R altogether! this effectively implies that
-         // EOF is a no-op at the top level, which seems to be fine
-         else if (consoleInput.isEof() &&
-                  r::context::globalContext().evaldepth() != 0)
-         {
-            return 0;
-         }
          else
          {
             // determine the input to return to R
-            std::string rInput(consoleInput.text);
+            std::string rInput = consoleInput.text;
 
             // refresh source if necessary (no-op in production)
             r::sourceManager().reloadIfNecessary();
@@ -369,12 +357,12 @@ int RReadConsole (const char *pmt,
                throw r::exec::InterruptException();
 
             // copy to buffer and add terminators
-            rInput.copy((char*)buf, maxLen);
+            rInput.copy( (char*)buf, maxLen);
             buf[inputLen] = '\n';
-            buf[inputLen + 1] = '\0';
+            buf[inputLen+1] = '\0';
          }
 
-         return 1;
+         return 1 ;
       }
       else
       {
@@ -387,22 +375,10 @@ int RReadConsole (const char *pmt,
       // set interrupts pending
       r::exec::setInterruptsPending(true);
 
-      // call R interrupt handler. note that previously we used
-      // r::exec::checkUserInterrupt(), but this also has the side effect of
-      // calling R_ProcessEvents(). this means that modules with registered
-      // event handlers may get a chance to handle our interrupt, and so the
-      // interrupt will be handled in an incorrect context. this can lead to
-      // issues like the process exiting prematurely. see:
-      //
-      //     https://github.com/rstudio/rstudio/issues/5108
-      //
-      // for one such example.
-      //
-      // note that on Windows we let the regular R_ProcessEvents() machinery
-      // handle the interrupt as we noticed calling Rf_onintr() in that
-      // environment could cause a crash
+      // only issue an interrupt when not on Windows -- let the regular
+      // event loop handle interrupts there. note that this will longjmp
 #ifndef _WIN32
-      Rf_onintr();
+      r::exec::checkUserInterrupt();
 #endif
 
       // buffer not ready
@@ -428,7 +404,7 @@ void RShowMessage(const char* msg)
 {
    try 
    {
-      s_callbacks.showMessage(msg);
+      s_callbacks.showMessage(msg) ;
    }
    CATCH_UNEXPECTED_EXCEPTION
 }
@@ -439,20 +415,8 @@ void RWriteConsoleEx (const char *buf, int buflen, int otype)
    {
       if (!s_suppressOutput)
       {
-         bool isInterruptOutput =
-               r::exec::getWasInterrupted() &&
-               otype == 1 &&
-               buflen == 1 &&
-               buf[0] == '\n';
-         
-         if (isInterruptOutput)
-         {
-            r::exec::setWasInterrupted(false);
-            return;
-         }
-         
          // get output
-         std::string output = std::string(buf, buflen);
+         std::string output = std::string(buf,buflen);
          output = util::rconsole2utf8(output);
          
          // add to console actions
@@ -461,7 +425,7 @@ void RWriteConsoleEx (const char *buf, int buflen, int otype)
          consoleActions().add(type, output);
          
          // write
-         s_callbacks.consoleWrite(output, otype);
+         s_callbacks.consoleWrite(output, otype) ;
       }
    }
    CATCH_UNEXPECTED_EXCEPTION
@@ -477,7 +441,7 @@ int REditFile(const char* file)
    CATCH_UNEXPECTED_EXCEPTION
    
    // error if we got this far
-   return 1;
+   return 1 ;
 }
 
 void RBusy(int which)   
@@ -501,13 +465,13 @@ int RChooseFile (int newFile, char *buf, int len)
    try 
    {
       FilePath filePath = s_callbacks.chooseFile(newFile == TRUE);
-      if (!filePath.isEmpty())
+      if (!filePath.empty())
       {
          // get absolute path
-         std::string absolutePath = filePath.getAbsolutePath();
+         std::string absolutePath = filePath.absolutePath();
          
          // trunate file if it is too long
-         std::string::size_type maxLen = len - 1;
+         std::string::size_type maxLen = len - 1; 
          if (absolutePath.length() > maxLen)
             absolutePath.resize(maxLen);
          
@@ -543,7 +507,7 @@ int RShowFiles (int nfile,
       {
          // determine file path and title
          std::string fixedPath = r::util::fixPath(file[i]);
-         FilePath filePath = utils::safeCurrentPath().completePath(fixedPath);
+         FilePath filePath = utils::safeCurrentPath().complete(fixedPath);
          if (filePath.exists())
          {
             std::string title(headers[i]);
@@ -605,10 +569,10 @@ void Raddhistory(SEXP call, SEXP op, SEXP args, SEXP env)
    try
    {
       // get commands
-      std::vector<std::string> commands;
+      std::vector<std::string> commands ;
       Error error = sexp::extract(CAR(args), &commands);
       if (error)
-         throw r::exec::RErrorException(error.getMessage());
+         throw r::exec::RErrorException(error.code().message());
       
       // append them
       ConsoleHistory& history = consoleHistory();
@@ -626,9 +590,6 @@ void Raddhistory(SEXP call, SEXP op, SEXP args, SEXP env)
 // NOTE: Win32 doesn't receive this callback
 void RSuicide(const char* s)
 {
-   // We need to write this to stderr so the parent process (rstudio) can pick up the error message and display it 
-   // to the user in case the session log file is not accessbile.
-   std::cerr << s << std::endl;
    s_callbacks.suicide(s);
    s_internalCallbacks.suicide(s);
 }
@@ -638,8 +599,8 @@ void rSuicide(const std::string& msg)
    // log abort message if we are in desktop mode
    if (!utils::isServerMode())
    {
-      FilePath abendLogPath = utils::logPath().completePath(
-         "rsession_abort_msg.log");
+      FilePath abendLogPath = utils::logPath().complete(
+                                                 "rsession_abort_msg.log");
       Error error = core::writeStringToFile(abendLogPath, msg);
       if (error)
          LOG_ERROR(error);

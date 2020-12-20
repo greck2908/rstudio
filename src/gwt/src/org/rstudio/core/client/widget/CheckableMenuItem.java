@@ -1,7 +1,7 @@
 /*
  * CheckableMenuItem.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -70,7 +70,6 @@ public abstract class CheckableMenuItem extends MenuItem
    }
 
    public abstract String getLabel();
-   public String getShortcut() { return ""; }
    public abstract boolean isChecked();
    public abstract void onInvoked();
    
@@ -80,7 +79,7 @@ public abstract class CheckableMenuItem extends MenuItem
             isChecked() ? 
                   new ImageResource2x(ThemeResources.INSTANCE.menuCheck2x()) :
                   null,
-            getLabel(), getShortcut(), ThemeStyles.INSTANCE.menuCheckable());
+            getLabel(), "", ThemeStyles.INSTANCE.menuCheckable());
       
    }
 }

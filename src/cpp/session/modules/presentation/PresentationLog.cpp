@@ -1,7 +1,7 @@
 /*
  * PresentationLog.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,10 +21,10 @@
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/DateTime.hpp>
 #include <core/StringUtils.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 #include <core/FileSerializer.hpp>
 
 #include <r/RSexp.hpp>
@@ -204,12 +204,12 @@ Error ensureTargetFile(const std::string& filename,
                        FilePath* pTargetFile)
 {
    using namespace module_context;
-   FilePath presDir = userScratchPath().completeChildPath("presentation");
+   FilePath presDir =  userScratchPath().childPath("presentation");
    Error error = presDir.ensureDirectory();
    if (error)
       return error;
 
-   *pTargetFile = presDir.completeChildPath(filename);
+   *pTargetFile = presDir.childPath(filename);
    if (!pTargetFile->exists())
    {
       Error error = core::writeStringToFile(*pTargetFile, header + "\n");

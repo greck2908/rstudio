@@ -1,7 +1,7 @@
 /*
  * WorkbenchScreen.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,6 @@
 
 package org.rstudio.studio.client.workbench.ui;
 
-import com.google.gwt.aria.client.Roles;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.Scheduler;
 import com.google.gwt.core.client.Scheduler.ScheduledCommand;
@@ -39,10 +38,13 @@ import org.rstudio.core.client.TimeBufferedCommand;
 import org.rstudio.core.client.command.CommandBinder;
 import org.rstudio.core.client.command.Handler;
 import org.rstudio.core.client.dom.DomUtils;
+import org.rstudio.core.client.events.WindowStateChangeEvent;
+import org.rstudio.core.client.layout.WindowState;
 import org.rstudio.core.client.theme.ModuleTabLayoutPanel;
 import org.rstudio.core.client.widget.FontSizer;
 import org.rstudio.core.client.widget.Toolbar;
 import org.rstudio.studio.client.application.events.ChangeFontSizeEvent;
+import org.rstudio.studio.client.application.events.ChangeFontSizeHandler;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.application.ui.appended.ApplicationEndedPopupPanel;
 import org.rstudio.studio.client.common.GlobalDisplay;
@@ -52,18 +54,6 @@ import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.events.*;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.WorkbenchMetrics;
-import org.rstudio.studio.client.workbench.prefs.views.AccessibilityPreferencesPane;
-import org.rstudio.studio.client.workbench.prefs.views.AppearancePreferencesPane;
-import org.rstudio.studio.client.workbench.prefs.views.CompilePdfPreferencesPane;
-import org.rstudio.studio.client.workbench.prefs.views.ConsolePreferencesPane;
-import org.rstudio.studio.client.workbench.prefs.views.EditingPreferencesPane;
-import org.rstudio.studio.client.workbench.prefs.views.PackagesPreferencesPane;
-import org.rstudio.studio.client.workbench.prefs.views.PublishingPreferencesPane;
-import org.rstudio.studio.client.workbench.prefs.views.PythonPreferencesPane;
-import org.rstudio.studio.client.workbench.prefs.views.RMarkdownPreferencesPane;
-import org.rstudio.studio.client.workbench.prefs.views.SourceControlPreferencesPane;
-import org.rstudio.studio.client.workbench.prefs.views.SpellingPreferencesPane;
-import org.rstudio.studio.client.workbench.prefs.views.TerminalPreferencesPane;
 import org.rstudio.studio.client.workbench.ui.PaneManager.Tab;
 import org.rstudio.studio.client.workbench.views.console.ConsoleResources;
 import org.rstudio.studio.client.workbench.views.edit.Edit;
@@ -74,10 +64,10 @@ import org.rstudio.studio.client.workbench.views.plots.PlotsTab;
 import org.rstudio.studio.client.workbench.views.source.events.LastSourceDocClosedEvent;
 import org.rstudio.studio.client.workbench.views.source.events.LastSourceDocClosedHandler;
 
-public class WorkbenchScreen extends Composite
+public class WorkbenchScreen extends Composite 
                              implements WorkbenchMainView,
                                         SelectionHandler<Integer>,
-                                        ActivatePaneEvent.Handler,
+                                        ActivatePaneHandler,
                                         RequiresResize
 {
    interface MyCommandBinder extends CommandBinder<Commands, WorkbenchScreen>{}
@@ -99,7 +89,7 @@ public class WorkbenchScreen extends Composite
       session_ = session;
       edit_ = edit;
       optionsLoader_ = optionsLoader;
-
+      
       if (!BrowseCap.isMacintoshDesktop())
       {
          commands.macPreferences().remove();
@@ -108,23 +98,28 @@ public class WorkbenchScreen extends Composite
 
       eventBus_.addHandler(ActivatePaneEvent.TYPE, this);
       eventBus_.addHandler(ShowEditorEvent.TYPE, edit);
-      eventBus_.addHandler(ChangeFontSizeEvent.TYPE, changeFontSizeEvent ->
+      eventBus_.addHandler(ChangeFontSizeEvent.TYPE, new ChangeFontSizeHandler()
       {
-         FontSizer.setNormalFontSize(Document.get(), changeFontSizeEvent.getFontSize());
-         Scheduler.get().scheduleDeferred(() ->
+         public void onChangeFontSize(ChangeFontSizeEvent event)
          {
-            // Causes the console width to be remeasured
-            doOnPaneSizesChanged();
-         });
+            FontSizer.setNormalFontSize(Document.get(), event.getFontSize());
+            Scheduler.get().scheduleDeferred(new ScheduledCommand()
+            {
+               public void execute()
+               {
+                  // Causes the console width to be remeasured
+                  doOnPaneSizesChanged();
+               }
+            });
+         }
       });
       FontSizer.setNormalFontSize(Document.get(), fontSizeManager.getSize());
+
 
       paneManager_ = pPaneManager.get();
       tabsPanel_ = paneManager_.getPanel();
       tabsPanel_.setSize("100%", "100%");
       tabsPanel_.addStyleDependentName("Workbench");
-      Roles.getMainRole().set(tabsPanel_.getElement());
-      Roles.getMainRole().setAriaLabelProperty(tabsPanel_.getElement(), "Workbench");
 
       // Prevent doOnPaneSizesChanged() from being called more than once
       // every N milliseconds. Note that the act of sending the client metrics
@@ -141,10 +136,13 @@ public class WorkbenchScreen extends Composite
          }
       };
 
-      eventBus.addHandler(SessionInitEvent.TYPE, (SessionInitEvent sie) ->
+      eventBus.addHandler(SessionInitEvent.TYPE, new SessionInitHandler()
       {
-         prefetch();
-         mruList.get();
+         public void onSessionInit(SessionInitEvent sie)
+         {
+            prefetch();
+            mruList.get();
+         }
       });
 
       eventBus.addHandler(LastSourceDocClosedEvent.TYPE,
@@ -152,7 +150,8 @@ public class WorkbenchScreen extends Composite
       {
          public void onLastSourceDocClosed(LastSourceDocClosedEvent event)
          {
-            paneManager_.closeSourceWindow(event.getName());
+            paneManager_.getSourceLogicalWindow().onWindowStateChange(
+                  new WindowStateChangeEvent(WindowState.HIDE));
          }
       });
 
@@ -229,14 +228,14 @@ public class WorkbenchScreen extends Composite
       tabsPanel_.onResize();
       onPaneSizesChanged();
    }
-
+         
    @Override
    protected void onLoad()
    {
       super.onLoad();
       eventBus_.fireEvent(new WorkbenchLoadedEvent());
    }
-
+   
 
    private void onPaneSizesChanged()
    {
@@ -256,28 +255,25 @@ public class WorkbenchScreen extends Composite
 
       // build console width
       WorkbenchTabPanel buildPane = paneManager_.getOwnerTabPanel(Tab.Build);
-      int buildConsoleWidth =
-         buildPane == null ?  0 :
-            DomUtils.getCharacterWidth(buildPane.getElement(),
-               ConsoleResources.INSTANCE.consoleStyles().console());
+      int buildConsoleWidth = DomUtils.getCharacterWidth(buildPane.getElement(), 
+            ConsoleResources.INSTANCE.consoleStyles().console());
 
       // if the build console is hidden then just use its last value. if there
       // has never been a valid value then then lastMetrics_ build console width
       // will be 0, which the server will know to ignore
       if (buildConsoleWidth <= 0)
          buildConsoleWidth = lastMetrics_.getBuildConsoleWidth();
-
+      
       // plots size (don't allow negative metrics)
       WorkbenchTabPanel plotPanel = paneManager_.getOwnerTabPanel(Tab.Plots);
-      Size deckPanelSize = plotPanel == null ? new Size(0, 0) :
-         new Size(
+      Size deckPanelSize = new Size(
             plotPanel.getOffsetWidth(),
             plotPanel.getOffsetHeight() - ModuleTabLayoutPanel.BAR_HEIGHT);
 
       Size plotsSize = new Size(
                Math.max(deckPanelSize.width, 0),
                Math.max(deckPanelSize.height - Toolbar.DEFAULT_HEIGHT, 0));
-
+      
       double devicePixelRatio = 1.0;
       if (BrowseCap.isMacintoshDesktop())
          devicePixelRatio = BrowseCap.devicePixelRatio();
@@ -302,13 +298,13 @@ public class WorkbenchScreen extends Composite
    {
       eventBus_.fireEvent(new PushClientStateEvent());
    }
-
+   
    @Override
    public void onActivatePane(ActivatePaneEvent event)
    {
       paneManager_.activateTab(event.getPane());
    }
-
+   
    private void fireEventDelayed(final GwtEvent<?> event, int delayMs)
    {
       new Timer()
@@ -332,9 +328,9 @@ public class WorkbenchScreen extends Composite
    @Handler
    void onActivatePackages() { paneManager_.activateTab(Tab.Packages); }
    @Handler
-   void onActivateHelp()
-   {
-      paneManager_.activateTab(Tab.Help);
+   void onActivateHelp() 
+   { 
+      paneManager_.activateTab(Tab.Help); 
       fireEventDelayed(new ActivateHelpEvent(), 200);
    }
    @Handler
@@ -347,10 +343,8 @@ public class WorkbenchScreen extends Composite
    void onActivateViewer() { paneManager_.activateTab(Tab.Viewer); }
    @Handler
    void onActivateConnections() { paneManager_.activateTab(Tab.Connections); }
-   @Handler
-   void onActivateTutorial() { paneManager_.activateTab(Tab.Tutorial); }
-
-
+   
+   
    @Handler
    void onLayoutZoomEnvironment() { paneManager_.zoomTab(Tab.Environment); }
    @Handler
@@ -362,8 +356,8 @@ public class WorkbenchScreen extends Composite
    @Handler
    void onLayoutZoomPackages() { paneManager_.zoomTab(Tab.Packages); }
    @Handler
-   void onLayoutZoomHelp()
-   {
+   void onLayoutZoomHelp() 
+   { 
       paneManager_.zoomTab(Tab.Help);
       fireEventDelayed(new ActivateHelpEvent(), 200);
    }
@@ -375,120 +369,44 @@ public class WorkbenchScreen extends Composite
    void onLayoutZoomViewer() { paneManager_.zoomTab(Tab.Viewer); }
    @Handler
    void onLayoutZoomConnections() { paneManager_.zoomTab(Tab.Connections); }
-   @Handler
-   void onLayoutZoomTutorial() { paneManager_.zoomTab(Tab.Tutorial); }
-
-   @Handler
-   void onLayoutZoomLeftColumn() { paneManager_.zoomColumn(PaneManager.LEFT_COLUMN); }
-
-   @Handler
-   void onLayoutZoomRightColumn() { paneManager_.zoomColumn(PaneManager.RIGHT_COLUMN); }
 
    @Handler
    void onMacPreferences()
    {
       onShowOptions();
    }
-
+   
    @Handler
    void onShowOptions()
    {
       optionsLoader_.showOptions();
    }
-
-   @Handler
-   void onShowCodeOptions()
-   {
-      optionsLoader_.showOptions(EditingPreferencesPane.class, true);
-   }
-
-   @Handler
-   void onShowConsoleOptions()
-   {
-      optionsLoader_.showOptions(ConsolePreferencesPane.class, true);
-   }
-
-   @Handler
-   void onShowAppearanceOptions()
-   {
-      optionsLoader_.showOptions(AppearancePreferencesPane.class, true);
-   }
-
-   @Handler
-   void onShowPackagesOptions()
-   {
-      optionsLoader_.showOptions(PackagesPreferencesPane.class, true);
-   }
-
-   @Handler
-   void onShowRMarkdownOptions()
-   {
-      optionsLoader_.showOptions(RMarkdownPreferencesPane.class, true);
-   }
-
-   @Handler
-   void onShowSweaveOptions()
-   {
-      optionsLoader_.showOptions(CompilePdfPreferencesPane.class, true);
-   }
-
-   @Handler
-   void onShowSpellingOptions()
-   {
-      optionsLoader_.showOptions(SpellingPreferencesPane.class, true);
-   }
-
-   @Handler
-   void onShowVcsOptions()
-   {
-      optionsLoader_.showOptions(SourceControlPreferencesPane.class, true);
-   }
-
-   @Handler
-   void onShowPublishingOptions()
-   {
-      optionsLoader_.showOptions(PublishingPreferencesPane.class, true);
-   }
-
-   @Handler
-   void onShowPythonOptions()
-   {
-      optionsLoader_.showOptions(PythonPreferencesPane.class, true);
-   }
-
-   @Handler
-   void onShowAccessibilityOptions()
-   {
-      optionsLoader_.showOptions(AccessibilityPreferencesPane.class, false);
-   }
-
-   @Handler
-   void onShowTerminalOptions()
-   {
-      optionsLoader_.showOptions(TerminalPreferencesPane.class, true);
-   }
-
+   
+     
    @Handler
    void onVersionControlHelp()
    {
       globalDisplay_.openRStudioLink("using_version_control");
    }
-
+   
    public Widget asWidget()
    {
       return this;
    }
 
-   private final TimeBufferedCommand paneSizesChangedCommand_;
+   private TimeBufferedCommand paneSizesChangedCommand_;
 
    private WorkbenchMetrics lastMetrics_ = WorkbenchMetrics.create(0,0,0,0,1.0);
-
+   
    private final GlobalDisplay globalDisplay_;
    private final EventBus eventBus_;
    private final Session session_;
    private final Shim edit_;
    private final org.rstudio.studio.client.workbench.ui.OptionsLoader.Shim optionsLoader_;
 
-   private final MainSplitPanel tabsPanel_;
-   private final PaneManager paneManager_;
+   private final MainSplitPanel tabsPanel_ ;
+   private PaneManager paneManager_;
+
+  
+
 }

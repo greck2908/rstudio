@@ -1,7 +1,7 @@
 /*
  * PreferencesDialogResources.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,13 +20,10 @@ import com.google.gwt.resources.client.ImageResource;
 
 public interface PreferencesDialogResources extends ClientBundle
 {
-
-   interface Styles extends CssResource
+   public interface Styles extends CssResource
    {
       String panelContainer();
-      String panelContainerNoChooser();
       String paneLayoutTable();
-      String label();
       String themeChooser();
       String sshKeyWidget();
       String usingVcsHelp();
@@ -34,10 +31,6 @@ public interface PreferencesDialogResources extends ClientBundle
       String alwaysCompletePanel();
       String themeInfobar();
       String themeInfobarShowing();
-      String selectWidgetHelp();
-      String smallerText();
-      String visualModeWrapSelectWidget();
-      String userDictEditButton();
    }
 
    @Source("PreferencesDialog.css")
@@ -57,16 +50,4 @@ public interface PreferencesDialogResources extends ClientBundle
 
    @Source("iconTerminal_2x.png")
    ImageResource iconTerminal2x();
-
-   @Source("iconAccessibility_2x.png")
-   ImageResource iconAccessibility2x();
-
-   @Source("iconAddSourcePane.png")
-   ImageResource iconAddSourcePane();
-
-   @Source("iconRemoveSourcePane.png")
-   ImageResource iconRemoveSourcePane();
-
-   @Source("iconConsole_2x.png")
-   ImageResource iconConsole2x();
 }

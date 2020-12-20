@@ -1,7 +1,7 @@
 /*
  * SourceIndex.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,21 +15,16 @@
 
 #include <core/libclang/SourceIndex.hpp>
 
-#include <boost/scoped_ptr.hpp>
-
 #include <gsl/gsl>
 
 #include <core/Debug.hpp>
-#include <core/Log.hpp>
+#include <core/FilePath.hpp>
 #include <core/PerformanceTimer.hpp>
 
-#include <core/system/Environment.hpp>
 #include <core/system/ProcessArgs.hpp>
 
 #include <core/libclang/LibClang.hpp>
 #include <core/libclang/UnsavedFiles.hpp>
-
-#include <shared_core/FilePath.hpp>
 
 namespace rstudio {
 namespace core {
@@ -52,7 +47,7 @@ bool isHeaderExtension(const std::string& ex)
 
 bool SourceIndex::isSourceFile(const FilePath& filePath)
 {
-   std::string ex = filePath.getExtensionLowerCase();
+   std::string ex = filePath.extensionLowerCase();
    return  isHeaderExtension(ex) ||
            ex == ".c" || ex == ".cc" || ex == ".cpp" ||
            ex == ".m" || ex == ".mm";
@@ -65,7 +60,7 @@ bool SourceIndex::isSourceFile(const std::string& filename)
 
 bool SourceIndex::isHeaderFile(const FilePath& filePath)
 {
-   return isHeaderExtension(filePath.getExtensionLowerCase());
+   return isHeaderExtension(filePath.extensionLowerCase());
 }
 
 SourceIndex::SourceIndex(CompilationDatabase compilationDB, int verbose)
@@ -158,29 +153,13 @@ std::map<std::string,TranslationUnit>
 TranslationUnit SourceIndex::getTranslationUnit(const std::string& filename,
                                                 bool alwaysReparse)
 {
-#ifdef __APPLE__
-
-   // ensure SDK_ROOT is set
-   boost::scoped_ptr<core::system::EnvironmentScope> sdkRootScope;
-   const char* sdkRootPath("/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk");
-   if (core::system::getenv("SDKROOT").empty() && FilePath(sdkRootPath).exists())
-      sdkRootScope.reset(new core::system::EnvironmentScope("SDKROOT", sdkRootPath));
-
-   // ensure DEVELOPER_DIR is set
-   boost::scoped_ptr<core::system::EnvironmentScope> developerDirScope;
-   const char* developerDirPath = "/Library/Developer/CommandLineTools";
-   if (core::system::getenv("DEVELOPER_DIR").empty() && FilePath(developerDirPath).exists())
-      developerDirScope.reset(new core::system::EnvironmentScope("DEVELOPER_DIR", developerDirPath));
-
-#endif
-   
    FilePath filePath(filename);
 
    boost::scoped_ptr<core::PerformanceTimer> pTimer;
    if (verbose_ > 0)
    {
-      std::cerr << "CLANG INDEXING: " << filePath.getAbsolutePath() << std::endl;
-      pTimer.reset(new core::PerformanceTimer(filePath.getFilename()));
+      std::cerr << "CLANG INDEXING: " << filePath.absolutePath() << std::endl;
+      pTimer.reset(new core::PerformanceTimer(filePath.filename()));
    }
 
    // get the arguments and last write time for this file
@@ -191,7 +170,7 @@ TranslationUnit SourceIndex::getTranslationUnit(const std::string& filename,
       if (args.empty())
          return TranslationUnit();
    }
-   std::time_t lastWriteTime = filePath.getLastWriteTime();
+   std::time_t lastWriteTime = filePath.lastWriteTime();
 
    // look it up
    TranslationUnits::iterator it = translationUnits_.find(filename);
@@ -267,14 +246,11 @@ TranslationUnit SourceIndex::getTranslationUnit(const std::string& filename,
    core::system::ProcessArgs argsArray(args);
 
    if (verbose_ > 0)
-   {
       std::cerr << "  (Creating new index)" << std::endl;
-   }
-   
+
    // create a new translation unit from the file
    unsigned options = applyTranslationUnitOptions(
                            clang().defaultEditingTranslationUnitOptions());
-   
    CXTranslationUnit tu = clang().parseTranslationUnit(
                          index_,
                          filename.c_str(),
@@ -307,7 +283,7 @@ TranslationUnit SourceIndex::getTranslationUnit(const std::string& filename,
 Cursor SourceIndex::referencedCursorForFileLocation(const FileLocation &loc)
 {
    // get the translation unit
-   std::string filename = loc.filePath.getAbsolutePath();
+   std::string filename = loc.filePath.absolutePath();
    TranslationUnit tu = getTranslationUnit(filename, true);
    if (tu.empty())
       return Cursor();

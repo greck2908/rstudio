@@ -1,7 +1,7 @@
 /*
  * DesktopPosixApplication.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,7 @@
 
 #include "DesktopPosixApplication.hpp"
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 
 #include <QFileOpenEvent>
 
@@ -56,10 +56,10 @@ bool PosixApplication::event(QEvent* pEvent)
          // FileOpen back to existing instances (e.g. via DDE)
 
          FilePath filePath(filename.toUtf8().constData());
-         if (filePath.exists() && filePath.getExtensionLowerCase() == ".rproj")
+         if (filePath.exists() && filePath.extensionLowerCase() == ".rproj")
          {
             std::vector<std::string> args;
-            args.push_back(filePath.getAbsolutePath());
+            args.push_back(filePath.absolutePath());
             pAppLauncher_->launchRStudio(args);
          }
          else

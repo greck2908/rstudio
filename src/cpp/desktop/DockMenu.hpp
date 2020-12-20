@@ -1,7 +1,7 @@
 /*
  * DockMenu.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -31,8 +31,6 @@ class DockMenu: public QMenu
 public:
    explicit DockMenu(MainWindow* pMainWindow);
 
-   void setMainWindow(MainWindow* pMainWindow);
-
 protected Q_SLOTS:
    void onAboutToShow();
    void showWindow();
@@ -40,8 +38,6 @@ protected Q_SLOTS:
 private:
    QAction* pWindowPlaceholder_ = nullptr;
    QList<QAction*> windows_;
-
-   MainWindow* pMainWindow_;
 };
 
 } // namespace desktop

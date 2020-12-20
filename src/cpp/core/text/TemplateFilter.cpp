@@ -1,7 +1,7 @@
 /*
  * TemplateFilter.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,7 @@
 
 #include <core/text/TemplateFilter.hpp>
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 
 #include <core/http/Request.hpp>
 #include <core/http/Response.hpp>
@@ -29,7 +29,7 @@ void handleTemplateRequest(const FilePath& templatePath,
                            http::Response* pResponse)
 {
    // setup template variables
-   std::map<std::string,std::string> variables;
+   std::map<std::string,std::string> variables ;
    http::Fields queryParams = request.queryParams();
    for (http::Fields::const_iterator it = queryParams.begin();
         it != queryParams.end();
@@ -51,8 +51,8 @@ Error renderTemplate(const core::FilePath& templateFile,
                      std::ostream& os)
 {
    // open input stream to template
-   std::shared_ptr<std::istream> pIfs;
-   Error error = templateFile.openForRead(pIfs);
+   boost::shared_ptr<std::istream> pIfs;
+   Error error = templateFile.open_r(&pIfs);
    if (error)
       return error;
 
@@ -64,7 +64,7 @@ Error renderTemplate(const core::FilePath& templateFile,
       os.exceptions(std::istream::failbit | std::istream::badbit);
 
       // create a filtered stream w/ the template filter and std::ostream
-      boost::iostreams::filtering_ostream filteredStream;
+      boost::iostreams::filtering_ostream filteredStream ;
       text::TemplateFilter templateFilter(vars);
       filteredStream.push(templateFilter);
       filteredStream.push(os);

@@ -1,7 +1,7 @@
 /*
  * Win32ChildProcess.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -26,7 +26,7 @@
 #include <core/system/ChildProcess.hpp>
 #include <core/system/System.hpp>
 #include <core/system/ShellUtils.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/StringUtils.hpp>
 
 #include "CriticalSection.hpp"
@@ -194,7 +194,7 @@ void ChildProcess::init(const std::string& exe,
    options_ = options;
    resolveCommand(&exe_, &args_);
 
-   if (!options.stdOutFile.isEmpty() || !options.stdErrFile.isEmpty())
+   if (!options.stdOutFile.empty() || !options.stdErrFile.empty())
    {
       LOG_ERROR_MESSAGE(
                "stdOutFile/stdErrFile options cannot be used with runProgram");
@@ -215,7 +215,7 @@ void ChildProcess::init(const std::string& command,
 void ChildProcess::init(const ProcessOptions& options)
 {
    options_ = options;
-   exe_ = options_.shellPath.getAbsolutePathNative();
+   exe_ = options_.shellPath.absolutePathNative();
    args_ = options_.args;
 }
 
@@ -318,7 +318,7 @@ namespace {
 
 Error openFile(const FilePath& file, bool inheritable, HANDLE* phFile)
 {
-   HANDLE hFile = ::CreateFileW(file.getAbsolutePathW().c_str(),
+   HANDLE hFile = ::CreateFileW(file.absolutePathW().c_str(),
                                 GENERIC_WRITE,
                                 0,
                                 nullptr,
@@ -427,7 +427,7 @@ Error ChildProcess::run()
    si.hStdInput = hStdInRead;
 
    HANDLE hStdOutWriteFile = INVALID_HANDLE_VALUE;
-   if (!options_.stdOutFile.isEmpty())
+   if (!options_.stdOutFile.empty())
    {
       error = openFile(options_.stdOutFile, true, &hStdOutWriteFile);
       if (error)
@@ -437,7 +437,7 @@ Error ChildProcess::run()
    CloseHandleOnExitScope closeStdOutFile(&hStdOutWriteFile, ERROR_LOCATION);
 
    HANDLE hStdErrWriteFile = INVALID_HANDLE_VALUE;
-   if (!options_.stdErrFile.isEmpty())
+   if (!options_.stdErrFile.empty())
    {
       error = openFile(options_.stdErrFile, true, &hStdErrWriteFile);
       if (error)
@@ -518,10 +518,10 @@ Error ChildProcess::run()
       dwFlags |= CREATE_BREAKAWAY_FROM_JOB;
 
    std::wstring workingDir;
-   if (!options_.workingDir.isEmpty())
+   if (!options_.workingDir.empty())
    {
       workingDir = string_utils::utf8ToWide(
-            options_.workingDir.getAbsolutePathNative());
+            options_.workingDir.absolutePathNative());
    }
 
    // Start the child process.
@@ -530,8 +530,8 @@ Error ChildProcess::run()
    BOOL success = ::CreateProcessW(
      exeWide.c_str(), // Process
      &(cmdLine[0]),   // Command line
-     nullptr,         // Process handle not inheritable
-     nullptr,         // Thread handle not inheritable
+     nullptr,            // Process handle not inheritable
+     nullptr,            // Thread handle not inheritable
      TRUE,            // Set handle inheritance to TRUE
      dwFlags,         // Creation flags
      lpEnv,           // Environment block

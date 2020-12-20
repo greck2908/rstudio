@@ -1,7 +1,7 @@
 /*
  * Diagnostics.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,7 +21,7 @@
 
 #include "RSourceIndex.hpp"
 
-using namespace rstudio::core;
+using namespace rstudio::core ;
 using namespace rstudio::core::libclang;
 
 namespace rstudio {
@@ -96,8 +96,7 @@ json::Object diagnosticToJson(const TranslationUnit& tu,
       }
       else
       {
-         Cursor cursor = tu.getCursor(
-            location.filePath.getAbsolutePath(),
+         Cursor cursor = tu.getCursor(location.filePath.absolutePath(),
                                       location.line,
                                       location.column);
 
@@ -144,7 +143,7 @@ json::Array getCppDiagnosticsJson(const FilePath& filePath)
 
    // get diagnostics from translation unit
    TranslationUnit tu = rSourceIndex().getTranslationUnit(
-      filePath.getAbsolutePath(),
+                                             filePath.absolutePath(),
                                              true);
    if (!tu.empty())
    {

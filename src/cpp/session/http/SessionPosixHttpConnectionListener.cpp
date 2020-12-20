@@ -1,7 +1,7 @@
 /*
  * SessionPosixHttpConnectionListener.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,6 +16,7 @@
 #include <session/SessionHttpConnectionListener.hpp>
 
 #include <core/system/Environment.hpp>
+#include <core/system/FileMode.hpp>
 #include <core/system/PosixSystem.hpp>
 
 #include <core/r_util/RSessionContext.hpp>
@@ -23,12 +24,11 @@
 #include <session/SessionConstants.hpp>
 #include <session/SessionOptions.hpp>
 #include <session/SessionLocalStreams.hpp>
-#include <session/SessionPersistentState.hpp>
 
 #include "SessionTcpIpHttpConnectionListener.hpp"
 #include "SessionLocalStreamHttpConnectionListener.hpp"
 
-using namespace rstudio::core;
+using namespace rstudio::core ;
 
 namespace rstudio {
 namespace session {
@@ -54,7 +54,7 @@ void initializeHttpConnectionListener()
          FilePath streamPath(localPeer);
          s_pHttpConnectionListener = new LocalStreamHttpConnectionListener(
                                            streamPath,
-                                           core::FileMode::USER_READ_WRITE,
+                                           core::system::UserReadWriteMode,
                                            options.sharedSecret(),
                                            -1);
       }
@@ -76,7 +76,7 @@ void initializeHttpConnectionListener()
          // simply bind to all ipv6 interfaces. we prefer non-loopback ipv4 or non-link local ipv6
          if (wwwAddress == "0.0.0.0")
          {
-            std::vector<core::system::posix::IpAddress> addrs;
+            std::vector<core::system::IpAddress> addrs;
             Error error = core::system::ipAddresses(&addrs, true);
             if (!error)
             {
@@ -85,10 +85,10 @@ void initializeHttpConnectionListener()
                bool hasIpv4 = false;
                bool hasIpv6 = false;
 
-               for (const core::system::posix::IpAddress& ip : addrs)
+               for (const core::system::IpAddress& ip : addrs)
                {
                   boost::system::error_code ec;
-                  boost::asio::ip::address addr = boost::asio::ip::address::from_string(ip.Address);
+                  boost::asio::ip::address addr = boost::asio::ip::address::from_string(ip.addr);
 
                   if (addr.is_v4())
                   {
@@ -99,7 +99,7 @@ void initializeHttpConnectionListener()
                   else if (addr.is_v6())
                   {
                      hasIpv6 = true;
-                     if (!addr.is_loopback() && ip.Address.find("%") == std::string::npos)
+                     if (!addr.is_loopback() && ip.addr.find("%") == std::string::npos)
                         hasNonLocalIpv6 = true;
                   }
                }
@@ -112,17 +112,7 @@ void initializeHttpConnectionListener()
             }
          }
 
-         // reuse the port we were bound to before restart if specified - this is done
-         // to enable smooth session restarts for launcher sessions
-         std::string bindPort = options.wwwPort();
-         if (bindPort == "0" && options.wwwReusePorts())
-         {
-            std::string reusedPort = persistentState().reusedStandalonePort();
-            if (!reusedPort.empty())
-               bindPort = reusedPort;
-         }
-
-         s_pHttpConnectionListener = new TcpIpHttpConnectionListener(wwwAddress, bindPort, "");
+         s_pHttpConnectionListener = new TcpIpHttpConnectionListener(wwwAddress, options.wwwPort(), "");
       }
       else
       {
@@ -132,7 +122,7 @@ void initializeHttpConnectionListener()
          FilePath localStreamPath = local_streams::streamPath(streamFile);
          s_pHttpConnectionListener = new LocalStreamHttpConnectionListener(
                                           localStreamPath,
-                                          core::FileMode::ALL_READ_WRITE,
+                                          core::system::EveryoneReadWriteMode,
                                           "", // no shared secret
                                           options.limitRpcClientUid());
       }

@@ -1,7 +1,7 @@
 /*
  * LabeledTextBox.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,6 @@ import com.google.gwt.dom.client.Style.Display;
 import com.google.gwt.event.dom.client.HasKeyUpHandlers;
 import com.google.gwt.event.dom.client.KeyUpHandler;
 import com.google.gwt.event.shared.HandlerRegistration;
-import com.google.gwt.uibinder.client.UiConstructor;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.FlowPanel;
 import com.google.gwt.user.client.ui.HasText;
@@ -32,18 +31,23 @@ import org.rstudio.core.client.dom.DomUtils;
 public class LabeledTextBox extends Composite
                             implements HasText, HasKeyUpHandlers
 {
-   public @UiConstructor LabeledTextBox(String textBoxId)
+   public LabeledTextBox()
    {
       FlowPanel flowPanel = new FlowPanel();
       label_ = new FormLabel();
       textBox_ = new TextBox();
-      textBox_.getElement().setId(textBoxId);
       label_.setFor(textBox_);
       setLabelInline(false);
       flowPanel.add(label_);
       flowPanel.add(textBox_);
 
       initWidget(flowPanel);
+   }
+
+   public LabeledTextBox(String label)
+   {
+      this();
+      setLabelText(label);
    }
 
    public void setLabelText(String label)
@@ -125,16 +129,6 @@ public class LabeledTextBox extends Composite
    public void setEnabled(boolean enabled)
    {
       textBox_.setEnabled(enabled);
-   }
-
-   public void setLabelStyleName(String style)
-   {
-      label_.setStyleName(style);
-   }
-
-   public void setTextBoxStyleName(String style)
-   {
-      textBox_.setStyleName(style);
    }
 
    FormLabel label_;

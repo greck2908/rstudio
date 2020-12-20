@@ -1,7 +1,7 @@
 /*
  * FileUploadDialog.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,27 +15,33 @@
 package org.rstudio.studio.client.workbench.views.files.ui;
 
 import com.google.gwt.aria.client.Roles;
+import com.google.gwt.event.dom.client.ClickEvent;
+import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.FileUpload;
 import com.google.gwt.user.client.ui.FormPanel;
 import com.google.gwt.user.client.ui.HTML;
+import com.google.gwt.user.client.ui.HasHorizontalAlignment;
 import com.google.gwt.user.client.ui.Hidden;
 import com.google.gwt.user.client.ui.HorizontalPanel;
 import com.google.gwt.user.client.ui.PopupPanel;
 import com.google.gwt.user.client.ui.VerticalPanel;
 import com.google.gwt.user.client.ui.Widget;
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.files.FileSystemItem;
+import org.rstudio.core.client.files.filedialog.FileDialogResources;
 import org.rstudio.core.client.jsonrpc.RpcError;
 import org.rstudio.core.client.jsonrpc.RpcResponse;
+import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.theme.res.ThemeStyles;
-import org.rstudio.core.client.widget.DirectoryChooserTextBox;
+import org.rstudio.core.client.widget.DecorativeImage;
 import org.rstudio.core.client.widget.FormLabel;
 import org.rstudio.core.client.widget.HtmlFormModalDialog;
-import org.rstudio.core.client.widget.Operation;
 import org.rstudio.core.client.widget.OperationWithInput;
+import org.rstudio.core.client.widget.ProgressIndicator;
+import org.rstudio.core.client.widget.ProgressOperationWithInput;
 import org.rstudio.studio.client.common.FileDialogs;
+import org.rstudio.studio.client.common.filetypes.FileIconResources;
 import org.rstudio.studio.client.workbench.model.RemoteFileSystemContext;
 import org.rstudio.studio.client.workbench.views.files.model.PendingFileUpload;
 
@@ -46,17 +52,13 @@ public class FileUploadDialog extends HtmlFormModalDialog<PendingFileUpload>
          FileSystemItem targetDirectory,
          FileDialogs fileDialogs,
          RemoteFileSystemContext fileSystemContext,
-         Operation beginOperation,
-         OperationWithInput<PendingFileUpload> completedOperation,
-         Operation failedOperation)
+         OperationWithInput<PendingFileUpload> completedOperation)
    {
       super("Upload Files",
             Roles.getDialogRole(),
             "Uploading file...",
             actionURL,
-            beginOperation,
-            completedOperation,
-            failedOperation);
+            completedOperation);
       fileDialogs_ = fileDialogs;
       fileSystemContext_ = fileSystemContext;
       targetDirectory_ = targetDirectory;
@@ -140,26 +142,19 @@ public class FileUploadDialog extends HtmlFormModalDialog<PendingFileUpload>
       directoryPanel.setWidth("100%");
       directoryPanel.setStyleName(ThemeStyles.INSTANCE.fileUploadField());
       
-      // target directory chooser
-      directoryNameWidget_ = new DirectoryChooserTextBox("Target directory:",
-         ElementIds.TextBoxButtonId.UPLOAD_TARGET);
-      directoryNameWidget_.setText(targetDirectory_.getPath());
-      directoryNameWidget_.addValueChangeHandler((valueChangeEvent) ->
-      {
-         targetDirectory_ = FileSystemItem.createDir(valueChangeEvent.getValue());
-         targetDirectoryHidden_.setValue(targetDirectory_.getPath());
-      });
+      // directory name (informational field)
+      directoryNameWidget_ = new DirectoryNameWidget();
+      directoryNameWidget_.setDirectory(targetDirectory_);
+      panel.add(new FormLabel("Target directory:", directoryNameWidget_));
       directoryPanel.add(directoryNameWidget_);
-
+      
       panel.add(directoryPanel);
       
       // filename field
       fileUpload_ = new FileUpload();
       fileUpload_.setStyleName(ThemeStyles.INSTANCE.fileUploadField());
       fileUpload_.setName("file");
-      FormLabel uploadLabel = new FormLabel("File to upload:", fileUpload_);
-      uploadLabel.addStyleName(ThemeStyles.INSTANCE.fileUploadLabel());
-      panel.add(uploadLabel);
+      panel.add(new FormLabel("File to upload:", fileUpload_));
       panel.add(fileUpload_);
       
       // zip file tip field
@@ -176,13 +171,69 @@ public class FileUploadDialog extends HtmlFormModalDialog<PendingFileUpload>
             
       return panel;
    }
+   
+   // JJA: used by currently commented out browse directory button
+   @SuppressWarnings("unused")
+   private class BrowseDirectoryClickHandler implements ClickHandler
+   {   
+      public void onClick(ClickEvent event)
+      {
+         fileDialogs_.chooseFolder(
+             "Choose Target Directory",
+             fileSystemContext_,
+             targetDirectory_,
+             new ProgressOperationWithInput<FileSystemItem>() {
 
+               public void execute(FileSystemItem input,
+                                   ProgressIndicator indicator)
+               {
+                  if (input == null)
+                     return;
+                  
+                  indicator.onCompleted();
+                  targetDirectory_ = input;
+                  targetDirectoryHidden_.setValue(input.getPath());
+                  directoryNameWidget_.setDirectory(input);
+               }          
+             });
+      }   
+   }
+   
+   private class DirectoryNameWidget extends HorizontalPanel
+   {
+      public DirectoryNameWidget()
+      {
+         setHorizontalAlignment(HasHorizontalAlignment.ALIGN_LEFT);
+         
+         image_ = new DecorativeImage();
+         image_.setStyleName(FileDialogResources.INSTANCE.styles().columnIcon());
+         this.add(image_);
+         name_ = new HTML();
+         this.add(name_);
+      }
+      
+      public void setDirectory(FileSystemItem directoryItem)
+      {
+         if (directoryItem.equalTo(FileSystemItem.home()))
+         {
+            image_.setResource(new ImageResource2x(FileDialogResources.INSTANCE.homeImage2x()));
+            name_.setHTML("Home");
+         }
+         else
+         {
+            image_.setResource(new ImageResource2x(FileIconResources.INSTANCE.iconFolder2x()));
+            name_.setHTML("&nbsp;" + directoryItem.getPath());
+         }
+      }
+      
+      DecorativeImage image_ ;
+      HTML name_ ;
+   }
+   
    private FileUpload fileUpload_;
    private FileSystemItem targetDirectory_;
    private Hidden targetDirectoryHidden_;
-   private DirectoryChooserTextBox directoryNameWidget_;
-   @SuppressWarnings("unused")
+   private DirectoryNameWidget directoryNameWidget_;
    private final FileDialogs fileDialogs_;
-   @SuppressWarnings("unused")
    private RemoteFileSystemContext fileSystemContext_;
 }

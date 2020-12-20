@@ -1,7 +1,7 @@
 /*
  * SessionAskPass.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,7 @@
 
 #include <core/Exec.hpp>
 #include <core/Log.hpp>
-#include <shared_core/json/Json.hpp>
+#include <core/json/Json.hpp>
 
 #include <r/RSexp.hpp>
 #include <r/RRoutines.hpp>
@@ -34,7 +34,7 @@
 #endif
 
 
-using namespace rstudio::core;
+using namespace rstudio::core ;
 
 namespace rstudio {
 namespace session {
@@ -127,7 +127,7 @@ Error askForPassword(const std::string& prompt,
 
    // read inputs
    pInput->remember = remember;
-   pInput->password = value.getValue<std::string>();
+   pInput->password = value.get_value<std::string>();
 
    // decrypt if necessary
 #ifdef RSTUDIO_SERVER
@@ -158,7 +158,7 @@ Error initialize()
    RS_REGISTER_CALL_METHOD(rs_askForPassword);
 
    // complete initialization
-   ExecBlock initBlock;
+   ExecBlock initBlock ;
    initBlock.addFunctions()
       (boost::bind(module_context::sourceModuleRFile, "SessionAskPass.R"));
    return initBlock.execute();

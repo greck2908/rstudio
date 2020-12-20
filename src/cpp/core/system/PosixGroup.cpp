@@ -1,7 +1,7 @@
 /*
  * PosixGroup.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,10 +23,10 @@
 
 #include <boost/lexical_cast.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 #include <core/Exec.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 #include <core/system/System.hpp>
 
 namespace rstudio {
@@ -104,10 +104,14 @@ Error groupFromId(gid_t gid, Group* pGroup)
 
 Error userGroups(const std::string& userName, std::vector<Group>* pGroups)
 {
-   User user;
-   Error error = User::getUserFromIdentifier(userName, user);
+   user::User user;
+   Error error = user::userFromUsername(userName, &user);
    if (error)
       return error;
+
+   // get the groups for the user - we start with 100 groups which should be enough for most cases
+   // if it is not, resize the buffer with the correct amount of groups and try again
+   int numGroups = 100;
 
    // define a different gid type if we are on Mac vs Linux
    // BSD expects int values, but Linux expects unsigned ints
@@ -117,12 +121,13 @@ Error userGroups(const std::string& userName, std::vector<Group>* pGroups)
    typedef int GIDTYPE;
 #endif
 
-   // get the groups for the user - we start with 100 groups which should be enough for most cases
-   // if it is not, resize the buffer with the correct amount of groups and try again
-   int numGroups = 100;
-   boost::shared_ptr<GIDTYPE> pGids(new GIDTYPE[numGroups]);
-   while (getgrouplist(userName.c_str(), user.getGroupId(), pGids.get(), &numGroups) == -1)
+   boost::shared_ptr<GIDTYPE> pGids(new GIDTYPE[100]);
+   while (!getgrouplist(userName.c_str(), user.groupId, pGids.get(), &numGroups))
    {
+      // defensive break out in case the OS somehow returns 0 groups for the user
+      if (numGroups == 0)
+         break;
+
       pGids.reset(new GIDTYPE[numGroups]);
    }
 
@@ -130,7 +135,7 @@ Error userGroups(const std::string& userName, std::vector<Group>* pGroups)
    for (int i = 0; i < numGroups; i++)
    {
       Group group;
-      Error error = groupFromId(*(pGids.get() + i), &group);
+      error = groupFromId(*(pGids.get() + i), &group);
       if (error)
          return error;
 

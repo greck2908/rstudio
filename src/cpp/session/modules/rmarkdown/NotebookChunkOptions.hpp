@@ -1,7 +1,7 @@
 /*
  * NotebookChunkOptions.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,8 +16,8 @@
 #ifndef SESSION_NOTEBOOK_CHUNK_OPTIONS_HPP
 #define SESSION_NOTEBOOK_CHUNK_OPTIONS_HPP
 
-#include <shared_core/Error.hpp>
-#include <shared_core/json/Json.hpp>
+#include <core/Error.hpp>
+#include <core/json/Json.hpp>
 #include <core/json/JsonRpc.hpp>
  
 namespace rstudio {
@@ -37,11 +37,11 @@ public:
    {
       // check overlay first
       core::Error error = core::json::readObject(chunkOptions_, key, 
-            defaultValue);
+            &defaultValue);
 
       // no overlay option, check base
       if (error)
-         core::json::readObject(defaultOptions_, key, defaultValue);
+         core::json::readObject(defaultOptions_, key, &defaultValue);
 
       return defaultValue;
    }

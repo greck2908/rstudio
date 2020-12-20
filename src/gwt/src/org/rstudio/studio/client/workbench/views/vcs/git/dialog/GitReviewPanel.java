@@ -1,7 +1,7 @@
 /*
  * GitReviewPanel.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -39,23 +39,17 @@ import com.google.gwt.user.client.ui.*;
 import com.google.gwt.user.client.ui.PopupPanel.PositionCallback;
 import com.google.inject.Inject;
 
-import com.google.inject.Provider;
 import org.rstudio.core.client.BrowseCap;
 import org.rstudio.core.client.WidgetHandlerRegistration;
-import org.rstudio.core.client.a11y.A11y;
 import org.rstudio.core.client.command.AppCommand;
 import org.rstudio.core.client.command.KeyboardShortcut;
 import org.rstudio.core.client.dom.DomUtils;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.widget.*;
-import org.rstudio.studio.client.application.AriaLiveService;
-import org.rstudio.studio.client.application.events.AriaLiveStatusEvent.Severity;
-import org.rstudio.studio.client.application.events.AriaLiveStatusEvent.Timing;
 import org.rstudio.studio.client.common.filetypes.FileTypeRegistry;
 import org.rstudio.studio.client.common.vcs.GitServerOperations.PatchMode;
 import org.rstudio.studio.client.common.vcs.StatusAndPath;
 import org.rstudio.studio.client.workbench.commands.Commands;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 import org.rstudio.studio.client.workbench.views.vcs.CheckoutBranchToolbarButton;
 import org.rstudio.studio.client.workbench.views.vcs.common.ChangelistTable;
 import org.rstudio.studio.client.workbench.views.vcs.common.diff.ChunkOrLine;
@@ -215,13 +209,9 @@ public class GitReviewPanel extends ResizeComposite implements Display
                          LineTableView diffPane,
                          final Commands commands,
                          FileTypeRegistry fileTypeRegistry,
-                         CheckoutBranchToolbarButton branchToolbarButton,
-                         AriaLiveService ariaLive,
-                         Provider<UserPrefs> pPrefs)
+                         CheckoutBranchToolbarButton branchToolbarButton)
    {
       fileTypeRegistry_ = fileTypeRegistry;
-      ariaLive_ = ariaLive;
-      pPrefs_ = pPrefs;
       splitPanel_ = new SplitLayoutPanel(4);
       splitPanelCommit_ = new SplitLayoutPanel(4);
 
@@ -233,9 +223,6 @@ public class GitReviewPanel extends ResizeComposite implements Display
       lines_.getElement().setTabIndex(-1);
 
       overrideSizeWarning_ = new SizeWarningWidget("diff");
-
-      topToolbar_ = new Toolbar("Git Review");
-      diffToolbar_ = new Toolbar("Git Diff");
 
       changelist.setSelectFirstItemByDefault(true);
 
@@ -308,9 +295,6 @@ public class GitReviewPanel extends ResizeComposite implements Display
 
       lblCommit_.setFor(commitMessage_);
       lblContext_.setFor(contextLines_);
-      
-      // Hide frequently-updating character count from screen readers
-      A11y.setARIAHidden(lblCharCount_);
 
       unstagedCheckBox_.addValueChangeHandler(new ValueChangeHandler<Boolean>()
       {
@@ -338,18 +322,6 @@ public class GitReviewPanel extends ResizeComposite implements Display
       listBoxAdapter_ = new ListBoxAdapter(contextLines_);
 
       FontSizer.applyNormalFontSize(commitMessage_);
-      commitMessage_.addKeyUpHandler(e ->
-      {
-         // Update commit message whenever keys are pressed
-         updateCharCount();
-      });
-      commitMessage_.addChangeHandler(e ->
-      {
-         // Update commit message whenever the text content changes; catches
-         // e.g. changes on blur after a mouse paste
-         updateCharCount();
-      });
-
       new WidgetHandlerRegistration(this)
       {
          @Override
@@ -428,7 +400,7 @@ public class GitReviewPanel extends ResizeComposite implements Display
    private int getPageScroll(ScrollPanel panel)
    {
       // Return slightly less than the client height (so there's overlap between
-      // one screen and the next) but never less than the line scroll height.
+      // one screen and the next) but never less than the line scoll height.
       return Math.max(
             getLineScroll(panel),
             panel.getElement().getClientHeight() - getLineScroll(panel));
@@ -507,21 +479,7 @@ public class GitReviewPanel extends ResizeComposite implements Display
    @Override
    public HasText getCommitMessage()
    {
-      return new HasText()
-      {
-         @Override
-         public void setText(String text)
-         {
-            commitMessage_.setText(text);
-            updateCharCount();
-         }
-         
-         @Override
-         public String getText()
-         {
-            return commitMessage_.getText();
-         }
-      };
+      return commitMessage_;
    }
 
    @Override
@@ -693,30 +651,6 @@ public class GitReviewPanel extends ResizeComposite implements Display
       });
    }
 
-   /**
-    * Update the character count for the commit message, or clear it if there
-    * are no longer any characters in the commit message.
-    */
-   private void updateCharCount()
-   {
-      int length = commitMessage_.getText().length();
-      String liveRegionMessage;
-      if (length == 0)
-      {
-         lblCharCount_.setText("");
-         liveRegionMessage = "";
-      }
-      else
-      {
-         lblCharCount_.setText(length + " characters");
-         liveRegionMessage = length + " characters in message";
-      }
-
-      // Debounce an update to the accessible character count
-      ariaLive_.announce(AriaLiveService.GIT_MESSAGE_LENGTH, liveRegionMessage,
-            Timing.DEBOUNCE, Severity.STATUS);
-   }
-
    @UiField(provided = true)
    SplitLayoutPanel splitPanel_;
    @UiField(provided = true)
@@ -735,14 +669,12 @@ public class GitReviewPanel extends ResizeComposite implements Display
    FormLabel lblContext_;
    @UiField
    ListBox contextLines_;
-   @UiField(provided = true)
+   @UiField
    Toolbar topToolbar_;
-   @UiField(provided = true)
+   @UiField
    Toolbar diffToolbar_;
    @UiField
    FormLabel lblCommit_;
-   @UiField
-   Label lblCharCount_;
    @UiField
    TextArea commitMessage_;
    @UiField
@@ -766,9 +698,6 @@ public class GitReviewPanel extends ResizeComposite implements Display
    private ToolbarButton unstageAllButton_;
    @SuppressWarnings("unused")
    private final FileTypeRegistry fileTypeRegistry_;
-   private final AriaLiveService ariaLive_;
-   @SuppressWarnings("unused")
-   private final Provider<UserPrefs> pPrefs_;
    private LeftRightToggleButton switchViewButton_;
 
    private SizeWarningWidget overrideSizeWarning_;

@@ -1,7 +1,7 @@
 /*
  * SourceWindow.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -69,12 +69,12 @@ public class SourceWindow implements LastSourceDocClosedHandler,
          Provider<DesktopHooks> pDesktopHooks,
          Satellite satellite,
          EventBus events,
-         Source source,
+         SourceShim shim,
          SnippetServerOperations snippetServer,
          ApplicationCommandManager appCommandManager,
          EditorCommandManager editorCommandManager)
    {
-      source_ = source;
+      sourceShim_ = shim;
       events_ = events;
       satellite_ = satellite;
       
@@ -120,7 +120,7 @@ public class SourceWindow implements LastSourceDocClosedHandler,
       
       // in desktop mode, the frame checks to see if we want to be closed, but
       // in web mode the best we can do is prompt if the user attempts to close
-      // a source window with unsaved changes.
+      // a source window with unsaved chaanges.
       if (!Desktop.hasDesktopFrame())
       {
          Window.addWindowClosingHandler(new ClosingHandler() {
@@ -135,13 +135,13 @@ public class SourceWindow implements LastSourceDocClosedHandler,
                }
                
                ArrayList<UnsavedChangesTarget> unsaved = 
-                     source_.getUnsavedChanges(Source.TYPE_FILE_BACKED);
+                     sourceShim_.getUnsavedChanges(Source.TYPE_FILE_BACKED);
 
                // in a source window, we need to look for untitled docs too
                if (!SourceWindowManager.isMainSourceWindow())
                {
                   ArrayList<UnsavedChangesTarget> untitled = 
-                        source_.getUnsavedChanges(Source.TYPE_UNTITLED);
+                        sourceShim_.getUnsavedChanges(Source.TYPE_UNTITLED);
                   unsaved.addAll(untitled);
                }
                
@@ -259,7 +259,7 @@ public class SourceWindow implements LastSourceDocClosedHandler,
    private void saveWithPrompt(JavaScriptObject jsoItem, Command onCompleted)
    {
       UnsavedChangesItem item = jsoItem.cast();
-      source_.saveWithPrompt(item, onCompleted, null);
+      sourceShim_.saveWithPrompt(item, onCompleted, null);
    }
    
    private void saveUnsavedDocuments(JsArrayString idArray, Command onCompleted)
@@ -272,7 +272,7 @@ public class SourceWindow implements LastSourceDocClosedHandler,
             ids.add(id);
       }
       
-      source_.saveUnsavedDocuments(ids, onCompleted);
+      sourceShim_.saveUnsavedDocuments(ids, onCompleted);
    }
    
    private void handleUnsavedChangesBeforeExit(JavaScriptObject jsoItems, 
@@ -285,19 +285,18 @@ public class SourceWindow implements LastSourceDocClosedHandler,
       {
          targets.add(items.get(i));
       }
-      source_.handleUnsavedChangesBeforeExit(targets, onCompleted);
+      sourceShim_.handleUnsavedChangesBeforeExit(targets, onCompleted);
    }
    
    private void closeAllDocs(String caption, Command onCompleted)
    {
-      if (source_ != null)
-         source_.closeAllSourceDocs(caption, onCompleted, false);
+      sourceShim_.closeAllSourceDocs(caption, onCompleted);
    }
    
    private JsArray<UnsavedChangesItem> getUnsavedChanges()
    {
       JsArray<UnsavedChangesItem> items = JsArray.createArray().cast();
-      ArrayList<UnsavedChangesTarget> targets = source_.getUnsavedChanges(
+      ArrayList<UnsavedChangesTarget> targets = sourceShim_.getUnsavedChanges(
             Source.TYPE_FILE_BACKED);
       for (UnsavedChangesTarget target: targets)
       {
@@ -308,12 +307,12 @@ public class SourceWindow implements LastSourceDocClosedHandler,
    
    private String getCurrentDocPath()
    {
-      return source_.getCurrentDocPath();
+      return sourceShim_.getCurrentDocPath();
    }
 
    private String getCurrentDocId()
    {
-      return source_.getCurrentDocId();
+      return sourceShim_.getCurrentDocId();
    }
 
    private void closeSourceWindow()
@@ -343,9 +342,9 @@ public class SourceWindow implements LastSourceDocClosedHandler,
       // collect titled and untitled changes -- we don't prompt for untitled 
       // changes in the main window, but we do in the source window 
       ArrayList<UnsavedChangesTarget> untitled = 
-            source_.getUnsavedChanges(Source.TYPE_UNTITLED);
+            sourceShim_.getUnsavedChanges(Source.TYPE_UNTITLED);
       ArrayList<UnsavedChangesTarget> fileBacked =
-            source_.getUnsavedChanges(Source.TYPE_FILE_BACKED);
+            sourceShim_.getUnsavedChanges(Source.TYPE_FILE_BACKED);
       
      if (Desktop.hasDesktopFrame() && untitled.size() > 0)
      {
@@ -353,7 +352,7 @@ public class SourceWindow implements LastSourceDocClosedHandler,
         // so handle that gracefully
         if (fileBacked.size() == 0 && untitled.size() == 1)
         {
-           source_.saveWithPrompt(untitled.get(0),
+           sourceShim_.saveWithPrompt(untitled.get(0),
                  new Command()
                  {
                     @Override
@@ -397,7 +396,7 @@ public class SourceWindow implements LastSourceDocClosedHandler,
       else
          ApplicationQuit.handleUnsavedChanges(SaveAction.SAVEASK, 
                "Close Source Window", true /*allowCancel*/, false /*forceSaveAll*/, 
-               source_, null, null, quitContext);
+               sourceShim_, null, null, quitContext);
    }
    
    private String unsavedTargetDesc(UnsavedChangesTarget item)
@@ -413,7 +412,7 @@ public class SourceWindow implements LastSourceDocClosedHandler,
    }-*/;
    
    private final EventBus events_;
-   private final Source source_;
+   private final SourceShim sourceShim_;
    private final Satellite satellite_;
    private String initialDocId_;
    private SourcePosition initialSourcePosition_;

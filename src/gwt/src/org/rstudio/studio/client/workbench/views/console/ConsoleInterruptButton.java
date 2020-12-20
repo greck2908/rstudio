@@ -1,7 +1,7 @@
 /*
  * ConsoleInterruptButton.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -26,8 +26,10 @@ import org.rstudio.core.client.widget.ToolbarButton;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.events.BusyEvent;
+import org.rstudio.studio.client.workbench.events.BusyHandler;
 import org.rstudio.studio.client.workbench.views.console.events.ConsoleBusyEvent;
 import org.rstudio.studio.client.workbench.views.console.events.ConsolePromptEvent;
+import org.rstudio.studio.client.workbench.views.console.events.ConsolePromptHandler;
 import org.rstudio.studio.client.workbench.views.source.editors.text.rmd.NotebookQueueState;
 
 public class ConsoleInterruptButton extends Composite
@@ -58,19 +60,26 @@ public class ConsoleInterruptButton extends Composite
       initWidget(panel);
       setVisible(false);
 
-      events.addHandler(BusyEvent.TYPE, event ->
+      events.addHandler(BusyEvent.TYPE, new BusyHandler()
       {
-         if (event.isBusy())
-            events.fireEvent(new ConsoleBusyEvent(true));
+         public void onBusy(BusyEvent event)
+         {
+            if (event.isBusy())
+               events.fireEvent(new ConsoleBusyEvent(true));
+         }
       });
       
-      events.addHandler(ConsoleBusyEvent.TYPE, event ->
+      events.addHandler(ConsoleBusyEvent.TYPE, new ConsoleBusyEvent.Handler()
       {
-         if (event.isBusy())
-            fadeInHelper_.beginShow();
-         else
-            fadeInHelper_.hide();
-         commands_.interruptR().setEnabled(event.isBusy());
+         @Override
+         public void onConsoleBusy(ConsoleBusyEvent event)
+         {
+            if (event.isBusy())
+               fadeInHelper_.beginShow();
+            else
+               fadeInHelper_.hide();
+            commands_.interruptR().setEnabled(event.isBusy());
+         }
       });
 
       /*
@@ -81,14 +90,17 @@ public class ConsoleInterruptButton extends Composite
       controller logic should subscribe to the ConsolePromptEvent and clear it
       whenever a prompt occurs.
       */
-      events.addHandler(ConsolePromptEvent.TYPE, event ->
+      events.addHandler(ConsolePromptEvent.TYPE, new ConsolePromptHandler()
       {
-         // if any notebook is currently feeding the console, wait for it
-         // to complete
-         if (NotebookQueueState.anyQueuesExecuting())
-            return;
-
-         events.fireEvent(new ConsoleBusyEvent(false));
+         public void onConsolePrompt(ConsolePromptEvent event)
+         {
+            // if any notebook is currently feeding the console, wait for it
+            // to complete
+            if (NotebookQueueState.anyQueuesExecuting())
+               return;
+            
+            events.fireEvent(new ConsoleBusyEvent(false));
+         }
       });
    }
 

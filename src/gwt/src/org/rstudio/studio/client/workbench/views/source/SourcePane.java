@@ -1,7 +1,7 @@
 /*
  * SourcePane.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,8 +15,11 @@
 package org.rstudio.studio.client.workbench.views.source;
 
 import com.google.gwt.core.client.Scheduler;
+import com.google.gwt.core.client.Scheduler.ScheduledCommand;
 import com.google.gwt.dom.client.Style.Cursor;
 import com.google.gwt.dom.client.Style.Unit;
+import com.google.gwt.event.dom.client.ClickEvent;
+import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.event.logical.shared.BeforeSelectionHandler;
 import com.google.gwt.event.logical.shared.CloseEvent;
 import com.google.gwt.event.logical.shared.CloseHandler;
@@ -34,41 +37,31 @@ import org.rstudio.core.client.theme.res.ThemeResources;
 import org.rstudio.core.client.theme.res.ThemeStyles;
 import org.rstudio.core.client.widget.BeforeShowCallback;
 import org.rstudio.core.client.widget.OperationWithInput;
-
-import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.common.AutoGlassAttacher;
 import org.rstudio.studio.client.common.filetypes.FileIcon;
 import org.rstudio.studio.client.workbench.model.UnsavedChangesTarget;
 import org.rstudio.studio.client.workbench.ui.unsaved.UnsavedChangesDialog;
 import org.rstudio.studio.client.workbench.views.source.Source.Display;
-
 import java.util.ArrayList;
 
-public class SourcePane extends LazyPanel implements Display,
+public class SourcePane extends Composite implements Display,
                                                      HasEnsureVisibleHandlers,
                                                      HasEnsureHeightHandlers,
-                                                     ProvidesResize,
                                                      RequiresResize,
+                                                     ProvidesResize,
                                                      BeforeShowCallback,
                                                      RequiresVisibilityChanged
 {
    @Inject
    public SourcePane()
    {
-      setVisible(true);
-      ensureWidget();
-   }
+      final int UTILITY_AREA_SIZE = 74;
 
-   @Override
-   protected Widget createWidget()
-   {
-	  final int UTILITY_AREA_SIZE = 74;
       panel_ = new LayoutPanel();
 
       new AutoGlassAttacher(panel_);
 
-      tabPanel_ =  new DocTabLayoutPanel(true, 65, UTILITY_AREA_SIZE);
-      panel_.setSize("100%", "100%");
+      tabPanel_ = new DocTabLayoutPanel(true, 65, UTILITY_AREA_SIZE);
       panel_.add(tabPanel_);
       panel_.setWidgetTopBottom(tabPanel_, 0, Unit.PX, 0, Unit.PX);
       panel_.setWidgetLeftRight(tabPanel_, 0, Unit.PX, 0, Unit.PX);
@@ -77,48 +70,52 @@ public class SourcePane extends LazyPanel implements Display,
       utilPanel_.setStylePrimaryName(ThemeStyles.INSTANCE.multiPodUtilityArea());
       panel_.add(utilPanel_);
       panel_.setWidgetRightWidth(utilPanel_,
-                                    0, Unit.PX,
-                                    UTILITY_AREA_SIZE, Unit.PX);
+                                 0, Unit.PX,
+                                 UTILITY_AREA_SIZE, Unit.PX);
       panel_.setWidgetTopHeight(utilPanel_, 0, Unit.PX, 22, Unit.PX);
 
       tabOverflowPopup_ = new TabOverflowPopupPanel();
       tabOverflowPopup_.addCloseHandler(new CloseHandler<PopupPanel>()
       {
-         @Override
          public void onClose(CloseEvent<PopupPanel> popupPanelCloseEvent)
          {
             manageChevronVisibility();
          }
       });
       chevron_ = new Image(new ImageResource2x(ThemeResources.INSTANCE.chevron2x()));
-      chevron_.setAltText("Switch to tab");
       chevron_.getElement().getStyle().setCursor(Cursor.POINTER);
-      chevron_.addClickHandler(
-         event -> {
+      chevron_.addClickHandler(new ClickHandler()
+      {
+         public void onClick(ClickEvent event)
+         {
             tabOverflowPopup_.showRelativeTo(chevron_);
-            SourceColumnManager mgr = RStudioGinjector.INSTANCE.getSourceColumnManager();
-            mgr.setActive(getAbsoluteLeft());
-         });
+         }
+      });
 
       panel_.add(chevron_);
       panel_.setWidgetTopHeight(chevron_,
-                                8, Unit.PX,
-                                chevron_.getHeight(), Unit.PX);
+                               8, Unit.PX,
+                               chevron_.getHeight(), Unit.PX);
       panel_.setWidgetRightWidth(chevron_,
-                                 52, Unit.PX,
-                                 chevron_.getWidth(), Unit.PX);
-
-      return panel_;
+                                52, Unit.PX,
+                                chevron_.getWidth(), Unit.PX);
+      
+      initWidget(panel_);
    }
 
    @Override
    protected void onLoad()
    {
       super.onLoad();
-      Scheduler.get().scheduleDeferred(() -> onResize());
+      Scheduler.get().scheduleDeferred(new ScheduledCommand()
+      {
+         public void execute()
+         {
+            onResize();
+         }
+      });
    }
 
-   @Override
    public void addTab(Widget widget,
                       FileIcon icon,
                       String docId,
@@ -129,40 +126,46 @@ public class SourcePane extends LazyPanel implements Display,
    {
       tabPanel_.add(widget, icon, docId, name, tooltip, position);
       if (switchToTab)
-         tabPanel_.selectTab(widget, true /* focus newly added tab */);
+         tabPanel_.selectTab(widget);
    }
 
-   @Override
-   public int getTabCount()
+   public void closeTab(Widget child, boolean interactive)
    {
-      return tabPanel_.getWidgetCount();
+      closeTab(child, interactive, null);
    }
 
-   @Override
-   public int getActiveTabIndex()
+   public void closeTab(Widget child, boolean interactive, Command onClosed)
    {
-      return tabPanel_.getSelectedIndex();
+      closeTab(tabPanel_.getWidgetIndex(child), interactive, onClosed);
    }
-
-   @Override
-   public void selectTab(int tabIndex)
+   
+   public void closeTab(int index, boolean interactive)
    {
-      tabPanel_.selectTab(tabIndex);
+      closeTab(index, interactive, null);
    }
 
-   @Override
-   public void selectTab(Widget child)
+   public void closeTab(int index, boolean interactive, Command onClosed)
    {
-      tabPanel_.selectTab(child);
+      if (interactive)
+         tabPanel_.tryCloseTab(index, onClosed);
+      else
+         tabPanel_.closeTab(index, onClosed);
    }
-
-   @Override
-   public void moveTab(int index, int delta)
+   
+   public void setDirty(Widget widget, boolean dirty)
    {
-      tabPanel_.moveTab(index, delta);
+      Widget tab = tabPanel_.getTabWidget(widget);
+      if (dirty)
+         tab.addStyleName(ThemeStyles.INSTANCE.dirtyTab());
+      else
+         tab.removeStyleName(ThemeStyles.INSTANCE.dirtyTab());
    }
 
-   @Override
+   public void ensureVisible()
+   {
+      fireEvent(new EnsureVisibleEvent());
+   }
+
    public void renameTab(Widget child,
                          FileIcon icon,
                          String value,
@@ -174,49 +177,99 @@ public class SourcePane extends LazyPanel implements Display,
                                tooltip);
    }
 
-   @Override
-   public void resetDocTabs(String activeId, String[] ids, FileIcon[] icons, String[] names, String[] paths)
+   public int getActiveTabIndex()
    {
-      tabOverflowPopup_.resetDocTabs(activeId, ids, icons, names, paths);
+      return tabPanel_.getSelectedIndex();
+   }
+
+   public void selectTab(int tabIndex)
+   {
+      tabPanel_.selectTab(tabIndex);
+   }
+
+   public void selectTab(Widget child)
+   {
+      tabPanel_.selectTab(child);
+   }
+
+   public int getTabCount()
+   {
+      return tabPanel_.getWidgetCount();
    }
 
    @Override
-   public void setDirty(Widget widget, boolean dirty)
+   public void moveTab(int index, int delta)
    {
-      Widget tab = tabPanel_.getTabWidget(widget);
-      if (dirty)
-         tab.addStyleName(ThemeStyles.INSTANCE.dirtyTab());
-      else
-         tab.removeStyleName(ThemeStyles.INSTANCE.dirtyTab());
+      tabPanel_.moveTab(index, delta);
+   }
+
+   public HandlerRegistration addTabClosingHandler(TabClosingHandler handler)
+   {
+      return tabPanel_.addTabClosingHandler(handler);
+   }
+
+   public HandlerRegistration addTabCloseHandler(
+         TabCloseHandler handler)
+   {
+      return tabPanel_.addTabCloseHandler(handler);
+   }
+   
+   public HandlerRegistration addTabClosedHandler(TabClosedHandler handler)
+   {
+      return tabPanel_.addTabClosedHandler(handler);
    }
 
    @Override
-   public void closeTab(Widget child, boolean interactive)
+   public HandlerRegistration addTabReorderHandler(TabReorderHandler handler)
    {
-      closeTab(child, interactive, null);
+      return tabPanel_.addTabReorderHandler(handler);
+   }
+ 
+   public HandlerRegistration addSelectionHandler(SelectionHandler<Integer> handler)
+   {
+      return tabPanel_.addSelectionHandler(handler);
    }
 
+   public HandlerRegistration addBeforeSelectionHandler(BeforeSelectionHandler<Integer> handler)
+   {
+      return tabPanel_.addBeforeSelectionHandler(handler);
+   }
+
+   public Widget asWidget()
+   {
+      return this;
+   }
+
+   public HandlerRegistration addEnsureVisibleHandler(EnsureVisibleHandler handler)
+   {
+      return addHandler(handler, EnsureVisibleEvent.TYPE);
+   }
+   
    @Override
-   public void closeTab(Widget child, boolean interactive, Command onClosed)
+   public HandlerRegistration addEnsureHeightHandler(
+         EnsureHeightHandler handler)
    {
-      closeTab(tabPanel_.getWidgetIndex(child), interactive, onClosed);
+      return addHandler(handler, EnsureHeightEvent.TYPE);
    }
 
-   @Override
-   public void closeTab(int index, boolean interactive)
+   public void onResize()
    {
-      closeTab(index, interactive, null);
+      panel_.onResize();
+      manageChevronVisibility();
    }
 
-   @Override
-   public void closeTab(int index, boolean interactive, Command onClosed)
+   public void manageChevronVisibility()
    {
-      if (interactive)
-         tabPanel_.tryCloseTab(index, onClosed);
-      else
-         tabPanel_.closeTab(index, onClosed);
+      int tabsWidth = tabPanel_.getTabsEffectiveWidth();
+      setOverflowVisible(tabsWidth > getOffsetWidth() - 50);
    }
 
+   public void showOverflowPopup()
+   {
+      setOverflowVisible(true);
+      tabOverflowPopup_.showRelativeTo(chevron_);
+   }
+   
    @Override
    public void showUnsavedChangesDialog(
          String title,
@@ -224,56 +277,28 @@ public class SourcePane extends LazyPanel implements Display,
          OperationWithInput<UnsavedChangesDialog.Result> saveOperation,
          Command onCancelled)
    {
-      new UnsavedChangesDialog(title,
+      new UnsavedChangesDialog(title, 
                                dirtyTargets,
                                saveOperation,
                                onCancelled).showModal();
    }
 
-   @Override
-   public void manageChevronVisibility()
+   private void setOverflowVisible(boolean visible)
    {
-      int tabsWidth = tabPanel_.getTabsEffectiveWidth();
-      setOverflowVisible(tabsWidth > getOffsetWidth() - 50);
+      utilPanel_.setVisible(visible);
+      chevron_.setVisible(visible);
    }
 
-   @Override
-   public void showOverflowPopup()
-   {
-      setOverflowVisible(true);
-      tabOverflowPopup_.showRelativeTo(chevron_);
-   }
-
-   @Override
-   public void ensureVisible()
-   {
-      fireEvent(new EnsureVisibleEvent(true));
-   }
-
-   @Override
-   public Widget asWidget()
-   {
-      return this;
-   }
-
-   @Override
-   public void onResize()
-   {
-      panel_.onResize();
-      manageChevronVisibility();
-   }
-
-   @Override
    public void onBeforeShow()
    {
-      for (Widget w : panel_)
-         if (w instanceof BeforeShowCallback)
-            ((BeforeShowCallback)w).onBeforeShow();
-
-      fireEvent(new BeforeShowEvent());
+      fireEvent(new BeforeShowEvent());   
    }
 
-   @Override
+   public HandlerRegistration addBeforeShowHandler(BeforeShowHandler handler)
+   {
+      return addHandler(handler, BeforeShowEvent.TYPE);
+   }
+
    public void onVisibilityChanged(boolean visible)
    {
       if (getActiveTabIndex() >= 0)
@@ -283,77 +308,15 @@ public class SourcePane extends LazyPanel implements Display,
             ((RequiresVisibilityChanged)w).onVisibilityChanged(visible);
       }
    }
-
-   @Override
+   
    public void cancelTabDrag()
    {
       tabPanel_.cancelTabDrag();
-   }
-
-   @Override
-   public HandlerRegistration addBeforeSelectionHandler(BeforeSelectionHandler<Integer> handler)
-   {
-      return tabPanel_.addBeforeSelectionHandler(handler);
-   }
-
-   @Override
-   public HandlerRegistration addBeforeShowHandler(BeforeShowEvent.Handler handler)
-   {
-      return addHandler(handler, BeforeShowEvent.TYPE);
-   }
-
-   @Override
-   public HandlerRegistration addEnsureHeightHandler(EnsureHeightEvent.Handler handler)
-   {
-      return addHandler(handler, EnsureHeightEvent.TYPE);
-   }
-
-   @Override
-   public HandlerRegistration addEnsureVisibleHandler(EnsureVisibleEvent.Handler handler)
-   {
-      return addHandler(handler, EnsureVisibleEvent.TYPE);
-   }
-
-   @Override
-   public HandlerRegistration addSelectionHandler(SelectionHandler<Integer> handler)
-   {
-      return tabPanel_.addSelectionHandler(handler);
-   }
-
-   @Override
-   public HandlerRegistration addTabClosingHandler(TabClosingEvent.Handler handler)
-   {
-      return tabPanel_.addTabClosingHandler(handler);
-   }
-
-   @Override
-   public HandlerRegistration addTabCloseHandler(TabCloseEvent.Handler handler)
-   {
-      return tabPanel_.addTabCloseHandler(handler);
-   }
-
-   @Override
-   public HandlerRegistration addTabClosedHandler(TabClosedEvent.Handler handler)
-   {
-      return tabPanel_.addTabClosedHandler(handler);
-   }
-
-   @Override
-   public HandlerRegistration addTabReorderHandler(TabReorderEvent.Handler handler)
-   {
-      return tabPanel_.addTabReorderHandler(handler);
-   }
-
-   private void setOverflowVisible(boolean visible)
-   {
-      utilPanel_.setVisible(visible);
-      chevron_.setVisible(visible);
    }
 
    private DocTabLayoutPanel tabPanel_;
    private HTML utilPanel_;
    private Image chevron_;
    private LayoutPanel panel_;
-   private TabOverflowPopupPanel tabOverflowPopup_;
-
+   private PopupPanel tabOverflowPopup_;
 }

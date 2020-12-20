@@ -1,7 +1,7 @@
 /*
  * Barrier.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,6 +16,7 @@ package org.rstudio.core.client;
 
 import com.google.gwt.event.shared.HandlerManager;
 import org.rstudio.core.client.events.BarrierReleasedEvent;
+import org.rstudio.core.client.events.BarrierReleasedHandler;
 
 /**
  * Use this class to track when multiple independent operations are all
@@ -61,7 +62,7 @@ public class Barrier
       return new Token();
    }
 
-   public void addBarrierReleasedHandler(BarrierReleasedEvent.Handler handler)
+   public void addBarrierReleasedHandler(BarrierReleasedHandler handler)
    {
       handlers_.addHandler(BarrierReleasedEvent.TYPE, handler);
    }

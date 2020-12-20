@@ -1,7 +1,7 @@
 /*
  * SessionLocalStreamHttpConnectionListener.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,8 +16,8 @@
 
 #include <vector>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 
 #include <core/system/System.hpp>
 #include <core/system/PosixUser.hpp>
@@ -26,7 +26,7 @@
 
 #include "SessionHttpConnectionListenerImpl.hpp"
 
-using namespace rstudio::core;
+using namespace rstudio::core ;
 
 namespace rstudio {
 namespace session {
@@ -37,7 +37,7 @@ class LocalStreamHttpConnectionListener :
 {
 public:
    LocalStreamHttpConnectionListener(const FilePath& streamPath,
-                                     core::FileMode streamFileMode,
+                                     core::system::FileMode streamFileMode,
                                      const std::string& secret,
                                      int limitRpcClientUid)
       : localStreamPath_(streamPath),
@@ -142,7 +142,8 @@ private:
          return error;
 
       // chmod to ensure other users can read the file
-      return pidFile.changeFileMode(core::FileMode::USER_READ_WRITE_ALL_READ);
+      return changeFileMode(pidFile,
+                            core::system::UserReadWriteGroupEveryoneReadMode);
    }
 
    Error cleanupPidFile()
@@ -152,12 +153,12 @@ private:
 
    FilePath pidFilePath()
    {
-      return FilePath(localStreamPath_.getAbsolutePath() + ".pid");
+      return FilePath(localStreamPath_.absolutePath() + ".pid");
    }
 
 private:
    core::FilePath localStreamPath_;
-   core::FileMode streamFileMode_;
+   core::system::FileMode streamFileMode_;
 
    // desktop shared secret
    std::string secret_;

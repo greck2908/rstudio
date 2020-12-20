@@ -1,7 +1,7 @@
 /*
  * SourceServerOperations.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,7 +14,6 @@
  */
 package org.rstudio.studio.client.workbench.views.source.model;
 
-import com.google.gwt.core.client.JavaScriptObject;
 import com.google.gwt.core.client.JsArray;
 import com.google.gwt.core.client.JsArrayString;
 
@@ -101,7 +100,6 @@ public interface SourceServerOperations extends FilesServerOperations,
                      String foldSpec,
                      JsArray<ChunkDefinition> chunkOutput,
                      String contents,
-                     boolean retryWrite,
                      ServerRequestCallback<String> requestCallback);
 
    /**
@@ -125,9 +123,7 @@ public interface SourceServerOperations extends FilesServerOperations,
                          String replacement,
                          int offset,
                          int length,
-                         boolean valid,
                          String hash,
-                         boolean retryWrite,
                          ServerRequestCallback<String> requestCallback);
 
    void checkForExternalEdit(
@@ -269,7 +265,4 @@ public interface SourceServerOperations extends FilesServerOperations,
                                     String path,
                                     String code,
                                     ServerRequestCallback<String> requestCallback);
-   
-   public void rstudioApiResponse(JavaScriptObject response,
-                                  ServerRequestCallback<Void> requestCallback);
 }

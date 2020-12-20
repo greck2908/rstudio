@@ -1,7 +1,7 @@
 /*
  * RSConnectAccountEntry.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,6 @@
 package org.rstudio.studio.client.rsconnect.ui;
 
 import org.rstudio.core.client.resources.ImageResource2x;
-import org.rstudio.core.client.widget.DecorativeImage;
 import org.rstudio.studio.client.rsconnect.model.RSConnectAccount;
 
 import com.google.gwt.dom.client.Style.Cursor;
@@ -23,6 +22,7 @@ import com.google.gwt.dom.client.Style.FontWeight;
 import com.google.gwt.dom.client.Style.Unit;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.HorizontalPanel;
+import com.google.gwt.user.client.ui.Image;
 import com.google.gwt.user.client.ui.Label;
 
 public class RSConnectAccountEntry extends Composite
@@ -53,7 +53,7 @@ public class RSConnectAccountEntry extends Composite
       if (account == null)
          return;
       
-      DecorativeImage icon = new DecorativeImage(account.isCloudAccount() ? 
+      Image icon = new Image(account.isCloudAccount() ? 
             new ImageResource2x(RSConnectResources.INSTANCE.cloudAccountIconSmall2x()) : 
             new ImageResource2x(RSConnectResources.INSTANCE.localAccountIconSmall2x()));
       icon.getElement().getStyle().setMarginRight(2, Unit.PX);

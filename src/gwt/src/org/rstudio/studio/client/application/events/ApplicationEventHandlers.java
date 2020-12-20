@@ -1,7 +1,7 @@
 /*
  * ApplicationEventHandlers.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,26 +14,24 @@
  */
 package org.rstudio.studio.client.application.events;
 
-import org.rstudio.studio.client.workbench.events.SessionInitEvent;
+import org.rstudio.studio.client.workbench.events.SessionInitHandler;
 
-public interface ApplicationEventHandlers extends LogoutRequestedEvent.Handler,
-                                                  UnauthorizedEvent.Handler,
+public interface ApplicationEventHandlers extends LogoutRequestedHandler,
+                                                  UnauthorizedHandler,
                                                   ReloadEvent.Handler,
                                                   ReloadWithLastChanceSaveEvent.Handler,
-                                                  QuitEvent.Handler,
+                                                  QuitHandler,
                                                   SwitchToRVersionEvent.Handler,
-                                                  SuicideEvent.Handler,
-                                                  SessionAbendWarningEvent.Handler,
-                                                  SessionSerializationEvent.Handler,
-                                                  SessionRelaunchEvent.Handler,
-                                                  ServerUnavailableEvent.Handler,
-                                                  ClientDisconnectedEvent.Handler,
-                                                  InvalidClientVersionEvent.Handler,
-                                                  ServerOfflineEvent.Handler,
+                                                  SuicideHandler,
+                                                  SessionAbendWarningHandler,
+                                                  SessionSerializationHandler,
+                                                  SessionRelaunchHandler,
+                                                  ServerUnavailableHandler,
+                                                  ClientDisconnectedHandler,
+                                                  InvalidClientVersionHandler,
+                                                  ServerOfflineHandler,
                                                   InvalidSessionEvent.Handler,
-                                                  SessionInitEvent.Handler,
-                                                  RestartStatusEvent.Handler,
-                                                  FileUploadEvent.Handler,
-                                                  AriaLiveStatusEvent.Handler
+                                                  SessionInitHandler,
+                                                  RestartStatusEvent.Handler
 {
 }

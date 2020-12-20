@@ -1,7 +1,7 @@
 /*
  * DesktopRVersion.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,7 +16,7 @@
 
 #include <windows.h>
 
-#include <algorithm>
+#include <QtAlgorithms>
 #include <QMessageBox>
 
 #include <core/system/System.hpp>
@@ -237,7 +237,7 @@ void enumRegistry(Architecture architecture, HKEY key, QList<RVersion>* pResults
                              KEY_READ | flags);
    if (error)
    {
-      if (error != systemError(boost::system::errc::no_such_file_or_directory, ErrorLocation()))
+      if (error.code() != boost::system::errc::no_such_file_or_directory)
          LOG_ERROR(error);
       return;
    }
@@ -287,7 +287,7 @@ QList<RVersion> allRVersions(QList<RVersion> versions)
    }
 
    // Sort and de-duplicate
-   std::sort(versions.begin(), versions.end());
+   qSort(versions);
    for (int i = 1; i < versions.size(); i++)
    {
       if (versions.at(i) == versions.at(i-1))
@@ -319,7 +319,7 @@ RVersion detectPreferredFromRegistry(HKEY key, Architecture architecture)
                              KEY_READ | flags);
    if (error)
    {
-      if (error != systemError(boost::system::errc::no_such_file_or_directory, ErrorLocation()))
+      if (error.code() != boost::system::errc::no_such_file_or_directory)
          LOG_ERROR(error);
       return RVersion();
    }

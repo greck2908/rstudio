@@ -1,7 +1,7 @@
 /*
  * DefaultGlobalDisplay.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,6 +23,8 @@ import com.google.inject.Provider;
 
 import org.rstudio.core.client.MessageDisplay;
 import org.rstudio.core.client.StringUtil;
+import org.rstudio.core.client.command.AppCommand;
+import org.rstudio.core.client.command.CommandHandler;
 import org.rstudio.core.client.dom.WindowEx;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.widget.*;
@@ -46,10 +48,12 @@ public class DefaultGlobalDisplay extends GlobalDisplay
       session_ = session;
       server_ = server;
 
-      // This command is useful for testing warning bars (e.g. for accessibility) so please leave in.
-      commands.showWarningBar().addHandler(appCommand ->
+      commands.showWarningBar().addHandler(new CommandHandler()
       {
-         view_.get().showWarning(false, "This is a warning!");
+         public void onCommand(AppCommand command)
+         {
+            view_.get().showWarning(false, "This is a warning!");
+         }
       });
    }
 
@@ -59,18 +63,8 @@ public class DefaultGlobalDisplay extends GlobalDisplay
                              String initialValue,
                              final OperationWithInput<String> operation)
    {
-      promptForText(title, label, initialValue, false, operation);
-   }
-
-   @Override
-   public void promptForText(String title,
-                             String label,
-                             String initialValue,
-                             boolean optional,
-                             final OperationWithInput<String> operation)
-   {
       ((TextInput)GWT.create(TextInput.class)).promptForText(
-            title, label, initialValue, optional ? MessageDisplay.INPUT_OPTIONAL_TEXT : MessageDisplay.INPUT_REQUIRED_TEXT,
+            title, label, initialValue, MessageDisplay.INPUT_REQUIRED_TEXT,
             -1, -1, null,
             new ProgressOperationWithInput<String>()
             {
@@ -370,28 +364,44 @@ public class DefaultGlobalDisplay extends GlobalDisplay
    {
       windowOpener_.openSatelliteWindow(this, name, width, height, options);
    }
+   
 
    @Override
-   public void bringWindowToFront(String name)
+   public void openEmailComposeWindow(String to, String subject)
    {
-      if (Desktop.isDesktop())
-         Desktop.getFrame().activateMinimalWindow(name);
+      // determine gmail url
+      String gmailURL = "https://mail.google.com/";
+      String user = session_.getSessionInfo().getUserIdentity();  
+      if (user == null) // for desktop mode
+         user = "foo@gmail.com"; 
+      String[] userComponents = user.split("@");
+      if ( (userComponents.length == 2) &&
+           ("gmail.com").equalsIgnoreCase(userComponents[1]))
+      {
+         gmailURL += "mail/";
+      }
       else
-         bringWindowToFrontImpl(name);
+      {
+         gmailURL += "a/" + userComponents[1] + "/";
+      }
+      
+      // calculate URL
+      String url = gmailURL + "?fs=1&view=cm";
+      url += "&to=" + URL.encodeQueryString(to);
+      if (subject != null)
+         url += "&subject=" + URL.encodeQueryString(subject);
+      
+      // open window
+      openWindow(url);
    }
-   
-   private static final native void bringWindowToFrontImpl(String name)
-   /*-{
-      $wnd.open("", name);
-   }-*/;
    
    @Override
    public void openRStudioLink(String linkName, boolean includeVersionInfo)
    {
       // build url
       final SessionInfo sessionInfo = session_.getSessionInfo();
-      String url = "https://www.rstudio.org/links/";
-      url += URL.encodePathSegment(linkName);
+      String url = "https://www.rstudio.org/links/" ;
+      url += URL.encodePathSegment(linkName) ;
       if (includeVersionInfo)
       {
          url += "?version=" + URL.encodeQueryString(sessionInfo.getRstudioVersion());
@@ -407,8 +417,6 @@ public class DefaultGlobalDisplay extends GlobalDisplay
    {
       if (Desktop.isDesktop())
          Desktop.getFrame().showFile(StringUtil.notNull(path));
-      else if (Desktop.isRemoteDesktop())
-         Desktop.getFrame().browseUrl(server_.getFileUrl(FileSystemItem.createFile(path)));
       else
          openWindow(server_.getFileUrl(FileSystemItem.createFile(path)));
    }

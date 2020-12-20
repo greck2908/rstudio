@@ -1,7 +1,7 @@
 #
 # SessionSpelling.R
 #
-# Copyright (C) 2020 by RStudio, PBC
+# Copyright (C) 2009-12 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -15,42 +15,37 @@
 
 .rs.addFunction("downloadAllDictionaries", function(targetDir, secure)
 {
-   # form url to dictionaries
-   fmt <- "%s://s3.amazonaws.com/rstudio-buildtools/dictionaries/%s"
-   protocol <- if (secure) "https" else "http"
-   archive <- "all-dictionaries.zip"
-   url <- sprintf(fmt, protocol, archive)
+   # archive we are downloading
+   allDicts <- "all-dictionaries.zip"
    
-   # form path to downloaded dictionaries in tempdir
-   archivePath <- file.path(tempdir(), archive)
-   if (file.exists(archivePath))
-      file.remove(archivePath)
+   # remove existing archive if necessary
+   allDictsTemp <- paste(tempdir(), allDicts, sep="/")
+   if (file.exists(allDictsTemp))
+      file.remove(allDictsTemp)
    
    # download the dictionary
-   download.file(
-      url = url,
-      destfile = archivePath,
-      cacheOK = FALSE,
-      quiet = TRUE
-   )
+   download.file(paste(ifelse(secure, "https", "http"),
+                       "://s3.amazonaws.com/rstudio-dictionaries/",
+                       allDicts, sep=""),
+                 destfile=allDictsTemp,
+                 cacheOK = FALSE,
+                 quiet = TRUE)
+      
+   # define function to remove the existing dictionaries then call it
+   removeExisting <- function() {
+      suppressWarnings({
+         file.remove(paste(targetDir, list.files(targetDir), sep="/"))
+         unlink(targetDir)
+      })
+   }
+   removeExisting()
    
-   # remove existing dictionaries if they exist
-   unlink(targetDir, recursive = TRUE)
-   dir.create(targetDir, showWarnings = FALSE, recursive = TRUE)
-   
-   # unzip downloaded dictionaries into target -- if this fails for any
+   # unzip downloaded dictionaires into target -- if this fails for any
    # reason then remove any files that were unpacked (because we don't 
    # know if the partially unzipped archive is valid)
-   tryCatch(
-      unzip(archivePath, exdir = targetDir),
-      error = function(e) {
-         unlink(targetDir, recursive = TRUE)
-         stop(e)
-      }
-   )
+   tryCatch(unzip(allDictsTemp, exdir=targetDir),
+            error = function(e) { removeExisting(); stop(e); })
    
-   # remove the downloaded archive
-   unlink(archivePath)
-   
-   invisible(targetDir)
+   # remove the archive
+   file.remove(allDictsTemp)   
 })

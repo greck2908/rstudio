@@ -1,7 +1,7 @@
 /*
  * FileSerializer.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -29,8 +29,8 @@
 #include <boost/function.hpp>
 #include <boost/algorithm/string/trim.hpp>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/StringUtils.hpp>
 
 namespace rstudio {
@@ -44,11 +44,11 @@ Error writeCollectionToFile(
                                  const typename CollectionType::value_type&)>
                          stringifyFunction)
 {
-   using namespace boost::system::errc;
+   using namespace boost::system::errc ;
    
    // open the file stream
-   std::shared_ptr<std::ostream> pOfs;
-   Error error = filePath.openForWrite(pOfs, true);
+   boost::shared_ptr<std::ostream> pOfs;
+   Error error = filePath.open_w(&pOfs, true);
    if (error)
       return error;
 
@@ -60,7 +60,7 @@ Error writeCollectionToFile(
             it != collection.end();
             ++it)
       {
-         *pOfs << stringifyFunction(*it) << std::endl;
+         *pOfs << stringifyFunction(*it) << std::endl ;
 
         if (pOfs->fail())
              return systemError(io_error, ERROR_LOCATION);
@@ -71,11 +71,11 @@ Error writeCollectionToFile(
       Error error = systemError(boost::system::errc::io_error,
                                 ERROR_LOCATION);
       error.addProperty("what", e.what());
-      error.addProperty("path", filePath.getAbsolutePath());
+      error.addProperty("path", filePath.absolutePath());
       return error;
    }
 
-   return Success();
+   return Success() ;
 }
 
 enum ReadCollectionAction
@@ -94,11 +94,11 @@ Error readCollectionFromFile(
                          parseFunction,
                          bool trimAndIgnoreBlankLines=true)
 {
-   using namespace boost::system::errc;
+   using namespace boost::system::errc ;
    
    // open the file stream
-   std::shared_ptr<std::istream> pIfs;
-   Error error = filePath.openForRead(pIfs);
+   boost::shared_ptr<std::istream> pIfs;
+   Error error = filePath.open_r(&pIfs);
    if (error)
       return error;
    
@@ -109,11 +109,11 @@ Error readCollectionFromFile(
    try
    {
       // read each line
-      std::string nextLine;
+      std::string nextLine ;
       while (true)
       {
          // read the next line
-         std::getline(*pIfs, nextLine);
+         std::getline(*pIfs, nextLine) ;
 
          if (pIfs->eof())
          {
@@ -128,17 +128,17 @@ Error readCollectionFromFile(
          // trim whitespace then ignore it if it is a blank line
          if (trimAndIgnoreBlankLines)
          {
-            boost::algorithm::trim(nextLine);
+            boost::algorithm::trim(nextLine) ;
             if (nextLine.empty())
-               continue;
+               continue ;
          }
 
          // parse it and add it to the collection
-         typename CollectionType::value_type value;
+         typename CollectionType::value_type value ;
          ReadCollectionAction action = parseFunction(nextLine, &value);
          if (action == ReadCollectionAddLine)
          {
-            *insertIterator++ = value;
+            *insertIterator++ = value ;
          }
          else if (action == ReadCollectionIgnoreLine)
          {
@@ -159,22 +159,22 @@ Error readCollectionFromFile(
       Error error = systemError(boost::system::errc::io_error,
                                 ERROR_LOCATION);
       error.addProperty("what", e.what());
-      error.addProperty("path", filePath.getAbsolutePath());
+      error.addProperty("path", filePath.absolutePath());
       return error;
    }
    
-   return Success();
+   return Success() ;
 }
 
 template <typename ContentType>
 Error appendToFile(const core::FilePath& filePath,
                        const ContentType& content)
 {
-   using namespace boost::system::errc;
+   using namespace boost::system::errc ;
    
    // open the file stream
-   std::shared_ptr<std::ostream> pOfs;
-   Error error = filePath.openForWrite(pOfs, false);
+   boost::shared_ptr<std::ostream> pOfs;
+   Error error = filePath.open_w(&pOfs, false);
    if (error)
       return error;
 
@@ -183,7 +183,7 @@ Error appendToFile(const core::FilePath& filePath,
       pOfs->seekp(0, std::ios_base::end);
 
       // append the content
-      *pOfs << content;
+      *pOfs << content  ;
       if (pOfs->fail())
          return systemError(io_error, ERROR_LOCATION);
    }
@@ -192,22 +192,22 @@ Error appendToFile(const core::FilePath& filePath,
       Error error = systemError(boost::system::errc::io_error,
                                 ERROR_LOCATION);
       error.addProperty("what", e.what());
-      error.addProperty("path", filePath.getAbsolutePath());
+      error.addProperty("path", filePath.absolutePath());
       return error;
    }
 
-   return Success();
+   return Success() ;
 }
 
 template <typename T>
 Error appendStructToFile(const core::FilePath& filePath,
                          const T& data)
 {
-   using namespace boost::system::errc;
+   using namespace boost::system::errc ;
 
    // open the file stream
-   std::shared_ptr<std::ostream> pOfs;
-   Error error = filePath.openForWrite(pOfs, false);
+   boost::shared_ptr<std::ostream> pOfs;
+   Error error = filePath.open_w(&pOfs, false);
    if (error)
       return error;
 
@@ -225,22 +225,22 @@ Error appendStructToFile(const core::FilePath& filePath,
       Error error = systemError(boost::system::errc::io_error,
                                 ERROR_LOCATION);
       error.addProperty("what", e.what());
-      error.addProperty("path", filePath.getAbsolutePath());
+      error.addProperty("path", filePath.absolutePath());
       return error;
    }
 
-   return Success();
+   return Success() ;
 }
 
 template <typename T>
 Error readStructVectorFromFile(const core::FilePath& filePath,
                                std::vector<T>* pVector)
 {
-   using namespace boost::system::errc;
+   using namespace boost::system::errc ;
 
    // open the file stream
-   std::shared_ptr<std::istream> pIfs;
-   Error error = filePath.openForRead(pIfs);
+   boost::shared_ptr<std::istream> pIfs;
+   Error error = filePath.open_r(&pIfs);
    if (error)
       return error;
 
@@ -260,14 +260,14 @@ Error readStructVectorFromFile(const core::FilePath& filePath,
    }
    catch(const std::exception& e)
    {
-      error = systemError(boost::system::errc::io_error,
+      Error error = systemError(boost::system::errc::io_error,
                                 ERROR_LOCATION);
       error.addProperty("what", e.what());
-      error.addProperty("path", filePath.getAbsolutePath());
+      error.addProperty("path", filePath.absolutePath());
       return error;
    }
 
-   return Success();
+   return Success() ;
 }
 
 
@@ -278,10 +278,10 @@ std::string stringifyString(const std::string& str);
 
       
 Error writeStringMapToFile(const core::FilePath& filePath,
-                           const std::map<std::string,std::string>& map);
+                           const std::map<std::string,std::string>& map) ;
 
 Error readStringMapFromFile(const core::FilePath& filePath,
-                            std::map<std::string,std::string>* pMap);
+                            std::map<std::string,std::string>* pMap) ;
    
 Error writeStringVectorToFile(const core::FilePath& filePath,
                               const std::vector<std::string>& vector);
@@ -291,16 +291,10 @@ Error readStringVectorFromFile(const core::FilePath& filePath,
                                bool trimAndIgnoreBlankLines=true);
 
 // lineEnding is the type of line ending you want to end up on disk
-//
-// maxOpenRetrySeconds indicates whether or not we should retry attempts to open the file
-// when it is in use by another process (common when using backup software), and if so
-// how many seconds of elapsed time should we wait for the file to become available
-// note: this only has an effect on Windows
 Error writeStringToFile(const core::FilePath& filePath,
                         const std::string& str,
                         string_utils::LineEnding lineEnding=string_utils::LineEndingPassthrough,
-                        bool truncate = true,
-                        int maxOpenRetrySeconds = 0);
+                        bool truncate = true);
 
 // lineEnding is the type of line ending you want the resulting string to have
 Error readStringFromFile(const core::FilePath& filePath,
@@ -322,8 +316,8 @@ Error readStringFromFile(
    try
    {
       // open the file stream (report errors with exceptions)
-      std::shared_ptr<std::istream> pIfs;
-      Error error = filePath.openForRead(pIfs);
+      boost::shared_ptr<std::istream> pIfs;
+      Error error = filePath.open_r(&pIfs);
       if (error)
          return error;
       pIfs->exceptions(std::istream::failbit | std::istream::badbit);
@@ -333,7 +327,7 @@ Error readStringFromFile(
       ostr.exceptions(std::ostream::failbit | std::ostream::badbit);
 
       // do the copy
-      boost::iostreams::filtering_ostream filteringOStream;
+      boost::iostreams::filtering_ostream filteringOStream ;
       filteringOStream.push(filter);
       filteringOStream.push(ostr);
       boost::iostreams::copy(*pIfs, filteringOStream, 128);
@@ -349,7 +343,7 @@ Error readStringFromFile(
       Error error = systemError(boost::system::errc::io_error,
                                 ERROR_LOCATION);
       error.addProperty("what", e.what());
-      error.addProperty("path", filePath.getAbsolutePath());
+      error.addProperty("path", filePath.absolutePath());
       return error;
    }
 

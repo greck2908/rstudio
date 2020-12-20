@@ -1,7 +1,7 @@
 /*
  * SpellingCustomDictionariesWidget.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -50,6 +50,10 @@ public class SpellingCustomDictionariesWidget extends Composite
       
       VerticalPanel panel = new VerticalPanel();
       
+      panel.add(new LabelWithHelp("Custom dictionaries:", 
+                                  "custom_dictionaries",
+                                  "Help on custom spelling dictionaries"));
+      
       HorizontalPanel dictionariesPanel = new HorizontalPanel();
       listBox_ = new ListBox();
       listBox_.setMultipleSelect(false);
@@ -66,10 +70,6 @@ public class SpellingCustomDictionariesWidget extends Composite
       buttonPanel.add(buttonRemove);
       dictionariesPanel.add(buttonPanel);
       
-      panel.add(new LabelWithHelp("Custom dictionaries:",
-            "custom_dictionaries",
-            "Help on custom spelling dictionaries",
-            listBox_));
       panel.add(dictionariesPanel);
       
       initWidget(panel);
@@ -85,7 +85,6 @@ public class SpellingCustomDictionariesWidget extends Composite
       globalDisplay_= globalDisplay;
       fileDialogs_ = fileDialogs;
       fileSystemContext_ = fileSystemContext;
-      customDictsModified_ = false;
    }
    
    public void setDictionaries(JsArrayString dictionaries)
@@ -126,8 +125,6 @@ public class SpellingCustomDictionariesWidget extends Composite
                   spellingService_.addCustomDictionary(
                                                   input.getPath(),
                                                   customDictRequestCallback_);
-
-                  customDictsModified_ = true;
                }
                
             }); 
@@ -158,8 +155,6 @@ public class SpellingCustomDictionariesWidget extends Composite
                         spellingService_.removeCustomDictionary(
                                                   dictionary,
                                                   customDictRequestCallback_);
-
-                        customDictsModified_ = true;
                      }
                   },
                   false);
@@ -192,20 +187,14 @@ public class SpellingCustomDictionariesWidget extends Composite
       button.fillWidth();
       return button;
    }
-
-   public boolean getCustomDictsModified()
-   {
-      return customDictsModified_;
-   }
-
+   
    private final ListBox listBox_;
    private SpellingService spellingService_;
    private ProgressIndicator progressIndicator_;
    private GlobalDisplay globalDisplay_;
    private FileDialogs fileDialogs_;
    private RemoteFileSystemContext fileSystemContext_;
-   private boolean customDictsModified_;
-
+   
    static interface Styles extends CssResource
    {
       String helpButton();
@@ -219,10 +208,9 @@ public class SpellingCustomDictionariesWidget extends Composite
       Styles styles();
    }
    
-   static Resources RES = GWT.create(Resources.class);
+   static Resources RES = (Resources)GWT.create(Resources.class) ;
    public static void ensureStylesInjected()
    {
       RES.styles().ensureInjected();
    }
-
 }

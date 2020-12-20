@@ -1,7 +1,7 @@
 /*
  * AskSecretManager.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -69,7 +69,7 @@ public class AskSecretManager
                 !satelliteManager.satelliteWindowExists(targetWindow))
                return true;
             
-            // otherwise don't handle
+            // othewise don't handle
             else
                return false;
          }

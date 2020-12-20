@@ -96,17 +96,6 @@
    outline:none;
 }
 
-.rstudio-ImageButton {
-   padding: 0;
-   margin: 0;
-   border: none;
-   background-color: transparent;
-}
-
-.rstudio-ImageButton:focus {
-   outline:none;
-}
-
 .rstudio-StatusIndicator {
 }
 
@@ -121,8 +110,4 @@
 
 .rstudio-StatusIndicator .Message-Error {
    background-color: #FF6347;
-}
-
-.gwt-TabLayoutPanelTab, .gwt-TabLayoutPanelTab-selected {
-   outline: none;
 }

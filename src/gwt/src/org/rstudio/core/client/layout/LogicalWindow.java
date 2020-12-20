@@ -1,7 +1,7 @@
 /*
  * LogicalWindow.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,8 +19,10 @@ import com.google.gwt.event.shared.HandlerRegistration;
 import com.google.gwt.user.client.ui.Widget;
 
 import org.rstudio.core.client.events.EnsureHeightEvent;
+import org.rstudio.core.client.events.EnsureHeightHandler;
 import org.rstudio.core.client.events.HasWindowStateChangeHandlers;
 import org.rstudio.core.client.events.WindowStateChangeEvent;
+import org.rstudio.core.client.events.WindowStateChangeHandler;
 import org.rstudio.core.client.theme.MinimizedWindowFrame;
 import org.rstudio.core.client.theme.WindowFrame;
 
@@ -31,8 +33,8 @@ import static org.rstudio.core.client.layout.WindowState.*;
  * logical window in the DualWindowLayoutPanel.
  */
 public class LogicalWindow implements HasWindowStateChangeHandlers,
-                                      WindowStateChangeEvent.Handler,
-                                      EnsureHeightEvent.Handler
+                                      WindowStateChangeHandler,
+                                      EnsureHeightHandler
 {
    public LogicalWindow(WindowFrame normal,
                         MinimizedWindowFrame minimized)
@@ -42,7 +44,7 @@ public class LogicalWindow implements HasWindowStateChangeHandlers,
 
       normal_.addWindowStateChangeHandler(this);
       normal_.addEnsureHeightHandler(this);
-      minimized_.addWindowStateChangeHandler(this);
+      minimized_.addWindowStateChangeHandler(this);   
    }
 
    public WindowFrame getNormal()
@@ -59,26 +61,6 @@ public class LogicalWindow implements HasWindowStateChangeHandlers,
    {
       assert state_ != MINIMIZE && state_ != HIDE;
       normal_.focus();
-   }
-
-   public void showWindowFocusIndicator(boolean showFocusIndicator)
-   {
-      if (normal_ != null)
-         normal_.showWindowFocusIndicator(showFocusIndicator);
-      if (minimized_ != null)
-         minimized_.showWindowFocusIndicator(showFocusIndicator);
-   }
-
-   public boolean visible()
-   {
-      switch (state_)
-      {
-         case HIDE:
-         case MINIMIZE:
-            return false;
-         default:
-            return true;
-      }
    }
 
    public Widget getActiveWidget()
@@ -98,16 +80,18 @@ public class LogicalWindow implements HasWindowStateChangeHandlers,
       throw new IllegalStateException("Unknown state " + state_);
    }
 
-   public HandlerRegistration addWindowStateChangeHandler(WindowStateChangeEvent.Handler handler)
+   public HandlerRegistration addWindowStateChangeHandler(
+         WindowStateChangeHandler handler)
    {
       return events_.addHandler(WindowStateChangeEvent.TYPE, handler);
    }
-
-   public HandlerRegistration addEnsureHeightHandler(EnsureHeightEvent.Handler handler)
+   
+   public HandlerRegistration addEnsureHeightHandler(
+         EnsureHeightHandler handler)
    {
       return events_.addHandler(EnsureHeightEvent.TYPE, handler);
    }
-
+   
    public void onWindowStateChange(WindowStateChangeEvent event)
    {
       WindowState newState = event.getNewState();
@@ -120,8 +104,16 @@ public class LogicalWindow implements HasWindowStateChangeHandlers,
 
    public void transitionToState(WindowState newState)
    {
-      normal_.setMaximizedDependentState(newState);
-      normal_.setExclusiveDependentState(newState);
+      if (newState == MAXIMIZE)
+         normal_.addStyleDependentName("maximized");
+      else
+         normal_.removeStyleDependentName("maximized");
+
+      if (newState == EXCLUSIVE)
+         normal_.addStyleDependentName("exclusive");
+      else
+         normal_.removeStyleDependentName("exclusive");
+
       state_ = newState;
 
       if (getActiveWidget() == normal_)
@@ -132,7 +124,7 @@ public class LogicalWindow implements HasWindowStateChangeHandlers,
    {
       return state_;
    }
-
+   
    @Override
    public void onEnsureHeight(EnsureHeightEvent event)
    {

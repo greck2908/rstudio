@@ -54,8 +54,7 @@
    <g:HTMLPanel stylePrimaryName="{style.panel}">
       <g:HTMLPanel ui:field="warningPanel_" styleName="{style.warning}">
         <g:Image resource='{res.warningSmall2x}'
-                 styleName='{style.warningIcon}'
-                 altText="Warning"/>
+                 styleName='{style.warningIcon}'/>
         <g:HTMLPanel ui:field="warningLabel_" styleName="{style.label}" />
       </g:HTMLPanel>
 

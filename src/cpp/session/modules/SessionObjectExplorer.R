@@ -1,7 +1,7 @@
 #
 # SessionObjectExplorer.R
 #
-# Copyright (C) 2020 by RStudio, PBC
+# Copyright (C) 2009-17 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -47,9 +47,9 @@
 {
    # retrieve object from cache
    object <- .rs.explorer.getCachedObject(
-      id             = id,
+      id = id,
       extractingCode = extractingCode,
-      refresh        = FALSE
+      refresh = FALSE
    )
    
    # construct context
@@ -71,9 +71,9 @@
 {
    # retrieve object from cache
    object <- .rs.explorer.getCachedObject(
-      id             = id,
+      id = id,
       extractingCode = NULL,
-      refresh        = TRUE
+      refresh = TRUE
    )
    
    # construct context
@@ -93,7 +93,7 @@
 
 .rs.addJsonRpcHandler("explorer_end_inspect", function(id)
 {
-   .rs.explorer.removeCacheEntry(id)
+   .rs.explorer.removeCachedObject(id)
 })
 
 .rs.addFunction("objectAddress", function(object)
@@ -139,17 +139,6 @@
 
 .rs.addFunction("explorer.hasRelevantAttributes", function(object)
 {
-   if (inherits(object, "python.builtin.object"))
-   {
-      # NOTE: we exclude attributes from module objects here since
-      # those _are_ the things of interest, as opposed to an optional
-      # entry for other classes of objects (e.g. strings)
-      if (inherits(object, "python.builtin.module"))
-         return(FALSE)
-      
-      TRUE
-   }
-   
    attrib <- attributes(object)
    
    boring <-
@@ -230,72 +219,28 @@
       return(object)
    
    # otherwise, evaluate expression to retrieve sub-object
-   if (.rs.reticulate.replIsActive())
-   {
-      pyid <- paste("_rstudio_viewer", id, sep = "_")
-      code <- sub("`__OBJECT__`", pyid, extractingCode, fixed = TRUE)
-      
-      builtins <- reticulate::import_builtins(convert = FALSE)
-      cache <- .rs.reticulate.explorerCache()
-      
-      tryCatch(
-         builtins$eval(code, cache, cache),
-         error = warning
-      )
-   }
-   else
-   {
-      envir <- new.env(parent = globalenv())
-      envir[["__OBJECT__"]] <- object
-      
-      tryCatch(
-         eval(parse(text = extractingCode), envir = envir),
-         error = warning
-      )
-   }
+   envir <- new.env(parent = globalenv())
+   envir[["__OBJECT__"]] <- object
+   
+   tryCatch(
+      eval(parse(text = extractingCode), envir = envir),
+      error = warning
+   )
 })
 
-.rs.addFunction("explorer.setCacheEntry", function(entry,
-                                                   id = .rs.createUUID())
+.rs.addFunction("explorer.setCachedObject", function(object,
+                                                     id = .rs.createUUID())
 {
-   # place entry in cache
    cache <- .rs.explorer.getCache()
-   cache[[id]] <- entry
-   
-   # for Python objects, store a reference in our cache
-   if (inherits(entry$object, "python.builtin.object"))
-   {
-      pyid <- paste("_rstudio_viewer", id, sep = "_")
-      cache <- .rs.reticulate.explorerCache()
-      reticulate::py_set_item(cache, pyid, entry$object)
-   }
-
-   # return generated id
+   cache[[id]] <- object
    id
 })
 
-.rs.addFunction("explorer.removeCacheEntry", function(id)
+.rs.addFunction("explorer.removeCachedObject", function(id)
 {
-   # retrieve entry from cache
    cache <- .rs.explorer.getCache()
-   entry <- cache[[id]]
-   
-   # remove old reference
    if (exists(id, envir = cache))
       rm(list = id, envir = cache)
-   
-   # for Python objects, remove cache reference
-   if (.rs.reticulate.isPythonInitialized())
-   {
-      pyid <- paste("_rstudio_viewer", id, sep = "_")
-      cache <- .rs.reticulate.explorerCache()
-      item <- reticulate::py_get_item(cache, pyid, silent = TRUE)
-      if (!is.null(item))
-         reticulate::py_del_item(cache, pyid)
-   }
-   
-   # return id of deleted object
-   id
 })
 
 #' @param name The display name, as should be used in UI.
@@ -368,14 +313,11 @@
       title <- paste(deparse(call$object, width.cutoff = 500), collapse = " ")
    }
    
-   # infer appropriate language based on REPL status
-   language <- if (.rs.reticulate.replIsActive()) "Python" else "R"
-   
    # provide an appropriate name for the root node
    name <- .rs.explorer.objectName(object, title)
    
    # generate a handle for this object
-   handle <- .rs.explorer.createHandle(object, name, title, language, envir)
+   handle <- .rs.explorer.createHandle(object, name, title, envir)
    
    # fire event to client
    .rs.explorer.fireEvent(.rs.explorer.types$NEW, handle)
@@ -384,27 +326,17 @@
 .rs.addFunction("explorer.createHandle", function(object,
                                                   name,
                                                   title,
-                                                  language,
                                                   envir)
 {
-   # create cache entry
-   entry <- list(
-      object   = object,
-      name     = name,
-      title    = title,
-      language = language,
-      envir    = envir
-   )
-   
-   # put it in cache and retrieve handle
-   id <- .rs.explorer.setCacheEntry(entry)
+   # save in cached data environment
+   entry <- list(object = object, name = name, title = title, envir = envir)
+   id <- .rs.explorer.setCachedObject(entry)
    
    # return a handle object
    list(
-      id       = .rs.scalar(id),
-      name     = .rs.scalar(name),
-      title    = .rs.scalar(title),
-      language = .rs.scalar(language)
+      id    = .rs.scalar(id),
+      name  = .rs.scalar(name),
+      title = .rs.scalar(title)
    )
 })
 
@@ -438,12 +370,9 @@
    # (note that the client will still need to refine behavior
    # depending on whether attributes are being shown)
    n <- length(.$object)
-   expandable <- if (inherits(object, "python.builtin.object"))
-   {
-      .rs.explorer.isPythonObjectExpandable(object)
-   }
-   else
-   {
+   expandable <-
+      
+      
       # is this an R list / environment with children?
       (is.recursive(.$object) && !is.primitive(.$object) && n > 0) ||
       
@@ -452,15 +381,25 @@
       
       # is this a named atomic vector?
       (is.atomic(.$object) && !is.null(names(.$object)) && n > 0) ||
-
+      
       # do we have relevant attributes?
-      (.rs.explorer.hasRelevantAttributes(.$object) && n > 0)
-   }
+      .rs.explorer.hasRelevantAttributes(.$object)
    
    # extract attributes when relevant
-   attributes <- if (context$recursive && .rs.explorer.hasRelevantAttributes(.$object))
-      .rs.explorer.inspectObjectAttributes(.$object, context)
-    
+   attributes <- NULL
+   if (context$recursive && .rs.explorer.hasRelevantAttributes(.$object))
+   {
+      childName <- "(attributes)"
+      childAccess <- "attributes(#)"
+      childTags <- c(.rs.explorer.tags$ATTRIBUTES, .rs.explorer.tags$VIRTUAL)
+      childContext <- .rs.explorer.createChildContext(context,
+                                                      childName,
+                                                      childAccess,
+                                                      childTags)
+      childResult <- .rs.explorer.inspectObject(attributes(.$object), childContext)
+      attributes <- childResult
+   }
+   
    # elements dictating how this should be displayed in UI
    display <- list(
       name = .rs.scalar(name),
@@ -556,8 +495,6 @@
    # default to internal inspectors
    if (inherits(object, "xml_node") && "xml2" %in% loadedNamespaces())
       .rs.explorer.inspectXmlNode(object, context)
-   else if (inherits(object, "python.builtin.object"))
-      .rs.explorer.inspectPythonValue(object, context)
    else if (is.list(object) || is.call(object) || is.expression(object))
       .rs.explorer.inspectList(object, context)
    else if (is.environment(object))
@@ -568,154 +505,6 @@
       .rs.explorer.inspectFunction(object, context)
    else
       .rs.explorer.inspectDefault(object, context)
-})
-
-.rs.addFunction("explorer.inspectObjectAttributes", function(object,
-                                                             context = .rs.explorer.createContext())
-{
-   . <- environment()
-   
-   if (inherits(object, "python.builtin.object"))
-   {
-      attributes <- reticulate::dict()
-      
-      builtins <- reticulate::import_builtins(convert = TRUE)
-      keys <- builtins$dir(object)
-      
-      for (key in keys)
-      {
-         attr <- reticulate::py_get_attr(object, key, silent = TRUE)
-         reticulate::py_set_item(attributes, key, attr)
-      }
-      
-      name <- "(attributes)"
-      access <- "#"
-      tags <- c(.rs.explorer.tags$ATTRIBUTES, .rs.explorer.tags$VIRTUAL)
-      childContext <- .rs.explorer.createChildContext(context, name, access, tags)
-      .rs.explorer.inspectObject(attributes, childContext)
-   }
-   else
-   {
-      attributes <- attributes(.$object)
-      name <- "(attributes)"
-      access <- "attributes(#)"
-      tags <- c(.rs.explorer.tags$ATTRIBUTES, .rs.explorer.tags$VIRTUAL)
-      childContext <- .rs.explorer.createChildContext(context, name, access, tags)
-      .rs.explorer.inspectObject(attributes, childContext)
-   }
-})
-
-.rs.addFunction("explorer.inspectPythonValue", function(object,
-                                                        context = .rs.explorer.createContext())
-{
-   children <- NULL
-   
-   if (context$recursive)
-   {
-      children <- if (.rs.explorer.tags$ATTRIBUTES %in% context$tags)
-         .rs.explorer.inspectPythonObject(object, context)
-      else if (inherits(object, "python.builtin.dict"))
-         .rs.explorer.inspectPythonDict(object, context)
-      else if (.rs.reticulate.isStructSeq(object))
-         .rs.explorer.inspectPythonObject(object, context)
-      else if (inherits(object, c("python.builtin.tuple", "python.builtin.list")))
-         .rs.explorer.inspectPythonList(object, context)
-      else
-         .rs.explorer.inspectPythonObject(object, context)
-   }
-   
-   .rs.explorer.createInspectionResult(object, context, children)
-   
-})
-
-.rs.addFunction("explorer.inspectPythonDict", function(object,
-                                                       context = .rs.explorer.createContext())
-{
-   
-   children <- vector("list", 0L)
-   
-   reticulate::iterate(object, function(key) {
-      
-      # skip non-string, non-integer keys as they aren't handled well
-      if (!inherits(key, c("python.builtin.str", "python.builtin.int")))
-         return()
-      
-      item <- reticulate::py_get_item(object, key, silent = TRUE)
-      if (is.null(item))
-         return()
-      
-      name <- as.character(key)
-      access <- sprintf("#[\"%s\"]", name)
-      tags <- character()
-      childContext <- .rs.explorer.createChildContext(context, name, access, tags)
-      
-      children[[length(children) + 1]] <<-
-         .rs.explorer.inspectObject(item, childContext)
-      
-   })
-   
-   children
-   
-})
-
-.rs.addFunction("explorer.inspectPythonList", function(object,
-                                                       context = .rs.explorer.createContext())
-{
-   # NOTE: convert from 1-based to 0-based indexing
-   lapply(seq_along(object) - 1L, function(i) {
-      
-      # force integer indexing in R mode
-      if (.rs.reticulate.replIsActive())
-      {
-         name <- sprintf("[%i]", i)
-         access <- sprintf("#[%i]", i)
-         tags <- c(.rs.explorer.tags$VIRTUAL)
-      }
-      else
-      {
-         name <- sprintf("[%i]", i)
-         access <- sprintf("#[%iL]", i)
-         tags <- c(.rs.explorer.tags$VIRTUAL)
-      }
-      
-      childContext <- .rs.explorer.createChildContext(context, name, access, tags)
-      .rs.explorer.inspectObject(object[[i]], childContext)
-   })
-   
-})
-
-
-.rs.addFunction("explorer.inspectPythonObject", function(object,
-                                                         context = .rs.explorer.createContext())
-{
-   attributes <- .rs.reticulate.listAttributes(
-      object               = object,
-      includeDunderMethods = .rs.explorer.tags$ATTRIBUTES %in% context$tags
-   )
-   
-   lapply(attributes, function(attribute) {
-      
-      item <- reticulate::py_get_attr(object, attribute, silent = TRUE)
-      if (is.null(item))
-         next
-      
-      if (.rs.reticulate.replIsActive())
-      {
-         name <- as.character(attribute)
-         access <- paste("#", name, sep = ".")
-         tags <- character()
-      }
-      else
-      {
-         name <- as.character(attribute)
-         access <- paste("#", deparse(as.name(name), backtick = TRUE), sep = "$")
-         tags <- character()
-      }
-      
-      childContext <- .rs.explorer.createChildContext(context, name, access, tags)
-      .rs.explorer.inspectObject(item, childContext)
-      
-   })
 })
 
 .rs.addFunction("explorer.inspectXmlNode", function(object,
@@ -832,7 +621,7 @@
       slots <- .rs.slotNames(object)
       children <- lapply(slots, function(slot) {
          name <- slot
-         access <- paste("#", deparse(as.name(name), backtick = TRUE), sep = "@")
+         access <- sprintf("#@%s", name)
          tags <- character()
          
          childContext <- .rs.explorer.createChildContext(context, name, access, tags)
@@ -915,23 +704,15 @@
 .rs.addFunction("explorer.objectName", function(object, default)
 {
    if (inherits(object, "xml_node"))
-   {
-      sprintf("<%s>", xml2::xml_name(object))
-   }
-   else
-   {
-      default
-   }
+      return(sprintf("<%s>", xml2::xml_name(object)))
+   
+   default
 })
 
 .rs.addFunction("explorer.objectType", function(object)
 {
    # some specialized behavior for certain objects
-   if (inherits(object, "python.builtin.object"))
-   {
-      return(.rs.reticulate.describeObjectType(object))
-   }
-   else if (inherits(object, "factor"))
+   if (inherits(object, "factor"))
    {
       type <- "factor"
       classes <- setdiff(class(object), "factor")
@@ -991,12 +772,7 @@
    trailing <- " ..."
    n <- 6L
    
-   if (inherits(object, "python.builtin.object"))
-   {
-      output <- .rs.reticulate.describeObjectValue(object)
-      more <- FALSE
-   }
-   else if (is.primitive(object))
+   if (is.primitive(object))
    {
       output <- paste(capture.output(print(object)), collapse = " ")
       output <- sub("function ", "function", output)
@@ -1176,25 +952,21 @@
    format(object.size(object), units = "auto")
 })
 
-.rs.addFunction("explorer.isPythonObjectExpandable", function(object)
+# Utility Functions ----
+
+.rs.addFunction("getRefCount", function(object)
 {
-   # NOTE: technically, these objects are expandable (they have attributes
-   # and may even have methods of interest) but since they're usually less
-   # interesting than the object's actual value we ignore those by default.
-   ignored <- c(
-      "python.builtin.bool",
-      "python.builtin.int",
-      "python.builtin.float",
-      "python.builtin.str",
-      "python.builtin.bytes",
-      "python.builtin.method",
-      "python.builtin.function",
-      "python.builtin.builtin_function_or_method",
-      "python.builtin.NoneType"
-   )
-   
-   if (inherits(object, ignored))
-      return(FALSE)
-   
-   TRUE
+   .Call("rs_getRefCount",
+         as.name("object"),
+         environment(),
+         PACKAGE = "(embedding)")
+})
+
+.rs.addFunction("setRefCount", function(object, count)
+{
+   .Call("rs_setRefCount",
+         as.name("object"),
+         environment(),
+         as.integer(count),
+         PACKAGE = "(embedding)")
 })

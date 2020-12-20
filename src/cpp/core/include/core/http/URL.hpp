@@ -1,7 +1,7 @@
 /*
  * URL.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,7 @@
 #include <string>
 #include <iosfwd>
 
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 
 namespace rstudio {
 namespace core {
@@ -103,9 +103,10 @@ public:
       return absoluteURL_ != other.absoluteURL_;
    }
    
-   static std::string cleanupPath(std::string path);
    static std::string complete(std::string absoluteUri, std::string targetUri);
    static std::string uncomplete(std::string baseUri, std::string targetUri);
+
+   static void test();
 
 private:
   

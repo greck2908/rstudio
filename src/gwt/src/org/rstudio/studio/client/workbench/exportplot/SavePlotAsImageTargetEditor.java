@@ -1,7 +1,7 @@
 /*
  * SavePlotAsImageTargetEditor.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,7 +14,6 @@
  */
 package org.rstudio.studio.client.workbench.exportplot;
 
-import com.google.gwt.aria.client.Roles;
 import org.rstudio.core.client.files.FileSystemContext;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.widget.CanFocus;
@@ -33,6 +32,7 @@ import com.google.gwt.dom.client.Style.Unit;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.user.client.ui.Composite;
+import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.ListBox;
 import com.google.gwt.user.client.ui.TextBox;
 
@@ -77,7 +77,7 @@ public class SavePlotAsImageTargetEditor extends Composite implements CanFocus
             fileDialogs_.chooseFolder(
                "Choose Directory",
                fileSystemContext_,
-               FileSystemItem.createDir(directoryTextBox_.getText().trim()),
+               FileSystemItem.createDir(directoryLabel_.getTitle().trim()),
                new ProgressOperationWithInput<FileSystemItem>() {
 
                  public void execute(FileSystemItem input,
@@ -98,13 +98,10 @@ public class SavePlotAsImageTargetEditor extends Composite implements CanFocus
          }
       });
       
-      directoryTextBox_ = new TextBox();
-      directoryTextBox_.setReadOnly(true);
-      Roles.getTextboxRole().setAriaLabelProperty(directoryTextBox_.getElement(), "Selected Directory");
-
+      directoryLabel_ = new Label();
       setDirectory(context_.getDirectory());
-      directoryTextBox_.setStylePrimaryName(styles.directoryTextBox());
-      grid.setWidget(1, 1, directoryTextBox_);
+      directoryLabel_.setStylePrimaryName(styles.directoryLabel());
+      grid.setWidget(1, 1, directoryLabel_);
       
       fileNameTextBox_ = new TextBox();
       fileNameTextBox_.setText(context.getUniqueFileStem());
@@ -151,14 +148,17 @@ public class SavePlotAsImageTargetEditor extends Composite implements CanFocus
         
       // set label
       String dirLabel = ExportPlotUtils.shortDirectoryName(directory, 250);
-      directoryTextBox_.setText(dirLabel);
+      directoryLabel_.setText(dirLabel);
+      
+      // set tooltip
+      directoryLabel_.setTitle(directory.getPath());
    }
    
    
    private ListBox imageFormatListBox_;
    private TextBox fileNameTextBox_;
    private FileSystemItem directory_;
-   private TextBox directoryTextBox_;
+   private Label directoryLabel_;
   
    
    private final SavePlotAsImageContext context_;

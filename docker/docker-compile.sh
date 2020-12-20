@@ -8,7 +8,7 @@
 # 
 # The syntax is as follows:
 #
-#     docker-compile.sh IMAGE-NAME FLAVOR-NAME [VERSION]
+#     docker-compile.sh IMAGE-NAME FLAVOR-NAME [VERSION] [VARIANT]
 #
 # where the image name is the platform and architecture, the flavor name is
 # the kind of package you wish to build (desktop or server), and the version
@@ -34,6 +34,7 @@
 IMAGE=$1
 FLAVOR=$2
 VERSION=$3
+VARIANT=$4
 
 # abort on error
 set -e
@@ -113,15 +114,13 @@ fi
 ENV="$ENV GIT_COMMIT=$(git rev-parse HEAD)"
 ENV="$ENV BUILD_ID=local"
 
-# infer make parallelism
-if hash sysctl 2>/dev/null; then
-    # macos; we could use `sysctl -n hw.ncpu` but that would likely be too
-    # high. Docker for Mac defaults to half that value. Instead, use -j2 
-    # to match what we currently do in the official build.
-    ENV="$ENV MAKEFLAGS=-j2"
-elif hash nproc 2>/dev/null; then
+# if we have an nproc command, use it to infer make parallelism
+if hash nproc 2>/dev/null; then
     # linux
     ENV="$ENV MAKEFLAGS=-j$(nproc --all)"
+elif hash sysctl 2>/dev/null; then
+    # macos
+    ENV="$ENV MAKEFLAGS=-j$(sysctl -n hw.ncpu)"
 fi
 
 # forward build type if set
@@ -139,24 +138,8 @@ CONTAINER_ID="build-$REPO-$IMAGE"
 echo "Cleaning up container $CONTAINER_ID if it exists..."
 docker rm "$CONTAINER_ID" || true
 
-# form build command ---
-
-# create and enter package build directory
-CMD="mkdir /package &&"
-CMD="${CMD} cd /package &&"
-
-# perform the actual compile step w/ clean
-CMD="${CMD} $ENV /src/package/linux/make-package ${FLAVOR^} ${PACKAGE} clean &&"
-
-# output the name of the built package (will be captured later)
-CMD="${CMD} echo build-${FLAVOR^}-${PACKAGE}/*.${PACKAGE,,} &&"
-CMD="${CMD} ls build-${FLAVOR^}-${PACKAGE}${FLAVOR_SUFFIX}/*.${PACKAGE,,}"
-
-echo "Running build command:"
-echo "${CMD}"
-
-# run compile step!
-docker run --name "$CONTAINER_ID" -v "$(pwd):/src" "$REPO:$IMAGE" bash -c "${CMD}"
+# run compile step
+docker run --name "$CONTAINER_ID" -v "$(pwd):/src" "$REPO:$IMAGE" bash -c "mkdir /package && cd /package && $ENV /src/package/linux/make-package ${FLAVOR^} $PACKAGE clean $VARIANT && echo build-${FLAVOR^}-$PACKAGE/*.${PACKAGE,,} && ls build-${FLAVOR^}-$PACKAGE$FLAVOR_SUFFIX/*.${PACKAGE,,}"
 
 # extract logs to get filename (should be on the last line)
 PKG_FILENAME=$(docker logs --tail 1 "$CONTAINER_ID")
@@ -173,3 +156,5 @@ fi
 # stop the container
 docker stop "$CONTAINER_ID"
 echo "Container image saved in $CONTAINER_ID."
+
+

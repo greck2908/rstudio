@@ -1,7 +1,7 @@
 /*
  * ShortcutManager.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -32,16 +32,13 @@ import org.rstudio.core.client.command.KeyMap.CommandBinding;
 import org.rstudio.core.client.command.KeyMap.KeyMapType;
 import org.rstudio.core.client.dom.DomUtils;
 import org.rstudio.core.client.events.NativeKeyDownEvent;
+import org.rstudio.core.client.events.NativeKeyDownHandler;
 import org.rstudio.studio.client.RStudioGinjector;
-import org.rstudio.studio.client.application.Desktop;
 import org.rstudio.studio.client.application.events.EventBus;
-import org.rstudio.studio.client.application.events.WarningBarClosedEvent;
 import org.rstudio.studio.client.events.EditEvent;
 import org.rstudio.studio.client.workbench.addins.AddinsCommandManager;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.commands.RStudioCommandExecutedFromShortcutEvent;
-import org.rstudio.studio.client.workbench.commands.ReportShortcutBindingEvent;
-import org.rstudio.studio.client.workbench.events.ShowWarningBarEvent;
 import org.rstudio.studio.client.workbench.views.source.editors.text.AceEditor;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.AceEditorNative;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.AceKeyboardActivityEvent;
@@ -59,12 +56,9 @@ import com.google.gwt.user.client.Timer;
 import com.google.inject.Inject;
 
 public class ShortcutManager implements NativePreviewHandler,
-                                        NativeKeyDownEvent.Handler,
-                                        EditEvent.Handler,
-                                        WarningBarClosedEvent.Handler
+                                        NativeKeyDownHandler,
+                                        EditEvent.Handler
 {
-   public interface Binder extends CommandBinder<Commands, ShortcutManager> {}
-
    public interface Handle
    {
       void close();
@@ -81,19 +75,19 @@ public class ShortcutManager implements NativePreviewHandler,
          @Override
          public void run()
          {
-            clearKeyBuffer();
+            keyBuffer_.clear();
          }
       };
-
+      
       shortcutInfo_ = new ArrayList<ShortcutInfo>();
       defaultBindings_ = new ArrayList<Pair<KeySequence, AppCommandBinding>>();
-
+      
       // Initialize the key maps. We use a LinkedHashMap so that insertion
       // order can be preserved.
       keyMaps_ = new LinkedHashMap<KeyMapType, KeyMap>();
       for (KeyMapType type : KeyMapType.values())
          keyMaps_.put(type, new KeyMap());
-
+      
       // Defer injection because the ShortcutManager is constructed
       // very eagerly (to allow for codegen stuff in ShortcutsEmitter
       // to work)
@@ -111,51 +105,49 @@ public class ShortcutManager implements NativePreviewHandler,
                      public void onAceKeyboardActivity(AceKeyboardActivityEvent event)
                      {
                         if (!event.isChainEvent())
-                           clearKeyBuffer();
+                           keyBuffer_.clear();
                      }
                   });
             events_.addHandler(EditEvent.TYPE, ShortcutManager.this);
-            events_.addHandler(WarningBarClosedEvent.TYPE, ShortcutManager.this);
          }
       });
-
+      
       // NOTE: Because this class is used as a singleton and is never
       // destroyed it's not necessary to manage lifetime of this event handler
       Event.addNativePreviewHandler(this);
       addPostViewHandler();
       addNativeEditHandlers();
    }
-
+   
    private native final void addPostViewHandler() /*-{
       var self = this;
       $doc.body.addEventListener("keydown", $entry(function(evt) {
          self.@org.rstudio.core.client.command.ShortcutManager::swallowEvents(Ljava/lang/Object;)(evt);
       }));
    }-*/;
-
+   
    private native final void addNativeEditHandlers() /*-{
       var self = this;
       var callback = $entry(function(event) {
-         self.@org.rstudio.core.client.command.ShortcutManager::onNativeEditEvent(Ljava/lang/Object;)(event);
+      	self.@org.rstudio.core.client.command.ShortcutManager::onNativeEditEvent(Ljava/lang/Object;)(event);
       });
-
+      
       $doc.body.addEventListener("copy",  callback);
       $doc.body.addEventListener("paste", callback);
       $doc.body.addEventListener("cut",   callback);
    }-*/;
-
+   
    private void onNativeEditEvent(Object object)
    {
-      clearKeyBuffer();
+      keyBuffer_.clear();
    }
-
+   
    @Inject
    private void initialize(ApplicationCommandManager appCommands,
                            EditorCommandManager editorCommands,
                            UserCommandManager userCommands,
                            AddinsCommandManager addins,
                            EventBus events,
-                           Binder binder,
                            Commands commands)
    {
       appCommands_ = appCommands;
@@ -164,7 +156,6 @@ public class ShortcutManager implements NativePreviewHandler,
       addins_ = addins;
       events_ = events;
       commands_ = commands;
-      binder.bind(commands_, this);
    }
 
    public boolean isEnabled()
@@ -188,21 +179,21 @@ public class ShortcutManager implements NativePreviewHandler,
          }
       };
    }
-
+   
    public void register(String key,
                         int keyCode,
-                        int modifiers,
-                        AppCommand command,
-                        String groupName,
+                        int modifiers, 
+                        AppCommand command, 
+                        String groupName, 
                         String title,
                         String disableModes)
    {
       if (!BrowseCap.hasMetaKey() && (modifiers & KeyboardShortcut.META) != 0)
          return;
-
+      
       KeySequence keySequence = new KeySequence();
       keySequence.add(new KeyCombination(key, keyCode, modifiers));
-
+      
       register(
             keySequence,
             command,
@@ -210,7 +201,7 @@ public class ShortcutManager implements NativePreviewHandler,
             title,
             disableModes);
    }
-
+   
    public void register(String k1, int c1, int m1,
                         String k2, int c2, int m2,
                         AppCommand command,
@@ -223,12 +214,12 @@ public class ShortcutManager implements NativePreviewHandler,
       sequence.add(new KeyCombination(k2, c2, m2));
       register(sequence, command, groupName, title, disableModes);
    }
-
+   
    public void register(KeySequence keys, AppCommand command)
    {
       register(keys, command, "", "", "");
    }
-
+   
    // Registering a keyboard shortcut needs to perform two actions:
    //
    // 1. Register information about a particular command; e.g. the name,
@@ -251,7 +242,7 @@ public class ShortcutManager implements NativePreviewHandler,
       // Register the keyboard shortcut information.
       KeyboardShortcut shortcut = new KeyboardShortcut(keys, groupName, title, disableModes);
       shortcutInfo_.add(new ShortcutInfo(shortcut, command));
-
+      
       // Bind the command in the application key map.
       if (command != null)
       {
@@ -263,18 +254,18 @@ public class ShortcutManager implements NativePreviewHandler,
          int disableFlags = shortcut.getDisableModes();
          if ((disableFlags & KeyboardShortcut.MODE_DEFAULT) == 0)
             command.setShortcut(shortcut);
-
+         
          // Add the command into the keymap, ensuring it can be executed on the associated
          // keypress.
          KeyMap appKeyMap = keyMaps_.get(KeyMapType.APPLICATION);
          AppCommandBinding binding = new AppCommandBinding(command, disableModes, false);
          appKeyMap.addBinding(keys, binding);
-
+         
          // Cache the binding (so we can reset later if required)
          defaultBindings_.add(new Pair<KeySequence, AppCommandBinding>(keys, binding));
       }
    }
-
+   
    public void resetAppCommandBindings()
    {
       KeyMap map = new KeyMap();
@@ -282,14 +273,14 @@ public class ShortcutManager implements NativePreviewHandler,
          map.addBinding(pair.first, pair.second);
       keyMaps_.put(KeyMapType.APPLICATION, map);
    }
-
+   
    public static int parseDisableModes(String disableModes)
    {
       int mode = KeyboardShortcut.MODE_NONE;
-
+      
       if (StringUtil.isNullOrEmpty(disableModes))
          return mode;
-
+      
       String[] splat = disableModes.split(",");
       for (String item : splat)
       {
@@ -304,10 +295,10 @@ public class ShortcutManager implements NativePreviewHandler,
          else
             assert false: "Unrecognized 'disableModes' value '" + item + "'";
       }
-
+      
       return mode;
    }
-
+   
    public void onKeyDown(NativeKeyDownEvent evt)
    {
       if (evt.isCanceled())
@@ -336,30 +327,30 @@ public class ShortcutManager implements NativePreviewHandler,
          }
       }
    }
-
+   
    public void setEditorMode(int editorMode)
    {
       editorMode_ = editorMode;
    }
-
+   
    public int getEditorMode()
    {
       return editorMode_;
    }
-
+   
    public List<ShortcutInfo> getActiveShortcutInfo()
    {
       // Filter out commands disabled due to the current editor mode.
       // Also only retain the first discovered binding for a particular command.
       final Set<String> encounteredShortcuts = new HashSet<String>();
-
+      
       List<ShortcutInfo> filtered = new ArrayList<ShortcutInfo>();
       for (int i = 0, n = shortcutInfo_.size(); i < n; i++)
       {
          ShortcutInfo object = shortcutInfo_.get(n - i - 1);
          if (encounteredShortcuts.contains(object.getDescription()))
             continue;
-
+         
          boolean isEnabled = (object.getDisableModes() & editorMode_) == 0;
          if (isEnabled)
          {
@@ -367,7 +358,7 @@ public class ShortcutManager implements NativePreviewHandler,
             filtered.add(object);
          }
       }
-
+      
       // Sort in order declared in Commands.cmd.xml
       Collections.sort(filtered, new Comparator<ShortcutInfo>()
       {
@@ -377,10 +368,10 @@ public class ShortcutManager implements NativePreviewHandler,
             return o1.getOrder() - o2.getOrder();
          }
       });
-
+      
       return filtered;
    }
-
+   
    private boolean handleKeyDown(NativeEvent event)
    {
       // Don't handle the (synthetic) copy, cut, paste keys
@@ -396,22 +387,22 @@ public class ShortcutManager implements NativePreviewHandler,
                events_.fireEvent(new EditEvent(false, type));
             }
          });
-
+         
          activeEditEventType_ = EditEvent.TYPE_NONE;
-         clearKeyBuffer();
+         keyBuffer_.clear();
          return false;
       }
-
+      
       // Bail if the shortcut manager is not enabled (e.g.
       // we disable it temporarily when interacting with
       // modal dialogs)
       if (!isEnabled())
          return false;
-
+      
       // Don't dispatch on bare modifier keypresses.
       if (KeyboardHelper.isModifierKey(event.getKeyCode()))
          return false;
-
+      
       // Edit key combinations inserted when no Ace instance has focus should
       // clear the key buffer (assuming that the browser will later handle this
       // as an edit when the event bubbles). This needs to execute within a
@@ -427,20 +418,20 @@ public class ShortcutManager implements NativePreviewHandler,
          AceEditorNative editor = AceEditorNative.getEditor(target);
          if (editor == null)
          {
-            clearKeyBuffer();
+            keyBuffer_.clear();
             return false;
          }
       }
-
+      
       // Escape key should always clear the keybuffer.
       if (event.getKeyCode() == KeyCodes.KEY_ESCAPE)
       {
-         clearKeyBuffer();
+         keyBuffer_.clear();
          return false;
       }
-
+      
       KeyCombination keyCombination = new KeyCombination(event);
-
+      
       // Disable 'Ctrl+F' keybinding when Ace editor in Vim mode
       // is focused.
       if (keyCombination.getKeyCode() == KeyCodes.KEY_F &&
@@ -450,7 +441,7 @@ public class ShortcutManager implements NativePreviewHandler,
          AceEditorNative editor = AceEditorNative.getEditor(target);
          if (editor != null && editor.isVimModeOn())
          {
-            clearKeyBuffer();
+            keyBuffer_.clear();
             return false;
          }
       }
@@ -458,28 +449,28 @@ public class ShortcutManager implements NativePreviewHandler,
       // Bail if this is an ignored key combination.
       if (isIgnoredKeyCombination(keyCombination))
       {
-         clearKeyBuffer();
+         keyBuffer_.clear();
          return false;
       }
-
+      
       keyBuffer_.add(keyCombination);
       
-
       // we handle `Ctrl+L` for the sublime mode here
       // because it is conflicted with `consoleClear`
       if (editorMode_ == KeyboardShortcut.MODE_SUBLIME)
-      {
-         if (keyCombination.getKeyCode() == KeyCodes.KEY_L &&
-             keyCombination.getModifier() == KeyboardShortcut.CTRL)
+         {
+            if (keyCombination.getKeyCode() == KeyCodes.KEY_L &&
+                keyCombination.getModifier() == KeyboardShortcut.CTRL)
          {
             Element target = Element.as(event.getEventTarget());
             AceEditor editor = AceEditor.getEditor(target);
             AceEditorNative nativeEditor = AceEditorNative.getEditor(target);
             if (editor != null && nativeEditor != null &&
                   nativeEditor == editor.getWidget().getEditor() &&
-                  ElementIds.isInstanceOf(editor.getWidget(), ElementIds.SOURCE_TEXT_EDITOR))
+                  editor.getWidget().getElement().getId() ==
+                     ElementIds.getElementId(ElementIds.SOURCE_TEXT_EDITOR))
             {
-               clearKeyBuffer();
+               keyBuffer_.clear();
                commands_.expandToLine().execute();
                return true;
             }
@@ -493,10 +484,10 @@ public class ShortcutManager implements NativePreviewHandler,
       for (Map.Entry<KeyMapType, KeyMap> entry : keyMaps_.entrySet())
       {
          KeyMap map = entry.getValue();
-         CommandBinding binding = map.getActiveBinding(keyBuffer_, reportShortcutBinding_);
+         CommandBinding binding = map.getActiveBinding(keyBuffer_);
          if (binding != null)
          {
-            clearKeyBuffer();
+            keyBuffer_.clear();
 
             XTermWidget xterm = XTermWidget.tryGetXTerm(Element.as(event.getEventTarget()));
             if (xterm != null)
@@ -505,7 +496,7 @@ public class ShortcutManager implements NativePreviewHandler,
                {
                   if (xterm.xtermAltBufferActive())
                   {
-                     // If the terminal is running a full-screen program, pass the
+                     // If the terminal is running a full-screen program, pass the 
                      // keystroke through, instead. Otherwise we're potentially
                      // clearing the main buffer even though user is seeing the alt-
                      // buffer.
@@ -521,9 +512,9 @@ public class ShortcutManager implements NativePreviewHandler,
                }
                else if (binding.getId() == "closeSourceDoc")
                {
-                  // special case: Ctrl+W is usually bound to closeSourceDoc,
-                  // but this key sequence is frequently used in bash to kill
-                  // the word behind the cursor; so we'll ignore this command
+                  // special case: Ctrl+W is usually bound to closeSourceDoc, 
+                  // but this key sequence is frequently used in bash to kill 
+                  // the word behind the cursor; so we'll ignore this command 
                   // when focus is in the terminal and let terminal see keys
                   return false;
                }
@@ -536,49 +527,19 @@ public class ShortcutManager implements NativePreviewHandler,
                   return false;
                }
             }
-
+            
             event.stopPropagation();
-            if (!reportShortcutBinding(binding.getId()))
-               binding.execute();
+            binding.execute();
             return true;
          }
          
          if (map.isPrefix(keyBuffer_))
-         {
             pending = true;
-            reportShortcutPending();
-         }
-         else
-         {
-            reportShortcutUnbound();
-         }
       }
       
-      // Handle 'Ctrl + Z' (Undo) specially on Windows desktop.
-      // We basically detect attempts to use undo, and then re-fire
-      // those from Qt specifically since that will ensure a properly
-      // created key event is generated and used to perform the undo.
-      //
-      // https://github.com/rstudio/rstudio/issues/7960
-      if (!isExecutingUndoQtWorkaround_ &&
-            BrowseCap.isWindowsDesktop() &&
-            BrowseCap.isQtWebEngine() &&
-            !StringUtil.equals(keyCombination.key(), "z") &&
-            keyCombination.getKeyCode() == KeyCodes.KEY_Z &&
-            keyCombination.getModifier() == KeyboardShortcut.CTRL)
-      {
-         isExecutingUndoQtWorkaround_ = true;
-         clearKeyBuffer();
-         event.stopPropagation();
-         event.preventDefault();
-         commands_.undoDummy().execute();
-         return true;
-      }
-      isExecutingUndoQtWorkaround_ = false;
-            
       if (!(pending || isPrefixForEditor(keyCombination, event)))
-         clearKeyBuffer();
-
+         keyBuffer_.clear();
+      
       // Assume that a keypress without a modifier key clears the keybuffer.
       // This disallows binding of commands in a way like '<SPC> a a', which
       // kind of stinks, but helps ensure that we don't get a stale keybuffer.
@@ -590,12 +551,12 @@ public class ShortcutManager implements NativePreviewHandler,
       {
          KeyCombination keys = keyBuffer_.get(keyBuffer_.size() - 1);
          if (keys.getModifier() == KeyboardShortcut.NONE)
-            clearKeyBuffer();
+            keyBuffer_.clear();
       }
-
+      
       return false;
    }
-
+   
    // TODO: In a perfect world, this function does not exist and
    // instead we populate an editor key map based on the current state
    // of the Ace editor, which we could check for prefix matches.
@@ -615,22 +576,22 @@ public class ShortcutManager implements NativePreviewHandler,
             return keyCode == KeyCodes.KEY_C || keyCode == KeyCodes.KEY_X;
          }
       }
-
+      
       return false;
    }
-
+   
    public void onEdit(EditEvent event)
    {
       if (event.isBeforeEdit())
          activeEditEventType_ = event.getType();
    }
-
+   
    private boolean isEditKeyCombination(NativeEvent event)
    {
       int targetModifier = BrowseCap.isMacintosh()
             ? KeyboardShortcut.META
             : KeyboardShortcut.CTRL;
-
+      
       int keyCode = event.getKeyCode();
       int modifier = KeyboardShortcut.getModifierValue(event);
       if (modifier == targetModifier && (
@@ -640,14 +601,14 @@ public class ShortcutManager implements NativePreviewHandler,
       {
          return true;
       }
-
+      
       return false;
    }
-
+   
    private void swallowEvents(Object object)
    {
       NativeEvent event = (NativeEvent) object;
-
+      
       // If the keybuffer is a prefix key sequence, swallow
       // the event. This ensures that the system doesn't 'beep'
       // when seeing unhandled keys.
@@ -663,41 +624,41 @@ public class ShortcutManager implements NativePreviewHandler,
             }
          }
       }
-
+      
       // Prevent backspace from performing a browser 'back'
       if (DomUtils.preventBackspaceCausingBrowserBack(event))
          return;
-
+      
       // Suppress save / quit events from reaching the browser
       KeyCombination keys = new KeyCombination(event);
       int keyCode = keys.getKeyCode();
       int modifiers = keys.getModifier();
-
+      
       boolean isSaveQuitKey =
             keyCode == KeyCodes.KEY_S ||
             keyCode == KeyCodes.KEY_W;
-
+      
       boolean isSaveQuitModifier = BrowseCap.isMacintosh() ?
             modifiers == KeyboardShortcut.META :
             modifiers == KeyboardShortcut.CTRL;
-
+      
       if (isSaveQuitKey && isSaveQuitModifier)
          event.preventDefault();
-
+      
       // Prevent 'Ctrl+Shift+B' (toggle bookmarks)
       boolean isToggleBookmarksModifier = BrowseCap.isMacintosh()
             ? modifiers == (KeyboardShortcut.SHIFT | KeyboardShortcut.META)
             : modifiers == (KeyboardShortcut.SHIFT | KeyboardShortcut.CTRL);
-
+      
       if (keyCode == KeyCodes.KEY_B && isToggleBookmarksModifier)
          event.preventDefault();
    }
-
+   
    public KeyMap getKeyMap(KeyMapType type)
    {
       return keyMaps_.get(type);
    }
-
+   
    private static class IgnoredKeysMap<T>
    {
       public IgnoredKeysMap()
@@ -705,14 +666,14 @@ public class ShortcutManager implements NativePreviewHandler,
          ignoredKeys_ = new HashMap<Integer, Set<T>>();
          count_ = 0;
       }
-
+      
       public Handle addIgnoredKeys(T keys)
       {
          Set<T> keySet = new HashSet<T>();
          keySet.add(keys);
          return addIgnoredKeys(keySet);
       }
-
+      
       public Handle addIgnoredKeys(Set<T> keySet)
       {
          final Integer index = count_++;
@@ -726,7 +687,7 @@ public class ShortcutManager implements NativePreviewHandler,
             }
          };
       }
-
+      
       public boolean isIgnoredKeyCombination(T keys)
       {
          for (Map.Entry<Integer, Set<T>> entry : ignoredKeys_.entrySet())
@@ -735,104 +696,41 @@ public class ShortcutManager implements NativePreviewHandler,
             if (keySet.contains(keys))
                return true;
          }
-
+         
          return false;
       }
-
+      
       private final Map<Integer, Set<T>> ignoredKeys_;
       private Integer count_;
    }
-
+   
    public final Handle addIgnoredKeys(KeyCombination keys)
    {
       return ignoredKeys_.addIgnoredKeys(keys);
    }
-
+   
    public final Handle addIgnoredKeys(Set<KeyCombination> keys)
    {
       return ignoredKeys_.addIgnoredKeys(keys);
    }
-
+   
    public final boolean isIgnoredKeyCombination(KeyCombination keys)
    {
       return ignoredKeys_.isIgnoredKeyCombination(keys);
    }
-
-   public void setReportShortcutBinding(boolean report)
-   {
-      reportShortcutBinding_ = report;
-   }
-
-   private static final String REPORT_SHORTCUTS_MESSAGE =
-         "Type shortcuts to see if they are bound to a command. Close this message bar when done.";
-
-   @Handler
-   void onShowShortcutCommand()
-   {
-      setReportShortcutBinding(true);
-      events_.fireEvent(new ShowWarningBarEvent(false /*severe*/, REPORT_SHORTCUTS_MESSAGE));
-   }
-
-   @Override
-   public void onWarningBarClosed(WarningBarClosedEvent event)
-   {
-      setReportShortcutBinding(false);
-   }
-
-   private void clearKeyBuffer()
-   {
-      keyBuffer_.clear();
-      if (reportedPending_)
-      {
-         reportShortcutBinding(REPORT_SHORTCUTS_MESSAGE);
-         reportedPending_ = false;
-      }
-   }
-
-   private boolean reportShortcutBinding(String message)
-   {
-      if (reportShortcutBinding_)
-      {
-         events_.fireEvent(new ReportShortcutBindingEvent(message));
-         reportedPending_ = false;
-      }
-      return reportShortcutBinding_;
-   }
-
-   private void reportShortcutPending()
-   {
-      if (reportShortcutBinding_)
-      {
-         reportedPending_ = true;
-         events_.fireEvent(new ReportShortcutBindingEvent("Multi-gesture shortcut pending"));
-      }
-   }
-
-   private void reportShortcutUnbound()
-   {
-      if (reportShortcutBinding_)
-      {
-         reportedPending_ = false;
-         events_.fireEvent(new ReportShortcutBindingEvent("Shortcut not bound"));
-      }
-   }
-
+   
    private int disableCount_ = 0;
    private int editorMode_ = KeyboardShortcut.MODE_DEFAULT;
-
+   
    private final KeySequence keyBuffer_;
    private final IgnoredKeysMap<KeyCombination> ignoredKeys_;
    private final Timer keyTimer_;
    private int activeEditEventType_ = EditEvent.TYPE_NONE;
-
+   
    private final Map<KeyMapType, KeyMap> keyMaps_;
    private final List<ShortcutInfo> shortcutInfo_;
    private final List<Pair<KeySequence, AppCommandBinding>> defaultBindings_;
-   private boolean reportShortcutBinding_ = false;
-   private boolean reportedPending_ = false;
    
-   private boolean isExecutingUndoQtWorkaround_ = false;
-
    // Injected ----
    private UserCommandManager userCommands_;
    private EditorCommandManager editorCommands_;
@@ -840,5 +738,5 @@ public class ShortcutManager implements NativePreviewHandler,
    private AddinsCommandManager addins_;
    private EventBus events_;
    private Commands commands_;
-
+   
 }

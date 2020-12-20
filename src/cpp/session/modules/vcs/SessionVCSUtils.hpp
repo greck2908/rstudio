@@ -1,7 +1,7 @@
 /*
  * SessionVCSUtils.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,7 @@
 
 #include <boost/noncopyable.hpp>
 
-#include <shared_core/json/Json.hpp>
+#include <core/json/Json.hpp>
 #include <core/system/Process.hpp>
 
 namespace rstudio {

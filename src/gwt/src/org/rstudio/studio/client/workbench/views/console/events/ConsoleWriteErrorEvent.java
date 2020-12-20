@@ -1,7 +1,7 @@
 /*
  * ConsoleWriteErrorEvent.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,20 +14,15 @@
  */
 package org.rstudio.studio.client.workbench.views.console.events;
 
-import com.google.gwt.event.shared.EventHandler;
 import org.rstudio.studio.client.workbench.views.console.model.ConsoleText;
 
 import com.google.gwt.event.shared.GwtEvent;
 
-public class ConsoleWriteErrorEvent extends GwtEvent<ConsoleWriteErrorEvent.Handler>
+public class ConsoleWriteErrorEvent extends GwtEvent<ConsoleWriteErrorHandler>
 {
-   public static final Type<Handler> TYPE = new Type<>();
-
-   public interface Handler extends EventHandler
-   {
-      void onConsoleWriteError(ConsoleWriteErrorEvent event);
-   }
-
+   public static final GwtEvent.Type<ConsoleWriteErrorHandler> TYPE =
+      new GwtEvent.Type<ConsoleWriteErrorHandler>();
+      
    public ConsoleWriteErrorEvent(ConsoleText error)
    {
       error_ = error;
@@ -44,13 +39,13 @@ public class ConsoleWriteErrorEvent extends GwtEvent<ConsoleWriteErrorEvent.Hand
    }
    
    @Override
-   protected void dispatch(Handler handler)
+   protected void dispatch(ConsoleWriteErrorHandler handler)
    {
       handler.onConsoleWriteError(this);
    }
 
    @Override
-   public Type<Handler> getAssociatedType()
+   public GwtEvent.Type<ConsoleWriteErrorHandler> getAssociatedType()
    {
       return TYPE;
    }

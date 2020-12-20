@@ -1,7 +1,7 @@
 /*
  * EditEvent.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,26 +24,25 @@ public class EditEvent extends GwtEvent<EditEvent.Handler>
       before_ = before;
       type_ = type;
    }
-
+   
    public boolean isBeforeEdit()
    {
       return before_;
    }
-
+   
    public int getType()
    {
       return type_;
    }
-
+   
    private final boolean before_;
    private final int type_;
-
-   public static final int TYPE_NONE              = 0;
-   public static final int TYPE_CUT               = 1;
-   public static final int TYPE_COPY              = 2;
-   public static final int TYPE_PASTE             = 4;
-   public static final int TYPE_PASTE_WITH_INDENT = 8;
-
+   
+   public static final int TYPE_NONE  = 0;
+   public static final int TYPE_CUT   = 1;
+   public static final int TYPE_COPY  = 2;
+   public static final int TYPE_PASTE = 4;
+	
    // Boilerplate ----
    public interface Handler extends EventHandler
    {
@@ -62,5 +61,5 @@ public class EditEvent extends GwtEvent<EditEvent.Handler>
       handler.onEdit(this);
    }
 
-   public static final Type<Handler> TYPE = new Type<>();
+   public static final Type<Handler> TYPE = new Type<Handler>();
 }

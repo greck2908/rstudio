@@ -1,7 +1,7 @@
 /*
  * RmdOutputFrame.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -25,7 +25,7 @@ public interface RmdOutputFrame
    public void closeOutputFrame(boolean forReopen);
    public WindowEx getWindowObject();
    public void showRmdPreview(RmdPreviewParams params, boolean activate);
-   public String getViewerType();
+   public int getViewerType();
    RmdPreviewParams getPreviewParams();
    public int getScrollPosition();
    public String getAnchor();

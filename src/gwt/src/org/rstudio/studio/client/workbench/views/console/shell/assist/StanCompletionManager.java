@@ -1,7 +1,7 @@
 /*
  * StanCompletionManager.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,7 +24,6 @@ import org.rstudio.core.client.JsVector;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.studio.client.common.codetools.CodeToolsServerOperations;
 import org.rstudio.studio.client.common.codetools.RCompletionType;
-import org.rstudio.studio.client.common.filetypes.DocumentMode;
 import org.rstudio.studio.client.server.ServerError;
 import org.rstudio.studio.client.server.ServerRequestCallback;
 import org.rstudio.studio.client.workbench.views.console.shell.assist.CompletionRequester.QualifiedName;
@@ -56,12 +55,6 @@ public class StanCompletionManager extends CompletionManagerBase
       sigTips_ = new SignatureToolTipManager(docDisplay)
       {
          @Override
-         protected boolean isEnabled(Position position)
-         {
-            return DocumentMode.isPositionInStanMode(docDisplay, position);
-         }
-         
-         @Override
          protected void getFunctionArguments(final String name,
                                              final String source,
                                              final String helpHandler,
@@ -86,16 +79,9 @@ public class StanCompletionManager extends CompletionManagerBase
    }
    
    @Override
-   public void showAdditionalHelp(QualifiedName completion)
-   {
-      // NYI
-   }
-   
-   @Override
-   public boolean getCompletions(String line, CompletionRequestContext context)
+   public void getCompletions(String line, CompletionRequestContext context)
    {
       server_.stanGetCompletions(line, context);
-      return true;
    }
    
    @Override
@@ -143,7 +129,7 @@ public class StanCompletionManager extends CompletionManagerBase
       
       boolean insertParensAfterCompletion =
             RCompletionType.isFunctionType(type) &&
-            userPrefs_.insertParensAfterFunctionCompletion().getValue();
+            uiPrefs_.insertParensAfterFunctionCompletion().getValue();
       
       if (insertParensAfterCompletion)
       {
@@ -254,12 +240,6 @@ public class StanCompletionManager extends CompletionManagerBase
             })
             
       };
-   }
-   
-   @Override
-   public void detach()
-   {
-      sigTips_.detach();
    }
    
    private final CompletionContext context_;

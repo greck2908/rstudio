@@ -1,7 +1,7 @@
 /*
  * GraphLine.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -28,7 +28,6 @@ public class GraphLine
       columns_ = new GraphColumn[vals.length];
       for (int i = 0; i < columns_.length; i++)
          columns_[i] = new GraphColumn(vals[i]);
-      altText_ = "";
    }
 
    public GraphColumn[] getColumns()
@@ -54,7 +53,6 @@ public class GraphLine
    {
       draw(s_canvas, theme);
       return SafeHtmlUtil.createOpenTag("img",
-                                        "alt", altText_,
                                         "class", theme.getImgClassName(),
                                         "src", s_canvas.toDataUrl());
    }
@@ -110,7 +108,6 @@ public class GraphLine
             if (c.nexus)
             {
                nexusColumn = i;
-               altText_ = "commit depth " + nexusColumn;
                ctx.setFillStyle(theme.getColorForId(c.id));
             }
 
@@ -154,7 +151,6 @@ public class GraphLine
    }
 
    private GraphColumn[] columns_;
-   private String altText_;
 
    // Use a static canvas to avoid the overhead of continually recreating them
    private static final Canvas s_canvas = Canvas.createIfSupported();

@@ -1,7 +1,7 @@
 /*
  * SessionMarkers.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -28,7 +28,7 @@
 
 #include <session/SessionModuleContext.hpp>
 
-using namespace rstudio::core;
+using namespace rstudio::core ;
 
 namespace rstudio {
 namespace session {
@@ -40,7 +40,7 @@ json::Object sourceMarkerSetAsJson(const module_context::SourceMarkerSet& set)
    using namespace module_context;
    json::Object jsonSet;
    jsonSet["name"] = set.name;
-   if (set.basePath.isEmpty())
+   if (set.basePath.empty())
    {
       jsonSet["base_path"] = std::string();
    }
@@ -117,8 +117,8 @@ public:
       std::string activeSet;
       json::Array setsJson;
       Error error = json::readObject(asJson,
-                                     "active_set", activeSet,
-                                     "sets", setsJson);
+                                     "active_set", &activeSet,
+                                     "sets", &setsJson);
       if (error)
          return error;
 
@@ -130,10 +130,10 @@ public:
          {
             std::string name, basePath;
             json::Array markersJson;
-            Error error = json::readObject(setJson.getObject(),
-                                           "name", name,
-                                           "base_path", basePath,
-                                           "markers", markersJson);
+            Error error = json::readObject(setJson.get_obj(),
+                                           "name", &name,
+                                           "base_path", &basePath,
+                                           "markers", &markersJson);
             if (error)
             {
                LOG_ERROR(error);
@@ -150,13 +150,13 @@ public:
                   std::string message;
                   bool showErrorList;
                   Error error = json::readObject(
-                     markerJson.getObject(),
-                     "type", type,
-                     "path", path,
-                     "line", line,
-                     "column", column,
-                     "message", message,
-                     "show_error_list", showErrorList);
+                     markerJson.get_obj(),
+                     "type", &type,
+                     "path", &path,
+                     "line", &line,
+                     "column", &column,
+                     "message", &message,
+                     "show_error_list", &showErrorList);
                   if (error)
                   {
                      LOG_ERROR(error);
@@ -349,13 +349,13 @@ SEXP rs_sourceMarkers(SEXP nameSEXP,
       json::Value markersJson;
       Error error = r::json::jsonValueFromList(markersSEXP, &markersJson);
       if (error)
-         throw RErrorException(error.getSummary());
+         throw RErrorException(error.summary());
       if (!json::isType<json::Array>(markersJson))
          throw RErrorException(
             "markers parameter was not a data frame or unnamed list");
 
       std::vector<SourceMarker> markers;
-      for (const json::Value& markerJson : markersJson.getArray())
+      for (const json::Value& markerJson : markersJson.get_array())
       {
          if (json::isType<json::Object>(markerJson))
          {
@@ -365,13 +365,13 @@ SEXP rs_sourceMarkers(SEXP nameSEXP,
             std::string message;
             bool messageHTML;
             Error error = json::readObject(
-               markerJson.getObject(),
-               "type", type,
-               "file", path,
-               "line", line,
-               "column", column,
-               "message", message,
-               "messageHTML", messageHTML);
+               markerJson.get_obj(),
+               "type", &type,
+               "file", &path,
+               "line", &line,
+               "column", &column,
+               "message", &message,
+               "messageHTML", &messageHTML);
             if (error)
             {
                LOG_ERROR(error);
@@ -414,7 +414,7 @@ SEXP rs_sourceMarkers(SEXP nameSEXP,
 
 FilePath sourceMarkersFilePath()
 {
-   return module_context::scopedScratchPath().completeChildPath("saved_source_markers");
+   return module_context::scopedScratchPath().childPath("saved_source_markers");
 }
 
 void readSourceMarkers()
@@ -432,7 +432,7 @@ void readSourceMarkers()
    }
 
    json::Value stateJson;
-   if (stateJson.parse(contents))
+   if (!json::parse(contents, &stateJson))
    {
       LOG_WARNING_MESSAGE("invalid session markers json");
       return;
@@ -444,7 +444,7 @@ void readSourceMarkers()
       return;
    }
 
-   error = sourceMarkers().readFromJson(stateJson.getObject());
+   error = sourceMarkers().readFromJson(stateJson.get_obj());
    if (error)
       LOG_ERROR(error);
 }
@@ -454,7 +454,7 @@ void writeSourceMarkers(bool terminatedNormally)
    if (terminatedNormally)
    {
       std::ostringstream os;
-      sourceMarkers().asJson().write(os);
+      json::write(sourceMarkers().asJson(), os);
       Error error = writeStringToFile(sourceMarkersFilePath(), os.str());
       if (error)
          LOG_ERROR(error);
@@ -483,7 +483,7 @@ Error initialize()
 
    // complete initialization
    using boost::bind;
-   ExecBlock initBlock;
+   ExecBlock initBlock ;
    initBlock.addFunctions()
       (bind(registerRpcMethod, "markers_tab_closed", markersTabClosed))
       (bind(registerRpcMethod, "update_active_marker_set", updateActiveMarkerSet))

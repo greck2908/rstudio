@@ -1,7 +1,7 @@
 /*
  * NotebookOutput.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,11 +24,12 @@
 #include <core/Algorithm.hpp>
 #include <core/Base64.hpp>
 #include <core/Exec.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/FileSerializer.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
+#include <session/SessionUserSettings.hpp>
 #include <core/StringUtils.hpp>
-#include <shared_core/json/Json.hpp>
+#include <core/json/Json.hpp>
 #include <core/text/CsvParser.hpp>
 
 #include <r/RSexp.hpp>
@@ -36,6 +37,7 @@
 #include <r/RExec.hpp>
 
 #include <session/SessionSourceDatabase.hpp>
+#include <session/SessionUserSettings.hpp>
 #include <session/SessionModuleContext.hpp>
 
 #include <map>
@@ -62,7 +64,7 @@ LastChunkOutput s_lastChunkOutputs;
 ChunkOutputType chunkOutputType(const FilePath& outputPath)
 {
    ChunkOutputType outputType = ChunkOutputNone;
-   std::string ext = outputPath.getExtensionLowerCase();
+   std::string ext = outputPath.extensionLowerCase();
    if (ext == ".csv")
       outputType = ChunkOutputText;
    else if (ext == ".png" || ext == ".jpg" || ext == ".jpeg")
@@ -71,7 +73,7 @@ ChunkOutputType chunkOutputType(const FilePath& outputPath)
       outputType = ChunkOutputHtml;
    else if (ext == ".error")
       outputType = ChunkOutputError;
-   else if (outputPath.getExtensionLowerCase() == ".rdf")
+   else if (outputPath.extensionLowerCase() == ".rdf")
       outputType = ChunkOutputData;
    return outputType;
 }
@@ -144,7 +146,7 @@ Error fillOutputObject(const std::string& docId, const std::string& chunkId,
       Error error = core::readStringFromFile(path, &fileContents);
       if (error)
          return error;
-      if (errorVal.parse(fileContents))
+      if (!json::parse(fileContents, &errorVal))
          return Error(json::errc::ParseError, ERROR_LOCATION);
 
      (*pObj)[kChunkOutputValue] = errorVal;
@@ -161,15 +163,15 @@ Error fillOutputObject(const std::string& docId, const std::string& chunkId,
       // plot/HTML outputs should be requested by the client, so pass the path
       std::string url(kChunkOutputPath "/" + nbCtxId + "/" + 
                          docId + "/" + chunkId + "/" + 
-                         path.getFilename());
+                         path.filename());
 
       // if this is a plot and it doesn't have a display list, hint to client
       // that plot can't be resized
       if (outputType == ChunkOutputPlot)
       {
          // form the path to where we'd expect the snapshot to be
-         FilePath snapshotPath = path.getParent().completePath(
-               path.getStem() + kDisplayListExt);
+         FilePath snapshotPath = path.parent().complete(
+               path.stem() + kDisplayListExt);
          if (!snapshotPath.exists())
             url.append("?fixed_size=1");
       }
@@ -183,7 +185,7 @@ Error fillOutputObject(const std::string& docId, const std::string& chunkId,
 
       Error error = r::exec::RFunction(
          ".rs.readDataCapture",
-         string_utils::utf8ToSystem(path.getAbsolutePath())).call(
+         string_utils::utf8ToSystem(path.absolutePath())).call(
             &argsSEXP,
             &rProtect);
 
@@ -288,31 +290,13 @@ Error handleChunkOutputRequest(const http::Request& request,
    std::string path;
    source_database::getPath(docId, &path);
 
-   FilePath target = chunkCacheFolder(path, docId, ctxId).completePath(
-      algorithm::join(parts, "/"));
+   FilePath target = chunkCacheFolder(path, docId, ctxId).complete(
+         algorithm::join(parts, "/"));
 
    if (!target.exists())
    {
-      // if this path refers to a file in an unsaved cache, it's possible that it does not exist
-      // because the document has now been saved, and the file was consequently moved to the saved
-      // context. we are likely seeing this request because the front end has a stale reference to
-      // the file in its previous unsaved location (see issue 8227).
-      if (ctxId != kSavedCtx)
-      {
-         FilePath savedTarget = chunkCacheFolder(path, docId, kSavedCtx).completePath(
-            algorithm::join(parts, "/"));
-         if (savedTarget.exists())
-         {
-            target = savedTarget;
-         }
-      }
-
-      // if we're still unable to find a viable copy of the file, fail the request
-      if (!target.exists())
-      {
-         pResponse->setNotFoundError(request);
-         return Success();
-      }
+      pResponse->setNotFoundError(request);
+      return Success();
    }
 
    bool isHtml = target.hasExtensionLowerCase(".htm") ||
@@ -324,9 +308,9 @@ Error handleChunkOutputRequest(const http::Request& request,
       // in server mode, or if a reference to the chunk library folder, we can
       // reuse the contents (let the browser cache the file)
       if (isHtml)
-         pResponse->setIndefiniteCacheableFile(target, request, HtmlWidgetFilter());
+         pResponse->setCacheableFile(target, request, HtmlWidgetFilter());
       else
-         pResponse->setIndefiniteCacheableFile(target, request);
+         pResponse->setCacheableFile(target, request);
    }
    else
    {
@@ -373,7 +357,7 @@ OutputPair lastChunkOutput(const std::string& docId,
 
    // scan the directory for output
    std::vector<FilePath> outputPaths;
-   Error error = outputPath.getChildren(outputPaths);
+   Error error = outputPath.children(&outputPaths);
    if (error)
    {
       LOG_ERROR(error);
@@ -385,7 +369,7 @@ OutputPair lastChunkOutput(const std::string& docId,
    {
       // extract ordinal and update if it's the most recent we've seen so far
       unsigned ordinal = static_cast<unsigned>(
-            ::strtoul(path.getStem().c_str(), nullptr, 16));
+            ::strtoul(path.stem().c_str(), nullptr, 16));
       if (ordinal > last.ordinal)
       {
          last.ordinal = ordinal;
@@ -405,11 +389,11 @@ FilePath chunkOutputPath(
       ChunkOutputContext ctxType)
 {
    // compute path to exact context
-   FilePath path = chunkCacheFolder(docPath, docId, nbCtxId).completeChildPath(chunkId);
+   FilePath path = chunkCacheFolder(docPath, docId, nbCtxId).childPath(chunkId);
 
    // fall back to saved context if permitted
    if (!path.exists() && ctxType == ContextSaved)
-      path = chunkCacheFolder(docPath, docId, kSavedCtx).completeChildPath(chunkId);
+      path = chunkCacheFolder(docPath, docId, kSavedCtx).childPath(chunkId);
 
    return path;
 }
@@ -434,10 +418,10 @@ FilePath chunkOutputFile(const std::string& docId,
                          const std::string& nbCtxId,
                          const OutputPair& output)
 {
-   return chunkOutputPath(docId, chunkId, nbCtxId, ContextExact).completePath(
-      (boost::format("%|1$06x|%2%")
-       % (output.ordinal % MAX_ORDINAL)
-       % chunkOutputExt(output.outputType)).str());
+   return chunkOutputPath(docId, chunkId, nbCtxId, ContextExact).complete(
+         (boost::format("%|1$06x|%2%") 
+                     % (output.ordinal % MAX_ORDINAL)
+                     % chunkOutputExt(output.outputType)).str());
 }
 
 FilePath chunkOutputFile(const std::string& docId, 
@@ -494,7 +478,7 @@ Error enqueueChunkOutput(
    FilePath outputDir = chunkOutputPath(docPath, docId, chunkId, nbCtxId,
          ContextSaved);
 
-   std::string ctxId(outputDir.getParent().getFilename());
+   std::string ctxId(outputDir.parent().filename());
    std::vector<FilePath> outputPaths;
    json::Array outputs;
 
@@ -503,7 +487,7 @@ Error enqueueChunkOutput(
    // object for the client
    if (outputDir.exists())
    {
-      Error error = outputDir.getChildren(outputPaths);
+      Error error = outputDir.children(&outputPaths);
       if (error) 
          LOG_ERROR(error);
 
@@ -522,18 +506,18 @@ Error enqueueChunkOutput(
             continue;
 
          // extract ordinal from filename
-         unsigned ordinal = ::strtol(outputPath.getStem().c_str(), nullptr, 16);
+         unsigned ordinal = ::strtol(outputPath.stem().c_str(), nullptr, 16);
 
          // extract metadata if present
          json::Value meta;
-         FilePath metadata = outputDir.completePath(
-            outputPath.getStem() + ".metadata");
+         FilePath metadata = outputDir.complete(
+               outputPath.stem() + ".metadata");
          if (metadata.exists())
          {
             std::string contents;
             error = readStringFromFile(metadata, &contents);
             if (!contents.empty())
-               meta.parse(contents);
+               json::parse(contents, &meta);
          }
          output[kChunkOutputMetadata] = meta;
          
@@ -595,7 +579,7 @@ core::Error writeConsoleOutput(int chunkConsoleType,
 {
    Error error;
    
-   error = targetPath.getParent().ensureDirectory();
+   error = targetPath.parent().ensureDirectory();
    if (error)
       return error;
    

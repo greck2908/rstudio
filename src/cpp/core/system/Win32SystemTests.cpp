@@ -1,7 +1,7 @@
 /*
  * Win32SystemTests.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,7 +16,7 @@
 #ifdef _WIN32
 
 #include <core/system/System.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
 #define RSTUDIO_NO_TESTTHAT_ALIASES
@@ -67,7 +67,7 @@ TEST_CASE("Win32SystemTests")
    SECTION("ComSpec")
    {
       FilePath command = expandComSpec();
-      CHECK_FALSE(command.isEmpty());
+      CHECK_FALSE(command.empty());
       CHECK(command.exists());
    }
 
@@ -208,7 +208,7 @@ TEST_CASE("Win32SystemTests")
 
       // API is not implemented on Windows and should always return an empty
       // FilePath. See currentWorkingDir in Win32System.cpp for more info.
-      CHECK(cwd.isEmpty());
+      CHECK(cwd.empty());
 
       TerminateProcess(pi.hProcess, 1);
       WaitForSingleObject(pi.hProcess, INFINITE);

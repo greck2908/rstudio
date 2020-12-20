@@ -1,7 +1,7 @@
 /*
  * FileCommandToolbar.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,24 +16,23 @@ package org.rstudio.studio.client.workbench.views.files.ui;
 
 import com.google.inject.Inject;
 
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.theme.res.ThemeStyles;
 import org.rstudio.core.client.widget.Toolbar;
 import org.rstudio.core.client.widget.ToolbarButton;
 import org.rstudio.core.client.widget.ToolbarMenuButton;
 import org.rstudio.core.client.widget.ToolbarPopupMenu;
-import org.rstudio.core.client.widget.UserPrefMenuItem;
+import org.rstudio.core.client.widget.UIPrefMenuItem;
 import org.rstudio.studio.client.common.icons.StandardIcons;
 import org.rstudio.studio.client.workbench.commands.Commands;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.model.Session;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 
 public class FileCommandToolbar extends Toolbar
 {
    @Inject
-   public FileCommandToolbar(Commands commands, UserPrefs prefs)
+   public FileCommandToolbar(Commands commands, Session session, UIPrefs prefs)
    {
-      super("File Commands");
       StandardIcons icons = StandardIcons.INSTANCE;
 
       addLeftWidget(commands.newFolder().createToolbarButton());
@@ -49,24 +48,22 @@ public class FileCommandToolbar extends Toolbar
       moreMenu.addItem(commands.copyFile().createMenuItem(false));
       moreMenu.addItem(commands.copyFileTo().createMenuItem(false));
       moreMenu.addItem(commands.moveFiles().createMenuItem(false));
-      moreMenu.addItem(commands.copyFilesPaneCurrentDirectory().createMenuItem(false));
       moreMenu.addSeparator();
       moreMenu.addItem(commands.exportFiles().createMenuItem(false));
       moreMenu.addSeparator();
       moreMenu.addItem(commands.setAsWorkingDir().createMenuItem(false));
       moreMenu.addItem(commands.goToWorkingDir().createMenuItem(false));
-      moreMenu.addItem(commands.openNewTerminalAtFilePaneLocation().createMenuItem(false));
       moreMenu.addSeparator();
       moreMenu.addItem(commands.showFolder().createMenuItem(false));
       moreMenu.addSeparator();
-      moreMenu.addItem(new UserPrefMenuItem<>(prefs.showHiddenFiles(), true, "Show Hidden Files", prefs));
+      moreMenu.addItem(new UIPrefMenuItem<Boolean>(
+            prefs.showHiddenFiles(), true, "Show Hidden Files", prefs));
 
       ToolbarMenuButton moreButton = new ToolbarMenuButton(
             "More",
             "More file commands",
             new ImageResource2x(icons.more_actions2x()),
             moreMenu);
-      ElementIds.assignElementId(moreButton, ElementIds.MB_FILES_MORE);
       addLeftWidget(moreButton);
 
       // Refresh

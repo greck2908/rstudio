@@ -1,7 +1,7 @@
 /*
  * ErrorManagerState.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,11 +21,11 @@ public class ErrorManagerState extends JavaScriptObject
 {
    protected ErrorManagerState() {}
    
-   public final native String getErrorHandlerType() /*-{
+   public final native int getErrorHandlerType() /*-{
       return this.error_handler_type;
    }-*/;
    
-   public final native void setErrorHandlerType(String type) /*-{
+   public final native void setErrorHandlerType(int type) /*-{
       this.error_handler_type = type;
    }-*/;
 } 

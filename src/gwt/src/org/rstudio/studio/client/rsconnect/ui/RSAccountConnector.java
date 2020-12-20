@@ -1,7 +1,7 @@
 /*
  * RSAccountConnector.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -38,8 +38,7 @@ import org.rstudio.studio.client.server.Void;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.SessionUtils;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
-import org.rstudio.studio.client.workbench.prefs.model.UserState;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.prefs.views.PublishingPreferencesPane;
 import org.rstudio.studio.client.workbench.ui.OptionsLoader;
 
@@ -52,7 +51,8 @@ import com.google.inject.Provider;
 import com.google.inject.Singleton;
 
 @Singleton
-public class RSAccountConnector implements EnableRStudioConnectUIEvent.Handler
+public class RSAccountConnector implements 
+   EnableRStudioConnectUIEvent.Handler
 {
    public interface Binder
    extends CommandBinder<Commands, RSAccountConnector> {}
@@ -73,32 +73,30 @@ public class RSAccountConnector implements EnableRStudioConnectUIEvent.Handler
          OptionsLoader.Shim optionsLoader,
          EventBus events,
          Session session,
-         Provider<UserPrefs> pUiPrefs,
-         Provider<UserState> pState,
+         Provider<UIPrefs> pUiPrefs,
          Satellite satellite)
    {
       server_ = server;
       display_ = display;
       optionsLoader_ = optionsLoader;
-      pUserPrefs_ = pUiPrefs;
-      pUserState_ = pState;
+      pUiPrefs_ = pUiPrefs;
       session_ = session;
 
       events.addHandler(EnableRStudioConnectUIEvent.TYPE, this);
 
       binder.bind(commands, this);
-
+      
       // register satellite callback
       if (!Satellite.isCurrentWindowSatellite())
          exportManageAccountsCallback();
    }
-
+   
    public void showAccountWizard(
          boolean forFirstAccount,
          boolean withCloudOption,
          final OperationWithInput<Boolean> onCompleted)
    {
-      if (pUserState_.get().enableRsconnectPublishUi().getGlobalValue())
+      if (pUiPrefs_.get().enableRStudioConnect().getGlobalValue())
       {
          showAccountTypeWizard(forFirstAccount, withCloudOption, onCompleted);
       }
@@ -107,7 +105,7 @@ public class RSAccountConnector implements EnableRStudioConnectUIEvent.Handler
          showShinyAppsDialog(onCompleted);
       }
    }
-
+   
    public void showReconnectWizard(
          final RSConnectAccount account,
          final OperationWithInput<Boolean> onCompleted)
@@ -123,7 +121,7 @@ public class RSAccountConnector implements EnableRStudioConnectUIEvent.Handler
                if (entries.get(i).getName().equalsIgnoreCase(
                      account.getServer()))
                {
-                  RSConnectReconnectWizard wizard =
+                  RSConnectReconnectWizard wizard = 
                         new RSConnectReconnectWizard(
                         server_,
                         display_,
@@ -146,7 +144,7 @@ public class RSAccountConnector implements EnableRStudioConnectUIEvent.Handler
 
             if (!found)
             {
-               display_.showErrorMessage("Server Information Not Found",
+               display_.showErrorMessage("Server Information Not Found", 
                      "RStudio could not retrieve server information for " +
                      "the selected account.");
             }
@@ -155,12 +153,12 @@ public class RSAccountConnector implements EnableRStudioConnectUIEvent.Handler
          @Override
          public void onError(ServerError error)
          {
-            display_.showErrorMessage("Can't Find Servers",
+            display_.showErrorMessage("Can't Find Servers", 
                   "RStudio could not retrieve server information.");
          }
       });
    }
-
+   
    @Handler
    public void onRsconnectManageAccounts()
    {
@@ -170,21 +168,21 @@ public class RSAccountConnector implements EnableRStudioConnectUIEvent.Handler
       }
       else
       {
-         optionsLoader_.showOptions(PublishingPreferencesPane.class, true);
+         optionsLoader_.showOptions(PublishingPreferencesPane.class);
       }
    }
-
+   
    // Event handlers ---------------------------------------------------------
 
    @Override
    public void onEnableRStudioConnectUI(EnableRStudioConnectUIEvent event)
    {
-      pUserState_.get().enableRsconnectPublishUi().setGlobalValue(event.getEnable());
-      pUserState_.get().writeState();
+      pUiPrefs_.get().enableRStudioConnect().setGlobalValue(event.getEnable());
+      pUiPrefs_.get().writeUIPrefs();
    }
 
    // Private methods --------------------------------------------------------
-
+   
    private void showShinyAppsDialog(
          final OperationWithInput<Boolean> onCompleted)
    {
@@ -192,13 +190,13 @@ public class RSAccountConnector implements EnableRStudioConnectUIEvent.Handler
       new ProgressOperationWithInput<NewRSConnectAccountResult>()
       {
          @Override
-         public void execute(NewRSConnectAccountResult input,
+         public void execute(NewRSConnectAccountResult input, 
                              ProgressIndicator indicator)
          {
             processDialogResult(input, indicator, onCompleted);
          }
-      },
-      new Operation()
+      }, 
+      new Operation() 
       {
          @Override
          public void execute()
@@ -217,13 +215,13 @@ public class RSAccountConnector implements EnableRStudioConnectUIEvent.Handler
       // ignore if wizard is already up
       if (showingWizard_)
          return;
-
+      
       RSConnectAccountWizard wizard = new RSConnectAccountWizard(
             server_,
             display_,
             forFirstAccount,
-            withCloudOption &&
-               SessionUtils.showExternalPublishUi(session_, pUserState_.get()),
+            withCloudOption && 
+               SessionUtils.showExternalPublishUi(session_, pUiPrefs_.get()),
             new ProgressOperationWithInput<NewRSConnectAccountResult>()
       {
          @Override
@@ -235,7 +233,7 @@ public class RSAccountConnector implements EnableRStudioConnectUIEvent.Handler
       });
       wizard.setGlassEnabled(true);
       wizard.showModal();
-
+      
       // remember whether wizard is showing
       showingWizard_ = true;
       wizard.addCloseHandler(new CloseHandler<PopupPanel>()
@@ -247,12 +245,12 @@ public class RSAccountConnector implements EnableRStudioConnectUIEvent.Handler
          }
       });
    }
-
-   private void processDialogResult(final NewRSConnectAccountResult input,
+   
+   private void processDialogResult(final NewRSConnectAccountResult input, 
          final ProgressIndicator indicator,
          final OperationWithInput<Boolean> onCompleted)
    {
-      connectNewAccount(input, indicator,
+      connectNewAccount(input, indicator, 
             new OperationWithInput<AccountConnectResult>()
       {
          @Override
@@ -295,26 +293,26 @@ public class RSAccountConnector implements EnableRStudioConnectUIEvent.Handler
          connectLocalAccount(result, indicator, onConnected);
       }
    }
-
+   
    private void connectCloudAccount(
          final NewRSConnectAccountResult result,
          final ProgressIndicator indicator,
          final OperationWithInput<AccountConnectResult> onConnected)
    {
       // get command and substitute rsconnect for shinyapps
-      final String cmd = result.getCloudSecret().replace("shinyapps::",
+      final String cmd = result.getCloudSecret().replace("shinyapps::", 
                                                          "rsconnect::");
       if (!cmd.startsWith("rsconnect::setAccountInfo"))
       {
-         display_.showErrorMessage("Error Connecting Account",
-               "The pasted command should start with " +
-               "rsconnect::setAccountInfo. If you're having trouble, try " +
+         display_.showErrorMessage("Error Connecting Account", 
+               "The pasted command should start with " + 
+               "rsconnect::setAccountInfo. If you're having trouble, try " + 
                "connecting your account manually; type " +
                "?rsconnect::setAccountInfo at the R console for help.");
          onConnected.execute(AccountConnectResult.Incomplete);
       }
       indicator.onProgress("Connecting account...");
-      server_.connectRSConnectAccount(cmd,
+      server_.connectRSConnectAccount(cmd, 
             new ServerRequestCallback<Void>()
       {
          @Override
@@ -326,8 +324,8 @@ public class RSAccountConnector implements EnableRStudioConnectUIEvent.Handler
          @Override
          public void onError(ServerError error)
          {
-            display_.showErrorMessage("Error Connecting Account",
-                  "The command '" + cmd + "' failed. You can set up an " +
+            display_.showErrorMessage("Error Connecting Account",  
+                  "The command '" + cmd + "' failed. You can set up an " + 
                   "account manually by using rsconnect::setAccountInfo; " +
                   "type ?rsconnect::setAccountInfo at the R console for " +
                   "more information.");
@@ -346,9 +344,9 @@ public class RSAccountConnector implements EnableRStudioConnectUIEvent.Handler
       final RSConnectAuthUser user = result.getAuthUser();
       final RSConnectServerInfo serverInfo = result.getServerInfo();
       final RSConnectPreAuthToken token = result.getPreAuthToken();
-
-      server_.registerUserToken(serverInfo.getName(),
-            result.getAccountNickname(),
+       
+      server_.registerUserToken(serverInfo.getName(), 
+            result.getAccountNickname(), 
             user.getId(), token, new ServerRequestCallback<Void>()
       {
          @Override
@@ -360,10 +358,10 @@ public class RSAccountConnector implements EnableRStudioConnectUIEvent.Handler
          @Override
          public void onError(ServerError error)
          {
-            display_.showErrorMessage("Account Connect Failed",
+            display_.showErrorMessage("Account Connect Failed", 
                   "Your account was authenticated successfully, but could " +
                   "not be connected to RStudio. Make sure your installation " +
-                  "of the 'rsconnect' package is correct for the server " +
+                  "of the 'rsconnect' package is correct for the server " + 
                   "you're connecting to.\n\n" +
                   serverInfo.getInfoString() + "\n" +
                   error.getMessage());
@@ -371,26 +369,26 @@ public class RSAccountConnector implements EnableRStudioConnectUIEvent.Handler
          }
       });
    }
-
+   
    private final native void exportManageAccountsCallback()/*-{
-      var rsAccount = this;
+      var rsAccount = this;     
       $wnd.rsManageAccountsFromRStudioSatellite = $entry(
          function() {
             rsAccount.@org.rstudio.studio.client.rsconnect.ui.RSAccountConnector::onRsconnectManageAccounts()();
          }
-      );
+      ); 
    }-*/;
 
    private final native void callSatelliteManageAccounts()/*-{
       $wnd.opener.rsManageAccountsFromRStudioSatellite();
    }-*/;
-
+   
+   
    private final GlobalDisplay display_;
    private final RSConnectServerOperations server_;
    private final OptionsLoader.Shim optionsLoader_;
-   private final Provider<UserPrefs> pUserPrefs_;
-   private final Provider<UserState> pUserState_;
+   private final Provider<UIPrefs> pUiPrefs_;
    private final Session session_;
-
+   
    private boolean showingWizard_;
 }

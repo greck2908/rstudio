@@ -1,7 +1,7 @@
 /*
  * ConsoleActivateEvent.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,27 +17,29 @@ package org.rstudio.studio.client.workbench.views.console.events;
 import com.google.gwt.event.shared.EventHandler;
 import com.google.gwt.event.shared.GwtEvent;
 
-public class ConsoleActivateEvent extends GwtEvent<ConsoleActivateEvent.Handler>
+public class ConsoleActivateEvent 
+   extends GwtEvent<ConsoleActivateEvent.Handler>
 {
-   public static final Type<Handler> TYPE = new Type<>();
-
+   public static final GwtEvent.Type<ConsoleActivateEvent.Handler> TYPE =
+      new GwtEvent.Type<ConsoleActivateEvent.Handler>();
+  
    public interface Handler extends EventHandler
    {
       void onConsoleActivate(ConsoleActivateEvent event);
    }
-
+   
    public ConsoleActivateEvent(boolean focusWindow)
    {
       focusWindow_ = focusWindow;
    }
-
+   
    public boolean getFocusWindow()
    {
       return focusWindow_;
    }
-
+         
    @Override
-   public Type<Handler> getAssociatedType()
+   public Type<ConsoleActivateEvent.Handler> getAssociatedType()
    {
       return TYPE;
    }
@@ -47,6 +49,6 @@ public class ConsoleActivateEvent extends GwtEvent<ConsoleActivateEvent.Handler>
    {
       handler.onConsoleActivate(this);
    }
-
+   
    private final boolean focusWindow_;
 }

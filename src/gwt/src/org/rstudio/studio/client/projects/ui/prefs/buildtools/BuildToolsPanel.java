@@ -1,7 +1,7 @@
 /*
  * BuildToolsPanel.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,11 +15,8 @@
 
 package org.rstudio.studio.client.projects.ui.prefs.buildtools;
 
-import com.google.gwt.safehtml.shared.SafeHtmlBuilder;
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.dom.DomUtils;
 import org.rstudio.core.client.files.FileSystemItem;
-import org.rstudio.core.client.widget.FormLabel;
 import org.rstudio.core.client.widget.ProgressIndicator;
 import org.rstudio.core.client.widget.ProgressOperationWithInput;
 import org.rstudio.core.client.widget.TextBoxWithButton;
@@ -34,8 +31,11 @@ import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.safehtml.shared.SafeHtml;
 import com.google.gwt.user.client.ui.CheckBox;
 import com.google.gwt.user.client.ui.Composite;
+import com.google.gwt.user.client.ui.HTML;
+import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.TextBox;
 import com.google.gwt.user.client.ui.VerticalPanel;
+import com.google.gwt.user.client.ui.Widget;
 
 public abstract class BuildToolsPanel extends VerticalPanel
 {
@@ -57,11 +57,10 @@ public abstract class BuildToolsPanel extends VerticalPanel
    
    protected abstract class PathSelector extends TextBoxWithButton
    {
-      public PathSelector(String label,
-                          final String emptyLabel,
-                          ElementIds.TextBoxButtonId uniqueId)
+      public PathSelector(String label, 
+                          final String emptyLabel)
       {
-         super(label, emptyLabel, "Browse...", null, uniqueId, true, null);
+         super(label, emptyLabel, "Browse...", null);
       }
       
       
@@ -84,7 +83,7 @@ public abstract class BuildToolsPanel extends VerticalPanel
    {
       public DirectorySelector(String label)
       {
-         super(label, "(Project Root)", ElementIds.TextBoxButtonId.PROJECT_ROOT);
+         super(label, "(Project Root)");
          
          addStyleName(RES.styles().directorySelector());
          
@@ -144,9 +143,9 @@ public abstract class BuildToolsPanel extends VerticalPanel
    
    protected class FileSelector extends PathSelector
    {
-      public FileSelector(String label, ElementIds.TextBoxButtonId uniqueId)
+      public FileSelector(String label)
       {
-         super(label, "(None)", uniqueId);
+         super(label, "(None)");
          
          addClickHandler(new ClickHandler() {
 
@@ -184,20 +183,26 @@ public abstract class BuildToolsPanel extends VerticalPanel
    {
       AdditionalArguments(String label)
       {
-         SafeHtml safeLabel = new SafeHtmlBuilder().appendHtmlConstant(label).toSafeHtml();
-
+         this(new Label(label));
+      }
+      
+      AdditionalArguments(SafeHtml label)
+      {
+         this(new HTML(label));
+      }
+      
+      AdditionalArguments(Widget captionWidget)
+      {
          VerticalPanel panel = new VerticalPanel();
          panel.addStyleName(RES.styles().buildToolsAdditionalArguments());
-
-         FormLabel captionWidget = new FormLabel();
-         captionWidget.getElement().setInnerSafeHtml(safeLabel);
+         
+     
          panel.add(captionWidget);
-
+         
          textBox_ = new TextBox();
          DomUtils.disableSpellcheck(textBox_);
          panel.add(textBox_);
-         captionWidget.setFor(textBox_);
-
+   
          initWidget(panel);
       }
       

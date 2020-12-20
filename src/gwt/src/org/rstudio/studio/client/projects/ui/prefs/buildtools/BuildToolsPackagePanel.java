@@ -1,7 +1,7 @@
 /*
  * BuildToolsPackagePanel.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -12,6 +12,7 @@
  * AGPL (http://www.gnu.org/licenses/agpl-3.0.txt) for more details.
  *
  */
+
 
 package org.rstudio.studio.client.projects.ui.prefs.buildtools;
 
@@ -31,6 +32,7 @@ import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.event.logical.shared.ValueChangeEvent;
 import com.google.gwt.event.logical.shared.ValueChangeHandler;
+import com.google.gwt.safehtml.shared.SafeHtmlBuilder;
 import com.google.gwt.user.client.ui.CheckBox;
 import com.google.gwt.user.client.ui.HorizontalPanel;
 import com.google.gwt.user.client.ui.VerticalPanel;
@@ -101,17 +103,23 @@ public class BuildToolsPackagePanel extends BuildToolsPanel
       roxygenizePanel_.add(rocletPanel);
       add(roxygenizePanel_);
       
+      
       add(installAdditionalArguments_ = new AdditionalArguments(
-            "Install and Restart &mdash; R CMD INSTALL additional options:"));
+        new SafeHtmlBuilder().appendHtmlConstant(
+          "Install and Restart &mdash; R CMD INSTALL additional options:").toSafeHtml()));
      
       add(checkAdditionalArguments_ = new AdditionalArguments(
-            "Check Package &mdash; R CMD check additional options:"));
+            new SafeHtmlBuilder().appendHtmlConstant(
+                "Check Package &mdash; R CMD check additional options:").toSafeHtml()));
       
       add(buildAdditionalArguments_ = new AdditionalArguments(
-            "Build Source Package &mdash; R CMD build additional options:"));
+        new SafeHtmlBuilder().appendHtmlConstant(
+          "Build Source Package &mdash; R CMD build additional options:").toSafeHtml()));
            
       add(buildBinaryAdditionalArguments_ = new AdditionalArguments(
-            "Build Binary Package &mdash; R CMD INSTALL additional options:"));
+        new SafeHtmlBuilder().appendHtmlConstant(
+          "Build Binary Package &mdash; R CMD INSTALL additional options:").toSafeHtml()));
+      
       
       HelpLink packagesHelpLink = new PackagesHelpLink();
       packagesHelpLink.getElement().getStyle().setMarginTop(7, Unit.PX);

@@ -1,7 +1,7 @@
 /*
  * HunspellCustomDictionaries.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,6 @@
 #include <boost/bind.hpp>
 
 #include <core/Algorithm.hpp>
-#include <core/Log.hpp>
 
 namespace rstudio {
 namespace core {
@@ -35,7 +34,7 @@ std::vector<std::string> HunspellCustomDictionaries::dictionaries() const
    }
 
    std::vector<FilePath> children;
-   error = customDictionariesDir_.getChildren(children);
+   error = customDictionariesDir_.children(&children);
    if (error)
    {
       LOG_ERROR(error);
@@ -47,7 +46,7 @@ std::vector<std::string> HunspellCustomDictionaries::dictionaries() const
          children.end(),
          std::back_inserter(dictionaries),
          boost::bind(&FilePath::hasExtensionLowerCase, _1, ".dic"),
-         boost::bind(&FilePath::getStem, _1));
+         boost::bind(&FilePath::stem, _1));
 
    return dictionaries;
 }
@@ -55,7 +54,7 @@ std::vector<std::string> HunspellCustomDictionaries::dictionaries() const
 FilePath HunspellCustomDictionaries::dictionaryPath(
                                           const std::string& name) const
 {
-   return customDictionariesDir_.completeChildPath(name + ".dic");
+   return customDictionariesDir_.childPath(name + ".dic");
 }
 
 Error HunspellCustomDictionaries::add(const FilePath& dicPath) const
@@ -68,7 +67,7 @@ Error HunspellCustomDictionaries::add(const FilePath& dicPath) const
    }
 
    // remove existing with same name
-   std::string name = dicPath.getStem();
+   std::string name = dicPath.stem();
    Error error = remove(name);
    if (error)
       LOG_ERROR(error);

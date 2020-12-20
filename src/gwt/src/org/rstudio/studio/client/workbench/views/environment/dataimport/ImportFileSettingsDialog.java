@@ -1,7 +1,7 @@
 /*
  * ImportFileSettingsDialog.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -33,7 +33,6 @@ import org.rstudio.core.client.Invalidation;
 import org.rstudio.core.client.Invalidation.Token;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.js.JsObject;
-import org.rstudio.core.client.widget.LabeledTextBox;
 import org.rstudio.core.client.widget.ModalDialog;
 import org.rstudio.core.client.widget.OperationWithInput;
 import org.rstudio.core.client.widget.ProgressIndicator;
@@ -406,7 +405,7 @@ public class ImportFileSettingsDialog extends ModalDialog<ImportFileSettingsDial
    @UiField
    RadioButton headingNo_;
    @UiField
-   LabeledTextBox varname_;
+   TextBox varname_;
    @UiField
    TextBox naStrings_;
    @UiField

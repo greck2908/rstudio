@@ -1,7 +1,7 @@
 /*
  * RVersions.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,9 +21,9 @@
 #include <vector>
 #include <iosfwd>
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 
-#include <shared_core/json/Json.hpp>
+#include <core/json/Json.hpp>
 
 #include <core/system/Environment.hpp>
 
@@ -43,8 +43,6 @@ public:
       setLabel(std::string());
       setModule(std::string());
       setPrelaunchScript(std::string());
-      setRepo(std::string());
-      setLibrary(std::string());
    }
 
 public:
@@ -57,7 +55,7 @@ public:
 
    void setHomeDir(const FilePath& filePath)
    {
-      core::system::setenv(&environment_, "R_HOME", filePath.getAbsolutePath());
+      core::system::setenv(&environment_, "R_HOME", filePath.absolutePath());
    }
 
    const std::string& number() const { return number_; }
@@ -87,31 +85,13 @@ public:
       core::system::setenv(&environment_, "RSTUDIO_R_PRELAUNCH_SCRIPT", prelaunchScript);
    }
 
-   const std::string& repo() const { return repo_; }
-   void setRepo(const std::string& repo)
-   {
-      repo_ = repo;
-      core::system::setenv(&environment_, "RSTUDIO_R_REPO", repo);
-   }
-
-   const std::string& library() const { return library_; }
-   void setLibrary(const std::string& library)
-   {
-      library_ = library;
-
-      // only set R_LIBS_SITE env var if it is non-empty
-      // setting an empty site library will cause the default system configuration to be lost
-      if (!library.empty())
-         core::system::setenv(&environment_, "R_LIBS_SITE", library);
-   }
-
    bool operator<(const RVersion& other) const
    {
       RVersionNumber ver = RVersionNumber::parse(number());
       RVersionNumber otherVer = RVersionNumber::parse(other.number());
 
       if (ver == otherVer)
-         return homeDir().getAbsolutePath() < other.homeDir().getAbsolutePath();
+         return homeDir().absolutePath() < other.homeDir().absolutePath();
       else
          return ver < otherVer;
    }
@@ -119,7 +99,7 @@ public:
    bool operator==(const RVersion& other) const
    {
       return number() == other.number() &&
-         homeDir().getAbsolutePath() == other.homeDir().getAbsolutePath() &&
+             homeDir().absolutePath() == other.homeDir().absolutePath() &&
              (label() == other.label() || (label().empty() || other.label().empty()));
    }
 
@@ -129,8 +109,6 @@ private:
    std::string label_;
    std::string module_;
    std::string prelaunchScript_;
-   std::string repo_;
-   std::string library_;
 };
 
 std::ostream& operator<<(std::ostream& os, const RVersion& version);
@@ -140,8 +118,7 @@ std::vector<RVersion> enumerateRVersions(
                               std::vector<r_util::RVersion> rEntries,
                               bool scanForOtherVersions,
                               const FilePath& ldPathsScript,
-                              const std::string& ldLibraryPath,
-                              const FilePath& modulesBinaryPath);
+                              const std::string& ldLibraryPath);
 
 RVersion selectVersion(const std::string& number,
                        const std::string& rHomeDir,

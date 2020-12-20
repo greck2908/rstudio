@@ -1,7 +1,7 @@
 /*
  * FilesUpload.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,8 +21,6 @@ import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.widget.MessageDialog;
 import org.rstudio.core.client.widget.Operation;
 import org.rstudio.core.client.widget.OperationWithInput;
-import org.rstudio.studio.client.application.events.EventBus;
-import org.rstudio.studio.client.application.events.FileUploadEvent;
 import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.server.ServerError;
 import org.rstudio.studio.client.server.ServerRequestCallback;
@@ -37,13 +35,11 @@ public class FilesUpload
    @Inject
    public FilesUpload(Files.Display display,
                       GlobalDisplay globalDisplay,
-                      FilesServerOperations server,
-                      EventBus eventBus)
+                      FilesServerOperations server)
    {
       display_ = display;
       globalDisplay_ = globalDisplay;
       server_ = server;
-      eventBus_ = eventBus;
    }
    
    void execute(FileSystemItem targetDirectory, 
@@ -57,13 +53,6 @@ public class FilesUpload
          server_.getFileUploadUrl(),
          targetDirectory,
          fileSystemContext,
-         new Operation() {
-            public void execute()
-            {
-               FileUploadEvent event = new FileUploadEvent(true);
-               eventBus_.fireEvent(event);
-            }
-         },
          new OperationWithInput<PendingFileUpload>() {
             public void execute(PendingFileUpload pendingUpload)
             {
@@ -85,14 +74,7 @@ public class FilesUpload
                   completeFileUploadOperation(token, true).execute();
                }
             }                     
-        },
-        new Operation() {
-            public void execute()
-            {
-               FileUploadEvent event = new FileUploadEvent(false);
-               eventBus_.fireEvent(event);
-            }
-        } );
+        });
    }
    
 
@@ -101,7 +83,7 @@ public class FilesUpload
    {
       JsArray<FileSystemItem> overwrites = pendingUpload.getOverwrites();
       FileSystemItem firstFile = overwrites.get(0);
-      boolean multiple = overwrites.length() > 1;
+      boolean multiple = overwrites.length() > 1 ;
       StringBuilder msg = new StringBuilder();
       msg.append("The upload will overwrite ");
       if (multiple)
@@ -136,9 +118,6 @@ public class FilesUpload
                public void onResponseReceived(Void response)
                {
                   dismissProgress.execute();
-
-                  FileUploadEvent event = new FileUploadEvent(false);
-                  eventBus_.fireEvent(event);
                }
 
                @Override
@@ -147,17 +126,14 @@ public class FilesUpload
                   dismissProgress.execute();  
                   globalDisplay_.showErrorMessage("File Upload Error",
                         error.getUserMessage());
-
-                  FileUploadEvent event = new FileUploadEvent(false);
-                  eventBus_.fireEvent(event);
                }
             });
          }
       };
    }
 
+   
    private final Files.Display display_;
-   private final GlobalDisplay globalDisplay_;
-   private final FilesServerOperations server_;
-   private final EventBus eventBus_;
+   private final GlobalDisplay globalDisplay_ ;
+   private final FilesServerOperations server_ ;
 }

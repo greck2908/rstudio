@@ -1,7 +1,7 @@
 /*
  * DataEditingTargetWidget.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -37,7 +37,6 @@ import org.rstudio.studio.client.dataviewer.DataTable;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.views.console.events.SendToConsoleEvent;
 import org.rstudio.studio.client.workbench.views.source.PanelWithToolbars;
-import org.rstudio.studio.client.workbench.views.source.SourceColumn;
 import org.rstudio.studio.client.workbench.views.source.editors.EditingTargetToolbar;
 import org.rstudio.studio.client.workbench.views.source.editors.urlcontent.UrlContentEditingTarget;
 import org.rstudio.studio.client.workbench.views.source.model.DataItem;
@@ -70,8 +69,7 @@ public class DataEditingTargetWidget extends Composite
    public DataEditingTargetWidget(String title,
                                   Commands commands, 
                                   EventBus events,
-                                  DataItem dataItem,
-                                  SourceColumn column)
+                                  DataItem dataItem)
    {
       Styles styles = resources.styles();
 
@@ -85,12 +83,11 @@ public class DataEditingTargetWidget extends Composite
          false);
       frame_.setSize("100%", "100%");
       table_ = new DataTable(this);
-      column_ = column;
       
       // when loaded, hook up event handlers
       frame_.addLoadHandler((event) ->
       {
-         CommandWith2Args<Double, Double> view = (row, col) ->
+         CommandWith2Args<Integer, Integer> view = (row, col) ->
          {
             String lho = dataItem.getExpression();
             String object = dataItem.getObject();
@@ -163,7 +160,7 @@ public class DataEditingTargetWidget extends Composite
       
 
       PanelWithToolbars panel = new PanelWithToolbars(
-            createToolbar(dataItem, styles),
+            createToolbar(dataItem, styles), 
             mainWidget);
 
       initWidget(panel);
@@ -172,7 +169,7 @@ public class DataEditingTargetWidget extends Composite
    private Toolbar createToolbar(DataItem dataItem, Styles styles)
    {
 
-      Toolbar toolbar = new EditingTargetToolbar(commands_, true, column_);
+      Toolbar toolbar = new EditingTargetToolbar(commands_, true);
       table_.initToolbar(toolbar, dataItem.isPreview());
 
       return toolbar;
@@ -184,28 +181,21 @@ public class DataEditingTargetWidget extends Composite
       return frameEl.getContentWindow();
    }
 
-   @Override
    public void print()
    {
       getWindow().print();
    }
-
-   @Override
-   public void setAccessibleName(String name)
-   {
-      // Accessible name is set on container of this widget
-   }
-
+   
    public void setFilterUIVisible(boolean visible)
    {
       if (table_ != null)
          table_.setFilterUIVisible(visible);
    }
    
-   public void refreshData()
+   public void refreshData(boolean structureChanged, boolean sizeChanged)
    {
       if (table_ != null)
-         table_.refreshData();
+         table_.refreshData(structureChanged, sizeChanged);
    }
    
    public void onActivate()
@@ -234,5 +224,4 @@ public class DataEditingTargetWidget extends Composite
    private final Commands commands_;
    private RStudioThemedFrame frame_;
    private DataTable table_;
-   private SourceColumn column_;
 }

@@ -1,41 +1,3 @@
-#
-# Api.R
-#
-# Copyright (C) 2020 by RStudio, PBC
-#
-# Unless you have received this program directly from RStudio pursuant
-# to the terms of a commercial license agreement with RStudio, then
-# this program is licensed to you under the terms of version 3 of the
-# GNU Affero General Public License. This program is distributed WITHOUT
-# ANY EXPRESS OR IMPLIED WARRANTY, INCLUDING THOSE OF NON-INFRINGEMENT,
-# MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE. Please refer to the
-# AGPL (http://www.gnu.org/licenses/agpl-3.0.txt) for more details.
-#
-#
-
-# Create environment to store data for registerChunkCallback and unregisterChunkCallback
-.rs.setVar("notebookChunkCallbacks", new.env(parent = emptyenv()))
-
-# list of API events (keep in sync with RStudioApiRequestEvent.java)
-.rs.setVar("api.eventTypes", list(
-   TYPE_UNKNOWN              = 0L,
-   TYPE_GET_EDITOR_SELECTION = 1L,
-   TYPE_SET_EDITOR_SELECTION = 2L,
-   TYPE_DOCUMENT_ID          = 3L,
-   TYPE_DOCUMENT_OPEN        = 4L,
-   TYPE_DOCUMENT_NEW         = 5L,
-   TYPE_FILES_PANE_NAVIGATE  = 6L
-))
-
-# list of potential event targets
-.rs.setVar("api.eventTargets", list(
-   TYPE_UNKNOWN       = 0L,
-   TYPE_ACTIVE_WINDOW = 1L,
-   TYPE_ALL_WINDOWS   = 2L
-))
-
-
-
 .rs.addApiFunction("restartSession", function(command = NULL) {
    command <- as.character(command)
    invisible(.rs.restartR(command))
@@ -65,20 +27,11 @@
    # attempt to initialize a project within that directory
    .rs.ensureDirectory(path)
    
-   # NOTE: list.files() will fail on Windows for paths containing
-   # characters not representable in the current locale, so we instead
-   # change to the requested directory, list files, and then build the
-   # full paths
-   rProjFiles <- (function() {
-      
-      # move to project path
-      owd <- setwd(path)
-      on.exit(setwd(owd), add = TRUE)
-      
-      # list files in path
-      file.path(path, list.files(pattern = "[.]Rproj$"))
-
-   })()
+   # check to see if a .Rproj file already exists in that directory;
+   # if so, then we don't need to re-initialize
+   rProjFiles <- list.files(path, 
+                            pattern = "[.]Rproj$",
+                            full.names = TRUE)
    
    # if we already have a .Rproj file, just return that
    if (length(rProjFiles))
@@ -135,25 +88,23 @@
   info$mode <- .Call("rs_rstudioProgramMode", PACKAGE = "(embedding)")
   info$edition <- .Call("rs_rstudioEdition", PACKAGE = "(embedding)")
   info$version <- .Call("rs_rstudioVersion", PACKAGE = "(embedding)")
-  info$version <- base::package_version(info$version)
-  info$release_name <- .Call("rs_rstudioReleaseName", PACKAGE = "(embedding)")
+  info$version <- package_version(info$version)
   info
 })
 
 .rs.addApiFunction("diagnosticsReport", function() {
-   invisible(.Call("rs_sourceDiagnostics", PACKAGE = "(embedding)"))
+  invisible(.Call(getNativeSymbolInfo("rs_sourceDiagnostics", PACKAGE="")))
 })
 
 
 .rs.addApiFunction("previewRd", function(rdFile) {
-   
-   if (!is.character(rdFile) || (length(rdFile) != 1))
-      stop("rdFile must be a single element character vector.")
-   if (!file.exists(rdFile))
-      stop("The specified rdFile ' ", rdFile, "' does not exist.")
-   
-   invisible(.Call("rs_previewRd", rdFile, PACKAGE = "(embedding)"))
-   
+
+  if (!is.character(rdFile) || (length(rdFile) != 1))
+    stop("rdFile must be a single element character vector.")
+  if (!file.exists(rdFile))
+    stop("The specified rdFile ' ", rdFile, "' does not exist.")
+
+  invisible(.Call(getNativeSymbolInfo("rs_previewRd", PACKAGE=""), rdFile))
 })
 
 .rs.addApiFunction("viewer", function(url, height = NULL) {
@@ -167,7 +118,7 @@
   if (!is.null(height) && (!is.numeric(height) || (length(height) != 1)))
      stop("height must be a single element numeric vector or 'maximize'.")
 
-  invisible(.Call("rs_viewer", url, height, PACKAGE = "(embedding)"))
+  invisible(.Call(getNativeSymbolInfo("rs_viewer", PACKAGE=""), url, height))
 })
 
 
@@ -183,8 +134,7 @@
       stop("width argument mut be numeric", call. = FALSE)
    if (!is.numeric(height))
       stop("height argument mut be numeric", call. = FALSE)
-   
-   invisible(.Call("rs_savePlotAsImage", file, format, width, height, PACKAGE = "(embedding)"))
+   invisible(.Call("rs_savePlotAsImage", file, format, width, height))
 })
 
 .rs.addApiFunction("sourceMarkers", function(name,
@@ -257,20 +207,15 @@
    else if (!is.character(basePath))
       stop("basePath parameter is not of type character", call. = FALSE)
 
-   invisible(.Call("rs_sourceMarkers", name, markers, basePath, autoSelect, PACKAGE = "(embedding)"))
+   invisible(.Call("rs_sourceMarkers", name, markers, basePath, autoSelect))
 })
 
-.rs.addApiFunction("navigateToFile", function(filePath = character(0),
-                                              line = -1L,
-                                              col = -1L,
-                                              moveCursor = TRUE)
-{
+.rs.addApiFunction("navigateToFile", function(filePath, line = 1L, col = 1L) {
    # validate file argument
-   hasFile <- !is.null(filePath) && length(filePath) > 0
-   if (hasFile && !is.character(filePath)) {
+   if (!is.character(filePath)) {
       stop("filePath must be a character")
    }
-   if (hasFile && !file.exists(filePath)) {
+   if (!file.exists(filePath)) {
       stop(filePath, " does not exist.")
    }
    
@@ -287,28 +232,18 @@
       stop("line and column must be numeric values.")
    }
 
-   if (hasFile)
-   {
-      # expand and alias for client
-      filePath <- .rs.normalizePath(filePath, winslash = "/", mustWork = TRUE)
-      homeDir <- path.expand("~")
-      if (identical(substr(filePath, 1, nchar(homeDir)), homeDir)) {
-         filePath <- file.path("~", substring(filePath, nchar(homeDir) + 2))
-      }
+   # expand and alias for client
+   filePath <- .rs.normalizePath(filePath, winslash="/", mustWork = TRUE)
+   homeDir <- path.expand("~")
+   if (identical(substr(filePath, 1, nchar(homeDir)), homeDir)) {
+      filePath <- file.path("~", substring(filePath, nchar(homeDir) + 2))
    }
-   
-   # if we're requesting navigation without a specific cursor position,
-   # then use a separate API (this allows the API to work regardless of
-   # whether we're in source or visual mode)
-   if (identical(line, -1L) && identical(col, -1L))
-      return(invisible(.Call("rs_fileEdit", filePath, PACKAGE = "(embedding)")))
 
    # send event to client
    .rs.enqueClientEvent("jump_to_function", list(
       file_name     = .rs.scalar(filePath),
       line_number   = .rs.scalar(line),
-      column_number = .rs.scalar(col),
-      move_cursor   = .rs.scalar(moveCursor)))
+      column_number = .rs.scalar(col)))
 
    invisible(NULL)
 })
@@ -358,12 +293,12 @@
 
 .rs.addFunction("enqueEditorClientEvent", function(type, data)
 {
-   eventData <- list(type = .rs.scalar(type), data = data)
+   eventData = list(type = .rs.scalar(type), data = data)
    .rs.enqueClientEvent("editor_command", eventData)
 })
 
-.rs.addApiFunction("insertText", function(location, text, id = "")
-{
+.rs.addApiFunction("insertText", function(location, text, id = "") {
+
    invalidTextMsg <- "'text' should be a character vector"
    invalidLengthMsg <- "'text' should either be length 1, or same length as 'ranges'"
 
@@ -381,22 +316,14 @@
    # in such cases, we replace the current selection. we pass an empty range
    # and let upstream interpret this as a request to replace the current
    # selection.
-   if (missing(location))
-      location <- NULL
-   
-   if (missing(text))
-      text <- NULL
-   
-   if (is.null(text) && is.character(location))
-   {
-      return(.rs.api.selectionSet(value = location, id = id))
-   }
-   else if (is.null(location) && is.character(text))
-   {
-      return(.rs.api.selectionSet(value = text, id = id))
-   }
-   else if (length(location) == 0)
-   {
+
+   if (missing(text) && is.character(location)) {
+      text <- location
+      location <- list()
+   } else if (missing(location) && is.character(text)) {
+      text <- text
+      location <- list()
+   } else if (length(location) == 0) {
       return()
    }
 
@@ -435,19 +362,19 @@
 # of the 'rstudioapi' package -- it is superceded by
 # '.rs.getLastActiveEditorContext()'.
 .rs.addApiFunction("getActiveDocumentContext", function() {
-   .Call("rs_getEditorContext", 0L, PACKAGE = "(embedding)")
+   .Call("rs_getEditorContext", 0L)
 })
 
 .rs.addApiFunction("getLastActiveEditorContext", function() {
-   .Call("rs_getEditorContext", 0L, PACKAGE = "(embedding)")
+   .Call("rs_getEditorContext", 0L)
 })
 
 .rs.addApiFunction("getConsoleEditorContext", function() {
-   .Call("rs_getEditorContext", 1L, PACKAGE = "(embedding)")
+   .Call("rs_getEditorContext", 1L)
 })
 
 .rs.addApiFunction("getSourceEditorContext", function() {
-   .Call("rs_getEditorContext", 2L, PACKAGE = "(embedding)")
+   .Call("rs_getEditorContext", 2L)
 })
 
 .rs.addApiFunction("getActiveProject", function() {
@@ -479,20 +406,13 @@
    .rs.askForPassword(prompt)
 })
 
-.rs.addFunction("dialogIcon", function(name = NULL) {
-  
-   icons <- list(
-      info = 1,
-      warning = 2,
-      error = 3,
-      question = 4
-   )
-   
-   if (is.null(name))
-      icons
-   else
-      icons[[name]]
-   
+.rs.addFunction("dialogIcon", function(name) {
+  list(
+    info = 1,
+    warning = 2,
+    error = 3,
+    question = 4
+  )
 })
 
 .rs.addApiFunction("showDialog", function(title, message, url = "") {
@@ -504,13 +424,12 @@
    .Call("rs_showDialog",
       title = title,
       message = message,
-      dialogIcon = .rs.dialogIcon("info"),
+      dialogIcon = .rs.dialogIcon()$info,
       prompt = FALSE,
       promptDefault = "",
       ok = "OK",
       cancel = "Cancel",
-      url = url,
-      PACKAGE = "(embedding)")
+      url = url)
 })
 
 .rs.addApiFunction("updateDialog", function(...)
@@ -530,13 +449,12 @@
    .Call("rs_showDialog",
       title = title,
       message = message,
-      dialogIcon = .rs.dialogIcon("info"),
+      dialogIcon = .rs.dialogIcon()$info,
       prompt = TRUE,
       promptDefault = default,
       ok = "OK",
       cancel = "Cancel",
-      url = "",
-      PACKAGE = "(embedding)")
+      url = "")
 })
 
 .rs.addApiFunction("showQuestion", function(title, message, ok = "OK", cancel = "Cancel") {
@@ -551,30 +469,20 @@
    .Call("rs_showDialog",
       title = title,
       message = message,
-      dialogIcon = .rs.dialogIcon("question"),
+      dialogIcon = .rs.dialogIcon()$question,
       prompt = FALSE,
       promptDefault = NULL,
       ok = ok,
       cancel = cancel,
-      url = NULL,
-      PACKAGE = "(embedding)")
+      url = NULL)
 })
 
 .rs.addApiFunction("writePreference", function(name, value) {
-  .rs.writeApiPref(name, value)
+  .rs.writeUiPref(paste("rstudioapi", name, sep = "_"), value)
 })
 
 .rs.addApiFunction("readPreference", function(name, default = NULL) {
-  value <- .rs.readApiPref(name)
-  if (is.null(value)) default else value
-})
-
-.rs.addApiFunction("writeRStudioPreference", function(name, value) {
-  .rs.writeUiPref(name, value)
-})
-
-.rs.addApiFunction("readRStudioPreference", function(name, default = NULL) {
-  value <- .rs.readUiPref(name)
+  value <- .rs.readUiPref(paste("rstudioapi", name, sep = "_"))
   if (is.null(value)) default else value
 })
 
@@ -586,149 +494,62 @@
    .Call("rs_getPersistentValue", name)
 })
 
-.rs.addApiFunction("documentId", function(allowConsole = TRUE) {
-   
-   payload <- list(
-      allow_console = .rs.scalar(allowConsole)
-   )
-   
-   request <- .rs.api.createRequest(
-      type    = .rs.api.eventTypes$TYPE_DOCUMENT_ID,
-      sync    = TRUE,
-      target  = .rs.api.eventTargets$TYPE_ACTIVE_WINDOW,
-      payload = payload
-   )
-   
-   response <- .rs.api.sendRequest(request)
-   response$id
-   
-})
-
-.rs.addApiFunction("documentContents", function(id = NULL) {
-   
-   # resolve id
-   id <- .rs.nullCoalesce(id, .rs.api.documentId(allowConsole = FALSE))
-   
-   # retrieve properties
-   properties <- .Call("rs_documentProperties",
-                       as.character(id),
-                       TRUE,
-                       PACKAGE = "(embedding)")
-   
-   # extract contents as UTF-8
-   contents <- properties$contents
-   Encoding(contents) <- "UTF-8"
-   
-   # return
-   contents
-})
-
-.rs.addApiFunction("documentPath", function(id = NULL) {
-   
-   # resolve document id
-   id <- .rs.nullCoalesce(id, .rs.api.documentId(allowConsole = FALSE))
-   if (is.null(id))
-      return(NULL)
-   
-   # read document properties
-   properties <- .Call("rs_documentProperties",
-                       id,
-                       FALSE,
-                       PACKAGE = "(embedding)")
-   
-   # return document path
-   properties$path
-   
-})
-
 .rs.addApiFunction("documentSave", function(id = NULL) {
-   
-   # resolve document id
-   id <- .rs.nullCoalesce(id, .rs.api.documentId(allowConsole = FALSE))
-   if (is.null(id))
+   # If no ID is specified, try to save the active editor.
+   if (is.null(id)) {
+      context <- .rs.api.getSourceEditorContext()
+      if (!is.null(context)) {
+         id <- context$id
+      }
+   }
+   if (is.null(id)) {
+      # No ID specified and no document open; succeed without meaning
       return(TRUE)
-   
-   # attempt document save
+   }
    .Call("rs_requestDocumentSave", id, PACKAGE = "(embedding)")
-   
 })
 
 .rs.addApiFunction("documentSaveAll", function() {
    .Call("rs_requestDocumentSave", NULL, PACKAGE = "(embedding)")
 })
 
-.rs.addApiFunction("documentNew", function(type,
-                                           code,
-                                           row = 0,
-                                           column = 0,
-                                           execute = FALSE)
-{
+.rs.addApiFunction("documentNew", function(type, code, row = 0, column= 0, execute = FALSE) {
    type <- switch(
       type,
-      rmd       = "r_markdown",
       rmarkdown = "r_markdown",
-      sql       = "sql",
+      sql = "sql",
       "r_script"
    )
 
-   payload <- list(
-      type    = .rs.scalar(type),
-      code    = .rs.scalar(paste(code, collapse = "\n")),
-      row     = .rs.scalar(as.integer(row)),
-      column  = .rs.scalar(as.integer(column)),
+   .rs.enqueClientEvent("new_document_with_code", list(
+      type = .rs.scalar(type),
+      code = .rs.scalar(code),
+      row = .rs.scalar(row),
+      column = .rs.scalar(column),
       execute = .rs.scalar(execute)
-   )
-   
-   request <- .rs.api.createRequest(
-      type = .rs.api.eventTypes$TYPE_DOCUMENT_NEW,
-      sync = TRUE,
-      target = .rs.api.eventTargets$TYPE_ACTIVE_WINDOW,
-      payload = payload
-   )
-   
-   response <- .rs.api.sendRequest(request)
-   response$id
-})
+   ))
 
-.rs.addApiFunction("documentOpen", function(path) {
-   
-   payload <- list(
-      path = .rs.scalar(path)
-   )
-   
-   request <- .rs.api.createRequest(
-      type   = .rs.api.eventTypes$TYPE_DOCUMENT_OPEN,
-      sync   = TRUE,
-      target = .rs.api.eventTargets$TYPE_ACTIVE_WINDOW,
-      payload = payload
-   )
-   
-   response <- .rs.api.sendRequest(request)
-   response$id
-   
+   invisible(NULL)
 })
 
 .rs.addApiFunction("documentClose", function(id = NULL, save = TRUE) {
-   
-   # resolve document id
-   id <- .rs.nullCoalesce(id, .rs.api.documentId(allowConsole = FALSE))
-   if (is.null(id))
+   # If no ID is specified, try to close the active editor.
+   if (is.null(id)) {
+      context <- .rs.api.getSourceEditorContext()
+      if (!is.null(context)) {
+         id <- context$id
+      }
+   }
+   if (is.null(id)) {
+      # No ID specified and no document open; succeed without meaning
       return(TRUE)
-   
-   # request close
+   }
    .Call("rs_requestDocumentClose", id, save, PACKAGE = "(embedding)")
-   
 })
 
-.rs.addApiFunction("closeAllSourceBuffersWithoutSaving", function() {
-   .Call("rs_documentCloseAllNoSave", PACKAGE = "(embedding)")
-})
-
-# NOTE: we allow '1L' just in case for backwards compatibility
-# with older preferences not migrated to the newer string version
 .rs.addApiFunction("getConsoleHasColor", function(name) {
-   mode <- .rs.readUiPref("ansi_console_mode")
-   !is.null(mode) && mode %in% list(1L, "on")
+   value <- .rs.readUiPref("ansi_console_mode")
+   if (is.null(value) || value != 1) FALSE else TRUE
 })
 
 .rs.addApiFunction("terminalSend", function(id, text) {
@@ -763,10 +584,10 @@
    validShellType = TRUE
    if (!is.null(shellType)) {
       validShellType <- tolower(shellType) %in% c("default", "win-cmd", 
-            "win-ps", "win-git-bash", "win-wsl-bash", "ps-core", "custom")
+            "win-ps", "win-git-bash", "win-wsl-bash", "custom")
    }      
    if (!validShellType)
-      stop("'shellType' must be NULL, or one of 'default', 'win-cmd', 'win-ps', 'win-git-bash', 'win-wsl-bash', 'ps-core', 'bash', 'zsh', or 'custom'.") 
+      stop("'shellType' must be NULL, or one of 'default', 'win-cmd', 'win-ps', 'win-git-bash', 'win-wsl-bash', or 'custom'.") 
 
    .Call("rs_terminalCreate", caption, show, shellType)
 })
@@ -842,14 +663,14 @@
    if (is.null(show) || !is.logical(show))
       stop("'show' must be a logical vector")
 
-   .Call("rs_terminalExecute", command, workingDir, env, show, PACKAGE = "(embedding)")
+   .Call("rs_terminalExecute", command, workingDir, env, show)
 })
 
 .rs.addApiFunction("terminalExitCode", function(id) {
    if (is.null(id) || !is.character(id) || (length(id) != 1))
       stop("'id' must be a single element character vector")
 
-   .Call("rs_terminalExitCode", id, PACKAGE = "(embedding)")
+   .Call("rs_terminalExitCode", id)
 })
 
 options(terminal.manager = list(terminalActivate = .rs.api.terminalActivate,
@@ -901,9 +722,9 @@ options(terminal.manager = list(terminalActivate = .rs.api.terminalActivate,
 .rs.addApiFunction("getThemeInfo", function() {
    
    # read theme preferences
-   global <- .rs.readUiPref("global_theme")
+   global <- .rs.readUiPref("flat_theme")
 
-   theme <- .rs.readUserState("theme")
+   theme <- .rs.readUiPref("rstheme")
    if (is.null(theme))
       theme <- list("name" = "Textmate (default)", "isDark" = FALSE)
 
@@ -978,169 +799,3 @@ options(terminal.manager = list(terminalActivate = .rs.api.terminalActivate,
   .Call("rs_executeAppCommand", commandId, quiet, PACKAGE = "(embedding)")
 })
 
-# return a list of all the R packages RStudio depends on in in some way
-.rs.addApiFunction("getPackageDependencies", function() {
-  .Call("rs_packageDependencies", PACKAGE = "(embedding)")
-})
-
-# highlight UI elements within the IDE
-.rs.addApiFunction("highlightUi", function(data = list()) {
-   .Call("rs_highlightUi", data, PACKAGE = "(embedding)")
-})
-
-# return display username (user identity)
-.rs.addApiFunction("userIdentity", function() {
-   .Call("rs_userIdentity", PACKAGE = "(embedding)")
-})
-
-# return system username 
-.rs.addApiFunction("systemUsername", function() {
-   .Call("rs_systemUsername", PACKAGE = "(embedding)")
-})
-
-# store callback functions to be executed after a specified chunk
-# and return a handle to unregister the chunk
-.rs.addApiFunction("registerChunkCallback", function(chunkCallback) {
-
-   if (length(.rs.notebookChunkCallbacks) != 0)
-      stop("Callback is already registered.")
-   if (!is.function(chunkCallback))
-      stop("'chunkCallback' must be a function")
-   if (length(formals(chunkCallback)) != 2)
-      stop("'chunkCallback' must contain two parameters: chunkName and chunkCode")
-
-   data <- chunkCallback
-   handle <- .Call("rs_createUUID", PACKAGE = "(embedding)")
-   assign(handle, value = data, envir = .rs.notebookChunkCallbacks)
-
-   return(handle)
-})
-
-# unregister a chunk callback functions
-.rs.addApiFunction("unregisterChunkCallback", function(id = NULL) {
-   if (length(.rs.notebookChunkCallbacks) == 0)
-      warning("No registered callbacks found")
-   else if (!is.null(id) && !exists(id, envir = .rs.notebookChunkCallbacks))
-      warning("Handle not found.")
-   else
-   {
-      id <- ls(envir = .rs.notebookChunkCallbacks)
-      rm(list = id, envir = .rs.notebookChunkCallbacks)
-   }
-})
-
-# Tutorial ----
-
-# invoked by rstudioapi to instruct RStudio to open a particular
-# URL in the Tutorial pane. should be considered an internal contract
-# between the RStudio + rstudioapi packages rather than an official
-# user-facing API
-.rs.addApiFunction("tutorialLaunchBrowser", function(url) {
-   .rs.tutorial.launchBrowser(url)
-})
-
-# given a tutorial 'name' from package 'package', run that tutorial
-# and show the application in the Tutorial pane
-.rs.addApiFunction("tutorialRun", function(name, package, shiny_args = NULL) {
-   .rs.tutorial.runTutorial(name, package, shiny_args)
-})
-
-# stop a running tutorial
-.rs.addApiFunction("tutorialStop", function(name, package) {
-   .rs.tutorial.stopTutorial(name, package)
-})
-
-# API for sending + receiving arbitrary requests from rstudioapi
-# added in RStudio v1.4; not used univerally by older APIs but useful
-# as a framework for any new functions that might be added
-
-#' @param type The event type. See '.rs.api.events' for the set
-#'   of permissible targets.
-#' 
-#' @param sync Boolean; does handling of this event need to be
-#'   synchronous? Ensure `sync = TRUE` is used if you need to wait
-#'   for a response from the client.
-#'
-#' @param target The window to be targeted by this request. See
-#'   `.rs.api.eventTargets` for possible targets.
-#'
-#' @param data The payload associated with this event.
-#'
-.rs.addApiFunction("createRequest", function(type, sync, target, payload)
-{
-   list(
-      type    = .rs.scalar(type),
-      sync    = .rs.scalar(sync),
-      target  = .rs.scalar(target),
-      payload = as.list(payload)
-   )
-})
-
-.rs.addApiFunction("sendRequest", function(request) {
-   .Call("rs_sendApiRequest", request, PACKAGE = "(embedding)")
-})
-
-.rs.addApiFunction("selectionGet", function(id = NULL)
-{
-   # create data payload
-   payload <- list(
-      doc_id = .rs.scalar(id)
-   )
-   
-   # create request
-   request <- .rs.api.createRequest(
-      type    = .rs.api.eventTypes$TYPE_GET_EDITOR_SELECTION,
-      sync    = TRUE,
-      target  = .rs.api.eventTargets$TYPE_ACTIVE_WINDOW,
-      payload = payload
-   )
-   
-   # fire away
-   .rs.api.sendRequest(request)
-})
-
-.rs.addApiFunction("selectionSet", function(value = NULL, id = NULL)
-{
-   # collapse value into single string
-   value <- paste(value, collapse = "\n")
-   
-   # create data payload
-   payload <- list(
-      value  = .rs.scalar(value),
-      doc_id = .rs.scalar(id)
-   )
-   
-   # create request
-   request <- .rs.api.createRequest(
-      type    = .rs.api.eventTypes$TYPE_SET_EDITOR_SELECTION,
-      sync    = TRUE,
-      target  = .rs.api.eventTargets$TYPE_ACTIVE_WINDOW,
-      payload = payload
-   )
-   
-   # fire away
-   .rs.api.sendRequest(request)
-})
-
-.rs.addApiFunction("filesPaneNavigate", function(path)
-{
-   info <- file.info(path, extra_cols = FALSE)
-   if (is.na(info$isdir))
-      stop("'", path, "' does not exist")
-   else if (identical(info$isdir, FALSE))
-      path <- dirname(path)
-   
-   payload <- list(
-      path  = .rs.scalar(.rs.createAliasedPath(path))
-   )
-   
-   request <- .rs.api.createRequest(
-      type    = .rs.api.eventTypes$TYPE_FILES_PANE_NAVIGATE,
-      sync    = FALSE,
-      target  = .rs.api.eventTargets$TYPE_UNKNOWN,
-      payload = payload
-   )
-   
-   .rs.api.sendRequest(request)
-   invisible(path)
-})

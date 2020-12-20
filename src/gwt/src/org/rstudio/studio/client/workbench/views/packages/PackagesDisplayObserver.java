@@ -1,7 +1,7 @@
 /*
  * PackagesDisplayObserver.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,9 +19,9 @@ import org.rstudio.studio.client.workbench.views.packages.model.PackageInfo;
 public interface PackagesDisplayObserver
 {
    void updatePackageState(boolean showProgress, boolean manualUpdate);
-   void loadPackage(PackageInfo info);
-   void unloadPackage(PackageInfo info);
-   void showHelp(PackageInfo packageInfo);
+   void loadPackage(PackageInfo info) ;
+   void unloadPackage(PackageInfo info) ;
+   void showHelp(PackageInfo packageInfo) ;
    void removePackage(PackageInfo packageInfo);
    void onPackageFilterChanged(String filter);
 }

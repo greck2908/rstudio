@@ -1,7 +1,7 @@
 /*
  * PlotsTab.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -29,18 +29,21 @@ import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.ui.DelayLoadTabShim;
 import org.rstudio.studio.client.workbench.ui.DelayLoadWorkbenchTab;
 import org.rstudio.studio.client.workbench.views.console.events.ConsolePromptEvent;
+import org.rstudio.studio.client.workbench.views.console.events.ConsolePromptHandler;
 import org.rstudio.studio.client.workbench.views.plots.events.LocatorEvent;
+import org.rstudio.studio.client.workbench.views.plots.events.LocatorHandler;
 import org.rstudio.studio.client.workbench.views.plots.events.PlotsChangedEvent;
+import org.rstudio.studio.client.workbench.views.plots.events.PlotsChangedHandler;
 import org.rstudio.studio.client.workbench.views.plots.model.PlotsServerOperations;
 import org.rstudio.studio.client.workbench.views.plots.model.PlotsState;
 
 public class PlotsTab extends DelayLoadWorkbenchTab<Plots>
-   implements HasResizeHandlers, PlotsChangedEvent.Handler
+   implements HasResizeHandlers, PlotsChangedHandler
 {
    public interface Binder extends CommandBinder<Commands, PlotsShim> {}
 
    public abstract static class PlotsShim extends DelayLoadTabShim<Plots, PlotsTab>
-         implements PlotsChangedEvent.Handler, LocatorEvent.Handler, ConsolePromptEvent.Handler
+         implements PlotsChangedHandler, LocatorHandler, ConsolePromptHandler
    {
       boolean loaded = false;
       PlotsState delayLoadPlotsState;

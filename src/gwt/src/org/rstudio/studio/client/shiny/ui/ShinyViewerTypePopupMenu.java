@@ -1,7 +1,7 @@
 /*
  * ShinyViewerTypePopupMenu.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,14 +14,12 @@
  */
 package org.rstudio.studio.client.shiny.ui;
 
-import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.widget.ToolbarPopupMenu;
-import org.rstudio.core.client.widget.UserPrefMenuItem;
 import org.rstudio.studio.client.common.shiny.model.ShinyServerOperations;
 import org.rstudio.studio.client.server.ServerError;
 import org.rstudio.studio.client.server.ServerRequestCallback;
+import org.rstudio.studio.client.shiny.model.ShinyViewerType;
 import org.rstudio.studio.client.workbench.commands.Commands;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 
 import com.google.inject.Inject;
 
@@ -31,7 +29,6 @@ public class ShinyViewerTypePopupMenu extends ToolbarPopupMenu
 {
    @Inject
    public ShinyViewerTypePopupMenu(Commands commands,
-                                   UserPrefs prefs,
                                    ShinyServerOperations server)
    {
       commands_ = commands;
@@ -40,11 +37,6 @@ public class ShinyViewerTypePopupMenu extends ToolbarPopupMenu
       addItem(commands.shinyRunInPane().createMenuItem(false));
       addSeparator();
       addItem(commands.shinyRunInBrowser().createMenuItem(false));
-      addSeparator();
-      addItem(new UserPrefMenuItem<Boolean>(prefs.shinyBackgroundJobs(), 
-            false, "In R Console", prefs));
-      addItem(new UserPrefMenuItem<Boolean>(prefs.shinyBackgroundJobs(), 
-            true, "In Background Job", prefs));
       addSeparator();
       addItem(commands.shinyRecordTest().createMenuItem(false));
       addItem(commands.shinyRunAllTests().createMenuItem(false));
@@ -56,19 +48,20 @@ public class ShinyViewerTypePopupMenu extends ToolbarPopupMenu
    {
       final ToolbarPopupMenu menu = this;
       server_.getShinyViewerType(
-            new ServerRequestCallback<String>()
+            new ServerRequestCallback<ShinyViewerType>()
             {
                @Override
-               public void onResponseReceived(String viewerType)
+               public void onResponseReceived(ShinyViewerType response)
                {
+                  int viewerType = response.getViewerType();
                   commands_.shinyRunInPane().setChecked(false);
                   commands_.shinyRunInViewer().setChecked(false);
                   commands_.shinyRunInBrowser().setChecked(false);
-                  if (StringUtil.equals(viewerType, UserPrefs.SHINY_VIEWER_TYPE_PANE))
+                  if (ShinyViewerType.SHINY_VIEWER_PANE == viewerType)
                      commands_.shinyRunInPane().setChecked(true);
-                  if (StringUtil.equals(viewerType, UserPrefs.SHINY_VIEWER_TYPE_WINDOW))
+                  if (ShinyViewerType.SHINY_VIEWER_WINDOW == viewerType)
                      commands_.shinyRunInViewer().setChecked(true);
-                  if (StringUtil.equals(viewerType, UserPrefs.SHINY_VIEWER_TYPE_BROWSER))
+                  if (ShinyViewerType.SHINY_VIEWER_BROWSER == viewerType)
                      commands_.shinyRunInBrowser().setChecked(true);
                   callback.onPopupMenu(menu);
                }

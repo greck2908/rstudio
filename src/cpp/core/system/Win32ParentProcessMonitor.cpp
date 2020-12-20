@@ -1,7 +1,7 @@
 /*
  * Win32ParentProcessMonitor.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,8 +18,8 @@
 #include <stdio.h>
 
 #include <core/Log.hpp>
-#include <shared_core/SafeConvert.hpp>
-#include <shared_core/Error.hpp>
+#include <core/SafeConvert.hpp>
+#include <core/Error.hpp>
 
 namespace rstudio {
 namespace core {

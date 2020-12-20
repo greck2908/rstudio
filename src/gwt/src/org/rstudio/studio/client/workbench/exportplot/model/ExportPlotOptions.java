@@ -1,7 +1,7 @@
 /*
  * ExportPlotOptions.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,11 +15,19 @@
 package org.rstudio.studio.client.workbench.exportplot.model;
 
 import org.rstudio.core.client.Size;
-import org.rstudio.studio.client.workbench.prefs.model.UserStateAccessor;
 
-public class ExportPlotOptions extends UserStateAccessor.ExportPlotOptions
+import com.google.gwt.core.client.JavaScriptObject;
+
+public class ExportPlotOptions extends JavaScriptObject
 {
-   protected ExportPlotOptions() {}
+   protected ExportPlotOptions()
+   {   
+   }
+   
+   public static final ExportPlotOptions createDefault()
+   {
+      return create(550, 450, false, "PNG", false, false);
+   }
    
    public static final native ExportPlotOptions create(int width, 
                                                        int height,
@@ -29,13 +37,13 @@ public class ExportPlotOptions extends UserStateAccessor.ExportPlotOptions
                                                        boolean copyAsMetafile) 
    /*-{
       var options = new Object();
-      options.width = width;
-      options.height = height;
+      options.width = width ;
+      options.height = height ;
       options.format = format;
       options.keepRatio = keepRatio;
       options.viewAfterSave = viewAfterSave;
       options.copyAsMetafile = copyAsMetafile;
-      return options;
+      return options ;
    }-*/;
    
    public static final ExportPlotOptions adaptToSize(ExportPlotOptions options,
@@ -60,5 +68,37 @@ public class ExportPlotOptions extends UserStateAccessor.ExportPlotOptions
              a.keepRatio === b.keepRatio &&
              a.viewAfterSave === b.viewAfterSave &&
              a.copyAsMetafile === b.copyAsMetafile;    
+   }-*/;
+   
+   public final native String getFormat() /*-{
+      return this.format;
+   }-*/;
+   
+   public final native int getWidth() /*-{
+      return this.width;
+   }-*/;
+   public final native int getHeight() /*-{
+      return this.height;
+   }-*/;
+   
+   public final native boolean getKeepRatio() /*-{
+      if (this.keepRatio)
+         return this.keepRatio;
+      else
+         return false;
+   }-*/;
+   
+   public final native boolean getViewAfterSave() /*-{
+      if (this.viewAfterSave)
+         return this.viewAfterSave;
+      else
+         return false;
+   }-*/;
+   
+   public final native boolean getCopyAsMetafile() /*-{
+      if (this.copyAsMetafile)
+         return this.copyAsMetafile;
+      else
+         return false;
    }-*/;
 }

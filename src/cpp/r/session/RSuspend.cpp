@@ -1,7 +1,7 @@
 /*
  * RSuspend.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -13,7 +13,7 @@
  *
  */
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 
 #include <Rembedded.h>
 
@@ -37,7 +37,7 @@ namespace session {
 namespace {
 
 // session state path
-FilePath s_suspendedSessionPath;
+FilePath s_suspendedSessionPath ; 
 
 // client-state paths
 FilePath s_clientStatePath;
@@ -69,8 +69,7 @@ bool saveSessionState(const RSuspendOptions& options,
       return r::session::state::save(suspendedSessionPath,
                                      utils::isServerMode(),
                                      options.excludePackages,
-                                     disableSaveCompression,
-                                     options.envVarSaveBlacklist);
+                                     disableSaveCompression);
    }
 }
    
@@ -148,9 +147,9 @@ bool suspend(const RSuspendOptions& options,
    }
 }
 
-bool suspend(bool force, int status, const std::string& envVarSaveBlacklist)
+bool suspend(bool force, int status)
 {
-   return suspend(RSuspendOptions(status, envVarSaveBlacklist),
+   return suspend(RSuspendOptions(status),
                   s_suspendedSessionPath,
                   false,
                   force);

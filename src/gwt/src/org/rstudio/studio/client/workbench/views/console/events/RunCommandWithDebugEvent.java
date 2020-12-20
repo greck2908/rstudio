@@ -1,7 +1,7 @@
 /*
  * RerunLastCommandEvent.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,9 +17,11 @@ package org.rstudio.studio.client.workbench.views.console.events;
 import com.google.gwt.event.shared.EventHandler;
 import com.google.gwt.event.shared.GwtEvent;
 
-public class RunCommandWithDebugEvent extends GwtEvent<RunCommandWithDebugEvent.Handler>
+public class RunCommandWithDebugEvent 
+   extends GwtEvent<RunCommandWithDebugEvent.Handler>
 {
-   public static final GwtEvent.Type<Handler> TYPE = new GwtEvent.Type<>();
+   public static final GwtEvent.Type<RunCommandWithDebugEvent.Handler> TYPE =
+      new GwtEvent.Type<RunCommandWithDebugEvent.Handler>();
   
    public interface Handler extends EventHandler
    {
@@ -37,7 +39,7 @@ public class RunCommandWithDebugEvent extends GwtEvent<RunCommandWithDebugEvent.
    }
          
    @Override
-   public Type<Handler> getAssociatedType()
+   public Type<RunCommandWithDebugEvent.Handler> getAssociatedType()
    {
       return TYPE;
    }

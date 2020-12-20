@@ -1,7 +1,7 @@
 /*
  * PosixUser.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,9 @@
 #include <string>
 #include <unistd.h>
 
-#include <shared_core/system/User.hpp>
+// typdefs (in case we need indirection for porting)
+typedef uid_t  UidType;
+typedef gid_t  GidType;
 
 namespace rstudio {
 namespace core {
@@ -42,6 +44,21 @@ struct UserIdentity
 UserIdentity currentUserIdentity();
    
 core::Error socketPeerIdentity(int socket, UserIdentity* pIdentity);
+
+struct User
+{
+   UidType userId;
+   GidType groupId;
+   std::string username;
+   std::string homeDirectory;
+};
+
+core::Error currentUser(User* pUser);
+
+bool exists(const std::string& username);
+core::Error userFromUsername(const std::string& username, User* pUser);
+core::Error userFromId(UidType uid, User* pUser);
+
    
 } // namespace user
 } // namespace system

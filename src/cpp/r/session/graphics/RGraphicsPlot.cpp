@@ -1,7 +1,7 @@
 /*
  * RGraphicsPlot.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,7 @@
 
 #include <boost/format.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 
 #include <core/system/System.hpp>
@@ -28,7 +28,7 @@
 #include <r/RExec.hpp>
 #include <r/session/RGraphics.hpp>
 
-using namespace rstudio::core;
+using namespace rstudio::core ;
 
 namespace rstudio {
 namespace r {
@@ -133,9 +133,8 @@ Error Plot::renderFromDisplay()
    std::string storageUuid = core::system::generateUuid();
    
    // generate snapshot and image files
-   FilePath snapshotPath = snapshotFilePath(storageUuid);
-   FilePath imagePath = imageFilePath(storageUuid);
-   Error error = graphicsDevice_.saveSnapshot(snapshotPath, imagePath);
+   Error error = graphicsDevice_.saveSnapshot(snapshotFilePath(storageUuid),
+                                              imageFilePath(storageUuid));
    if (error)
       return Error(errc::PlotRenderingError, error, ERROR_LOCATION);
    
@@ -171,9 +170,9 @@ Error Plot::renderFromDisplaySnapshot(SEXP snapshot)
    FilePath snapshotFile = snapshotFilePath(storageUuid);
    Error error = r::exec::RFunction(".rs.saveGraphicsSnapshot",
                                     snapshot,
-                                    string_utils::utf8ToSystem(snapshotFile.getAbsolutePath())).call();
+                                    string_utils::utf8ToSystem(snapshotFile.absolutePath())).call();
    if (error)
-      return error;
+      return error ;
 
    //
    // we can't generate an image file at this point in the processing
@@ -202,7 +201,7 @@ Error Plot::renderFromDisplaySnapshot(SEXP snapshot)
 
 std::string Plot::imageFilename() const
 {
-   return imageFilePath(storageUuid()).getFilename();
+   return imageFilePath(storageUuid()).filename();
 }
 
 Error Plot::renderToDisplay()
@@ -258,13 +257,13 @@ FilePath Plot::snapshotFilePath() const
 
 FilePath Plot::snapshotFilePath(const std::string& storageUuid) const
 {
-   return baseDirPath_.completePath(storageUuid + ".snapshot");
+   return baseDirPath_.complete(storageUuid + ".snapshot");
 }
    
 FilePath Plot::imageFilePath(const std::string& storageUuid) const
 {
    std::string extension = graphicsDevice_.imageFileExtension();
-   return baseDirPath_.completePath(storageUuid + "." + extension);
+   return baseDirPath_.complete(storageUuid + "." + extension);
 }
 
 bool Plot::hasManipulatorFile() const
@@ -274,7 +273,7 @@ bool Plot::hasManipulatorFile() const
 
 FilePath Plot::manipulatorFilePath(const std::string& storageUuid) const
 {
-   return baseDirPath_.completePath(storageUuid + ".manip");
+   return baseDirPath_.complete(storageUuid + ".manip");
 }
 
 void Plot::loadManipulatorIfNecessary() const

@@ -1,7 +1,7 @@
 /*
  * WebDialogBuilderFactory.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -68,7 +68,6 @@ public class WebDialogBuilderFactory implements DialogBuilderFactory
       private final Widget message_;
    }
 
-   @Override
    public DialogBuilder create(int type, String caption, String message)
    {
       return new Builder(type, caption, MessageDialog.labelForMessage(message));

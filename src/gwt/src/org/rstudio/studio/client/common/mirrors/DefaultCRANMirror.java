@@ -1,7 +1,7 @@
 /*
  * DefaultCRANMirror.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,15 +16,15 @@ package org.rstudio.studio.client.common.mirrors;
 
 import org.rstudio.core.client.widget.OperationWithInput;
 import org.rstudio.studio.client.common.GlobalDisplay;
+import org.rstudio.studio.client.common.SimpleRequestCallback;
 import org.rstudio.studio.client.common.mirrors.model.CRANMirror;
 import org.rstudio.studio.client.common.mirrors.model.MirrorsServerOperations;
 import org.rstudio.studio.client.server.ServerRequestCallback;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.server.Void;
 
 import com.google.gwt.core.client.JsArray;
 import com.google.gwt.user.client.Command;
 import com.google.inject.Inject;
-import com.google.inject.Provider;
 import com.google.inject.Singleton;
 
 @Singleton
@@ -32,12 +32,10 @@ public class DefaultCRANMirror
 {
    @Inject
    public DefaultCRANMirror(MirrorsServerOperations server,
-                            GlobalDisplay globalDisplay,
-                            Provider<UserPrefs> prefs)
+                            GlobalDisplay globalDisplay)
    {
       server_ = server;
       globalDisplay_ = globalDisplay;
-      pUserPrefs_ = prefs;
    }
    
    public void choose(OperationWithInput<CRANMirror> onChosen)
@@ -58,21 +56,16 @@ public class DefaultCRANMirror
             @Override
             public void execute(final CRANMirror mirror)
             {
-               pUserPrefs_.get().cranMirror().setGlobalValue(mirror);
-               pUserPrefs_.get().writeUserPrefs(
-                  (Boolean succeeded) ->
-                  {
-                     if (succeeded)
-                     {
+               server_.setCRANMirror(
+                  mirror,
+                  new SimpleRequestCallback<Void>("Error Setting CRAN Mirror") {
+                      @Override
+                      public void onResponseReceived(Void response)
+                      {
                          // successfully set, call onConfigured
                          onConfigured.execute();
-                     }
-                     else
-                     {
-                        globalDisplay_.showErrorMessage("Error Setting CRAN Mirror", 
-                              "The CRAN mirror could not be changed.");
-                     }
-                  });
+                      }
+                  });             
              }
            },
          server_).showModal();
@@ -81,8 +74,6 @@ public class DefaultCRANMirror
    private final MirrorsServerOperations server_;
    
    private final GlobalDisplay globalDisplay_;
-   
-   private final Provider<UserPrefs> pUserPrefs_;
    
    private final ChooseMirrorDialog.Source mirrorDS_ = 
       new ChooseMirrorDialog.Source() {

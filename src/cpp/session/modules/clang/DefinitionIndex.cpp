@@ -1,7 +1,7 @@
 /*
  * DefinitionIndex.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,7 @@
 #include <deque>
 #include <gsl/gsl>
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/DateTime.hpp>
 #include <core/PerformanceTimer.hpp>
 #include <core/FileSerializer.hpp>
@@ -292,7 +292,7 @@ std::ostream& operator<<(std::ostream& os, const CppDefinition& definition)
    os << definition.name << " ";
 
    // file location
-   os << "(" << definition.location.filePath.getFilename() << ":"
+   os << "(" << definition.location.filePath.filename() << ":"
       << definition.location.line << ":" << definition.location.column << ") ";
 
    // USR
@@ -381,7 +381,7 @@ FileLocation findDefinitionLocation(const FileLocation& location)
    // return the location
    SourceLocation loc = cursor.getSourceLocation();
    unsigned line, column;
-   std::string filename = location.filePath.getAbsolutePath();
+   std::string filename = location.filePath.absolutePath();
    loc.getSpellingLocation(&filename, &line, &column);
    return FileLocation(FilePath(filename), line, column);
 }
@@ -417,7 +417,7 @@ json::Object cppDefinitionToJson(const CppDefinition& definition)
    definitionJson["kind"] = numberTo<int>(definition.kind, 0);
    definitionJson["parent_name"] = definition.parentName;
    definitionJson["name"] = definition.name;
-   definitionJson["file"] = definition.location.filePath.getAbsolutePath();
+   definitionJson["file"] = definition.location.filePath.absolutePath();
    definitionJson["line"] = numberTo<int>(definition.location.line, 1);
    definitionJson["column"] = numberTo<int>(definition.location.column, 1);
    return definitionJson;
@@ -431,13 +431,13 @@ CppDefinition cppDefinitionFromJson(const json::Object& object)
    std::string file;
    CppDefinition definition;
    Error error = json::readObject(object,
-                                  "usr", definition.USR,
-                                  "kind", kind,
-                                  "parent_name", definition.parentName,
-                                  "name", definition.name,
-                                  "file", file,
-                                  "line", line,
-                                  "column", column);
+                                  "usr", &definition.USR,
+                                  "kind", &kind,
+                                  "parent_name", &definition.parentName,
+                                  "name", &definition.name,
+                                  "file", &file,
+                                  "line", &line,
+                                  "column", &column);
    if (error)
    {
       LOG_ERROR(error);
@@ -457,7 +457,7 @@ CppDefinition cppDefinitionFromJson(const json::Object& object)
 
 FilePath definitionIndexFilePath()
 {
-   return module_context::scopedScratchPath().completeChildPath("cpp-definition-cache");
+   return module_context::scopedScratchPath().childPath("cpp-definition-cache");
 }
 
 void loadDefinitionIndex()
@@ -477,14 +477,14 @@ void loadDefinitionIndex()
    }
 
    json::Value indexValueJson;
-   if (indexValueJson.parse(contents) ||
+   if (!json::parse(contents, &indexValueJson) ||
        !json::isType<json::Array>(indexValueJson))
    {
       LOG_ERROR_MESSAGE("Error parsing definition index: " + contents);
       return;
    }
 
-   const json::Array& indexJson = indexValueJson.getArray();
+   const json::Array& indexJson = indexValueJson.get_array();
    for (const json::Value& definitionsJson : indexJson)
    {
       if (!json::isType<json::Object>(definitionsJson))
@@ -496,10 +496,10 @@ void loadDefinitionIndex()
       json::Array defsArrayJson;
       double fileLastWrite;
       CppDefinitions definitions;
-      Error error = json::readObject(definitionsJson.getObject(),
-                                     "file", definitions.file,
-                                     "file_last_write", fileLastWrite,
-                                     "definitions", defsArrayJson);
+      Error error = json::readObject(definitionsJson.get_obj(),
+                                     "file", &definitions.file,
+                                     "file_last_write", &fileLastWrite,
+                                     "definitions", &defsArrayJson);
       if (error)
       {
          LOG_ERROR(error);
@@ -519,7 +519,7 @@ void loadDefinitionIndex()
             continue;
          }
 
-         CppDefinition definition = cppDefinitionFromJson(defJson.getObject());
+         CppDefinition definition = cppDefinitionFromJson(defJson.get_obj());
          if (!definition.empty())
             definitions.definitions.push_back(definition);
       }
@@ -551,8 +551,9 @@ void saveDefinitionIndex()
       indexJson.push_back(definitionsJson);
    }
 
-   ;
-   Error error = writeStringToFile(definitionIndexFilePath(), indexJson.writeFormatted());
+   std::ostringstream ostr;
+   json::writeFormatted(indexJson, ostr);
+   Error error = writeStringToFile(definitionIndexFilePath(), ostr.str());
    if (error)
       LOG_ERROR(error);
 }
@@ -621,8 +622,8 @@ Error initializeDefinitionIndex()
 
       // check for src and inst/include dirs
       FilePath pkgPath = projects::projectContext().buildTargetPath();
-      FilePath srcPath = pkgPath.completeChildPath("src");
-      FilePath includePath = pkgPath.completeChildPath("inst/include");
+      FilePath srcPath = pkgPath.childPath("src");
+      FilePath includePath = pkgPath.childPath("inst/include");
       if (srcPath.exists() || includePath.exists())
       {
          // create an incremental file change handler (on the heap so that it

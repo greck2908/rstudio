@@ -1,7 +1,7 @@
 /*
  * Exec.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,14 +15,14 @@
 
 #include <core/Exec.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 
 namespace rstudio {
 namespace core {
 
 ExecBlock& ExecBlock::add(Function function) 
 { 
-   functions_.push_back(function);
+   functions_.push_back(function); 
    return *this;
 }   
    
@@ -33,14 +33,14 @@ Error ExecBlock::execute() const
    {
       Error error = (*it)();
       if (error)
-         return error;
+         return error ;
    }
    return Success();
 }
    
 Error ExecBlock::operator()() const 
 {  
-   return execute();
+   return execute(); 
 }
    
 } // namespace core 

@@ -1,7 +1,7 @@
 /*
  * RStudioAPI.java
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,6 +15,7 @@
 
 package org.rstudio.studio.client.common.rstudioapi;
 
+import com.google.gwt.user.client.Command;
 import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.MessageDisplay;
 import org.rstudio.core.client.MessageDisplay.PromptWithOptionResult;
@@ -93,9 +94,14 @@ public class RStudioAPI implements RStudioAPIShowDialogEvent.Handler
       
       if (!StringUtil.isNullOrEmpty(url))
       {
-         HyperlinkLabel link = new HyperlinkLabel(url, () ->
-         {
-            RStudioGinjector.INSTANCE.getGlobalDisplay().openWindow(url);
+         HyperlinkLabel link = new HyperlinkLabel(url, new Command() {
+            @Override
+            public void execute()
+            {
+               RStudioGinjector.INSTANCE.getGlobalDisplay()
+                  .openWindow(url);
+            }
+
          });
          link.addStyleName(RES.styles().installLink());
          verticalPanel.add(link);

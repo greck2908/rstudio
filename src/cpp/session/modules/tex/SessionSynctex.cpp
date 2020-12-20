@@ -1,7 +1,7 @@
 /*
  * SessionSynctex.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,8 +15,8 @@
 
 #include "SessionSynctex.hpp"
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/Exec.hpp>
 
 #include <core/json/JsonRpc.hpp>
@@ -80,8 +80,7 @@ void applyForwardConcordance(const FilePath& mainFile,
                              core::tex::SourceLocation* pLoc)
 {
    // skip if this isn't an Rnw
-   if (pLoc->file().getExtensionLowerCase() != ".rnw" && 
-       pLoc->file().getExtensionLowerCase() != ".rtex")
+   if (pLoc->file().extensionLowerCase() != ".rnw")
       return;
 
    // try to read concordance
@@ -181,10 +180,10 @@ Error rpcApplyForwardConcordance(const json::JsonRpcRequest& request,
    int line, column;
    bool fromClick;
    error = json::readObject(sourceLocation,
-                                  "file", file,
-                                  "line", line,
-                                  "column", column,
-                                  "from_click", fromClick);
+                                  "file", &file,
+                                  "line", &line,
+                                  "column", &column,
+                                  "from_click", &fromClick);
    if (error)
       return error;
 
@@ -314,10 +313,10 @@ Error forwardSearch(const FilePath& rootFile,
    int line, column;
    bool fromClick;
    Error error = json::readObject(sourceLocation,
-                                  "file", file,
-                                  "line", line,
-                                  "column", column,
-                                  "from_click", fromClick);
+                                  "file", &file,
+                                  "line", &line,
+                                  "column", &column,
+                                  "from_click", &fromClick);
    if (error)
       return error;
 
@@ -325,7 +324,7 @@ Error forwardSearch(const FilePath& rootFile,
    FilePath inputFile = module_context::resolveAliasedPath(file);
 
    // determine pdf
-   FilePath pdfFile = rootFile.getParent().completePath(rootFile.getStem() + ".pdf");
+   FilePath pdfFile = rootFile.parent().complete(rootFile.stem() + ".pdf");
 
    core::tex::Synctex synctex;
    if (synctex.parse(pdfFile))
@@ -354,14 +353,14 @@ Error initialize()
                                                          rsinversePostback,
                                                          &ignoredCommand);
    if (error)
-      return error;
+      return error ;
 
 #endif
 
    // install rpc methods
    using boost::bind;
    using namespace module_context;
-   ExecBlock initBlock;
+   ExecBlock initBlock ;
    initBlock.addFunctions()
       (bind(registerRpcMethod, "apply_forward_concordance", rpcApplyForwardConcordance))
       (bind(registerRpcMethod, "apply_inverse_concordance", rpcApplyInverseConcordance))

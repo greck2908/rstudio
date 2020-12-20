@@ -1,7 +1,7 @@
 /*
  * RSexp.hpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-18 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -28,14 +28,14 @@
 #include <boost/utility.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 
+#include <core/Error.hpp>
 #include <core/Log.hpp>
+#include <core/json/Json.hpp>
 #include <core/r_util/RFunctionInformation.hpp>
 
 #include <r/RErrorCategory.hpp>
 #include <r/RInternal.hpp>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/json/Json.hpp>
 
 // IMPORTANT NOTE: all code in r::sexp must provide "no jump" guarantee.
 // See comment in RInternal.hpp for more info on this
@@ -51,6 +51,7 @@ class Protect;
 // environments and namespaces
 SEXP asEnvironment(std::string name);
 core::Error asPrimitiveEnvironment(SEXP envirSEXP, SEXP* pTargetSEXP, Protect* pProtect);
+std::vector<std::string> getLoadedNamespaces();
 SEXP findNamespace(const std::string& name);
 SEXP asNamespace(const std::string& name);
 
@@ -58,7 +59,7 @@ SEXP asNamespace(const std::string& name);
 SEXP forcePromise(SEXP objectSEXP);
    
 // variables within an environment
-typedef std::pair<std::string,SEXP> Variable;
+typedef std::pair<std::string,SEXP> Variable ;
 void listEnvironment(SEXP env, 
                      bool includeAll,
                      bool includeLastDotValue,
@@ -67,7 +68,7 @@ void listEnvironment(SEXP env,
       
 // object info
 SEXP findVar(const std::string& name,
-             const std::string& ns = std::string());
+             const std::string& ns = std::string()); 
 SEXP findVar(const std::string& name,
              const SEXP env);
 SEXP findFunction(const std::string& name,
@@ -79,7 +80,7 @@ int length(SEXP object);
 SEXP getNames(SEXP sexp);
 bool setNames(SEXP sexp, const std::vector<std::string>& names);
 
-core::Error getNames(SEXP sexp, std::vector<std::string>* pNames);
+core::Error getNames(SEXP sexp, std::vector<std::string>* pNames);  
 bool hasActiveBinding(const std::string&, const SEXP);
 bool isActiveBinding(const std::string&, const SEXP);
 
@@ -92,7 +93,7 @@ bool isFunction(SEXP object);
 bool isLanguage(SEXP object);
 bool isList(SEXP object);
 bool isMatrix(SEXP object);
-bool isDataFrame(SEXP object);
+bool isDataFrame(SEXP object);   
 bool isNull(SEXP object);
 bool isEnvironment(SEXP object);
 bool isPrimitiveEnvironment(SEXP object);
@@ -100,7 +101,6 @@ bool isNumeric(SEXP object);
 
 // type coercions
 std::string asString(SEXP object);
-std::string asUtf8String(SEXP object);
 std::string safeAsString(SEXP object, 
                          const std::string& defValue = std::string());
 int asInteger(SEXP object);
@@ -129,7 +129,7 @@ void clearExternalPtr(SEXP extptr);
 core::Error extract(SEXP valueSEXP, int* pInt);
 core::Error extract(SEXP valueSEXP, bool* pBool);
 core::Error extract(SEXP valueSEXP, double* pDouble);
-core::Error extract(SEXP valueSEXP, std::vector<int>* pVector);
+core::Error extract(SEXP valueSEXP, std::vector<int>* pVector);   
 core::Error extract(SEXP valueSEXP, std::string* pString, bool asUtf8 = false);
 core::Error extract(SEXP valueSEXP, std::vector<std::string>* pVector, bool asUtf8 = false);
 core::Error extract(SEXP valueSEXP, std::set<std::string>* pSet, bool asUtf8 = false);
@@ -162,10 +162,6 @@ SEXP create(const ListBuilder& builder, Protect* pProtect);
 SEXP create(const std::map<std::string, std::string>& value, Protect* pProtect);
 SEXP create(const std::map<std::string, SEXP> &value,
             Protect *pProtect);
-
-// Create a UTF-8 encoded character vector
-SEXP createUtf8(const std::string& data, Protect* pProtect);
-SEXP createUtf8(const core::FilePath& filePath, Protect* pProtect);
 
 // Create a raw vector (binary data)
 SEXP createRawVector(const std::string& data, Protect* pProtect);
@@ -222,7 +218,7 @@ core::Error getNamedListElement(SEXP listSEXP,
   core:: Error error = getNamedListElement(listSEXP, name, pValue);
   if (error)
   {
-     if (error == r::errc::ListElementNotFoundError)
+     if (error.code() == r::errc::ListElementNotFoundError)
      {
         *pValue = defaultValue;
         return core::Success();
@@ -241,7 +237,7 @@ core::Error getNamedListElement(SEXP listSEXP,
 template <typename T>
 core::Error getNamedAttrib(SEXP object, const std::string& name, T* pValue)
 {
-   SEXP attrib = getAttrib(object, name);
+   SEXP attrib = getAttrib(object, name); 
    if (attrib == R_NilValue) 
    {
       core::Error error(r::errc::AttributeNotFoundError, ERROR_LOCATION);
@@ -275,7 +271,7 @@ public:
    void unprotectAll();
    
 private:
-   int protectCount_;
+   int protectCount_ ;
 };
 
 // set list element by name. note that the specified element MUST already

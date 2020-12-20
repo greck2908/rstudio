@@ -1,7 +1,7 @@
 /*
  * NotebookExec.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,13 +24,14 @@
 #include "NotebookWorkingDir.hpp"
 #include "NotebookConditions.hpp"
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/text/CsvParser.hpp>
 #include <core/FileSerializer.hpp>
 
 #include <r/ROptions.hpp>
 
 #include <session/SessionModuleContext.hpp>
+#include <session/SessionUserSettings.hpp>
 
 #include <iostream>
 
@@ -66,13 +67,13 @@ core::Error copyLibDirForOutput(const core::FilePath& file,
 {
    Error error = Success();
 
-   FilePath fileLib = file.getParent().completePath(kChunkLibDir);
+   FilePath fileLib = file.parent().complete(kChunkLibDir);
    if (fileLib.exists())
    {
       std::string docPath;
       source_database::getPath(docId, &docPath);
       error = mergeLib(fileLib, chunkCacheFolder(docPath, docId, nbCtxId)
-         .completePath(kChunkLibDir));
+                                   .complete(kChunkLibDir));
       if (error)
          LOG_ERROR(error);
 
@@ -84,32 +85,22 @@ core::Error copyLibDirForOutput(const core::FilePath& file,
    return error;
 }
 
-ChunkExecContext::ChunkExecContext(const std::string& docId,
-                                   const std::string& chunkId,
-                                   const std::string& chunkCode,
-                                   const std::string& chunkLabel,
-                                   const std::string& nbCtxId,
-                                   const std::string& engine,
-                                   ExecScope execScope,
-                                   const core::FilePath& workingDir,
-                                   const ChunkOptions& options,
-                                   int pixelWidth,
-                                   int charWidth)
-   : docId_(docId),
-     chunkId_(chunkId),
-     chunkCode_(chunkCode),
-     chunkLabel_(chunkLabel),
-     nbCtxId_(nbCtxId),
-     engine_(engine),
-     workingDir_(workingDir),
-     options_(options),
-     pixelWidth_(pixelWidth),
-     charWidth_(charWidth),
-     prevCharWidth_(0),
-     lastOutputType_(kChunkConsoleInput),
-     execScope_(execScope),
-     hasOutput_(false),
-     hasErrors_(false)
+ChunkExecContext::ChunkExecContext(const std::string& docId, 
+      const std::string& chunkId, const std::string& nbCtxId, 
+      ExecScope execScope, const core::FilePath& workingDir, 
+      const ChunkOptions& options, int pixelWidth, int charWidth):
+   docId_(docId), 
+   chunkId_(chunkId),
+   nbCtxId_(nbCtxId),
+   workingDir_(workingDir),
+   options_(options),
+   pixelWidth_(pixelWidth),
+   charWidth_(charWidth),
+   prevCharWidth_(0),
+   lastOutputType_(kChunkConsoleInput),
+   execScope_(execScope),
+   hasOutput_(false),
+   hasErrors_(false)
 {
 }
 
@@ -121,11 +112,6 @@ std::string ChunkExecContext::chunkId()
 std::string ChunkExecContext::docId()
 {
    return docId_;
-}
-
-std::string ChunkExecContext::engine()
-{
-   return engine_;
 }
 
 const ChunkOptions& ChunkExecContext::options() 
@@ -209,7 +195,7 @@ void ChunkExecContext::connect()
 
    error = pHtmlCapture->connectHtmlCapture(
             outputPath_,
-            outputPath_.getParent().completePath(kChunkLibDir),
+            outputPath_.parent().complete(kChunkLibDir),
             options_.chunkOptions());
    if (error)
       LOG_ERROR(error);
@@ -333,7 +319,7 @@ void ChunkExecContext::onFileOutput(const FilePath& file,
 
    // preserve original extension; some output types, such as plots, don't
    // have a canonical extension
-   target = target.getParent().completePath(target.getStem() + file.getExtension());
+   target = target.parent().complete(target.stem() + file.extension());
 
    Error error = file.move(target);
    if (error)
@@ -347,17 +333,19 @@ void ChunkExecContext::onFileOutput(const FilePath& file,
    copyLibDirForOutput(file, docId_, nbCtxId_);
 
    // if output sidecar file was provided, write it out
-   if (!sidecar.isEmpty())
+   if (!sidecar.empty())
    {
-      sidecar.move(target.getParent().completePath(
-               target.getStem() + sidecar.getExtension()));
+      sidecar.move(target.parent().complete(
+               target.stem() + sidecar.extension()));
    }
 
    // serialize metadata if provided
-   if (!metadata.isNull())
+   if (!metadata.is_null())
    {
-      error = writeStringToFile(target.getParent().completePath(
-               target.getStem() + ".metadata"), metadata.write());
+      std::ostringstream oss;
+      json::write(metadata, oss);
+      error = writeStringToFile(target.parent().complete(
+               target.stem() + ".metadata"), oss.str());
    }
 
    enqueueChunkOutput(docId_, chunkId_, nbCtxId_, ordinal, outputType, target,
@@ -376,14 +364,14 @@ void ChunkExecContext::onError(const core::json::Object& err)
    unsigned ordinal;
    FilePath target = getNextOutputFile(docId_, chunkId_, nbCtxId_, 
          ChunkOutputError, &ordinal);
-   std::shared_ptr<std::ostream> pOfs;
-   Error error = target.openForWrite(pOfs, true);
+   boost::shared_ptr<std::ostream> pOfs;
+   Error error = target.open_w(&pOfs, true);
    if (error)
    {
       LOG_ERROR(error);
       return;
    }
-   err.write(*pOfs);
+   json::write(err, *pOfs);
    
    pOfs->flush();
    pOfs.reset();
@@ -430,7 +418,7 @@ void ChunkExecContext::onConsoleText(int type, const std::string& output,
       return;
    }
 
-   std::vector<std::string> vals;
+   std::vector<std::string> vals; 
    vals.push_back(safe_convert::numberToString(type));
    vals.push_back(output);
    error = core::writeStringToFile(outputCsv, 
@@ -483,7 +471,7 @@ void ChunkExecContext::disconnect()
 
    NotebookCapture::disconnect();
 
-   events().onChunkExecCompleted(docId_, chunkId_, chunkCode_, chunkLabel_, nbCtxId_);
+   events().onChunkExecCompleted(docId_, chunkId_, nbCtxId_);
 }
 
 void ChunkExecContext::onConsoleOutput(module_context::ConsoleOutputType type, 

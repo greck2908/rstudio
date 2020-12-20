@@ -1,7 +1,7 @@
 /*
  * ServerSessionManager.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,8 +19,7 @@
 
 #include <boost/format.hpp>
 
-#include <shared_core/SafeConvert.hpp>
-#include <core/system/Process.hpp>
+#include <core/SafeConvert.hpp>
 #include <core/system/PosixUser.hpp>
 #include <core/system/Environment.hpp>
 #include <core/json/JsonRpc.hpp>
@@ -29,7 +28,7 @@
 #include <session/SessionConstants.hpp>
 
 #include <server/ServerOptions.hpp>
-#include <server/ServerPaths.hpp>
+
 #include <server/ServerErrorCategory.hpp>
 
 #include <server/auth/ServerValidateUser.hpp>
@@ -74,12 +73,11 @@ void readRequestArgs(const core::http::Request& request, core::system::Options *
 
 core::system::ProcessConfig sessionProcessConfig(
          r_util::SessionContext context,
-         const core::system::Options& extraArgs = core::system::Options(),
-         bool requestIsSecure = false)
+         const core::system::Options& extraArgs = core::system::Options())
 {
    // prepare command line arguments
    server::Options& options = server::options();
-   core::system::Options args;
+   core::system::Options args ;
 
    // check for options-specified config file and add to command
    // line if specified
@@ -104,18 +102,6 @@ core::system::ProcessConfig sessionProcessConfig(
       args.push_back(std::make_pair("-" kScopeSessionOptionShort,
                                     context.scope.id()));
    }
-
-   // ensure cookies are marked secure if applicable
-   bool useSecureCookies = options.authCookiesForceSecure() ||
-                           options.getOverlayOption("ssl-enabled") == "1" ||
-                           requestIsSecure;
-   args.push_back(std::make_pair("--" kUseSecureCookiesSessionOption, 
-         useSecureCookies ? "1" : "0"));
-
-   args.push_back(std::make_pair("--" kRootPathSessionOption,
-                                 options.wwwRootPath()));
-   args.push_back(std::make_pair("--" kSameSiteSessionOption,
-                                 safe_convert::numberToString(static_cast<int>(options.wwwSameSite()))));
 
    // create launch token if we haven't already
    if (s_launcherToken.empty())
@@ -166,7 +152,7 @@ core::system::ProcessConfig sessionProcessConfig(
                         rVersion.number());
    core::system::setenv(&environment,
                         kRStudioDefaultRVersionHome,
-                        rVersion.homeDir().getAbsolutePath());
+                        rVersion.homeDir().absolutePath());
 
    // forward the auth options
    core::system::setenv(&environment,
@@ -192,11 +178,6 @@ core::system::ProcessConfig sessionProcessConfig(
 
    if (!core::system::getenv(kCrashpadHandlerEnvVar).empty())
       environment.push_back({kCrashpadHandlerEnvVar, core::system::getenv(kCrashpadHandlerEnvVar)});
-
-
-   // forward path for session temp dir (used for local stream path)
-   environment.push_back(
-         std::make_pair(kSessionTmpDirEnvVar, sessionTmpDir().getAbsolutePath()));
 
    // build the config object and return it
    core::system::ProcessConfig config;
@@ -269,7 +250,7 @@ Error SessionManager::launchSession(boost::asio::io_service& ioService,
    r_util::SessionLaunchProfile profile;
    profile.context = context;
    profile.executablePath = server::options().rsessionPath();
-   profile.config = sessionProcessConfig(context, args, request.isSecure());
+   profile.config = sessionProcessConfig(context, args);
 
    // pass the profile to any filters we have
    for (SessionLaunchProfileFilter f : sessionLaunchProfileFilters_)
@@ -321,36 +302,12 @@ Error SessionManager::launchAndTrackSession(
       configFilter = s_processConfigFilter;
    }
    END_LOCK_MUTEX
-         
-   // retrieve profile config
-   auto config = profile.config;
-   
-   // on macOS, we need to forward DYLD_INSERT_LIBRARIES
-#if __APPLE__
-   std::string rPath = server::options().rsessionWhichR();
-   
-   core::system::ProcessOptions options;
-   core::system::ProcessResult result;
-   Error rError = core::system::runCommand(
-            rPath + " --vanilla -s -e \"cat(R.home('lib/libR.dylib'))\"",
-            options,
-            &result);
-   
-   if (rError)
-      LOG_ERROR(rError);
-   
-   std::string rLibPath = result.stdOut;
-   core::system::setenv(
-            &config.environment,
-            "DYLD_INSERT_LIBRARIES",
-            rLibPath);
-#endif
-         
+
    // launch the session
    PidType pid = 0;
    Error error = launchChildProcess(profile.executablePath,
                                     runAsUser,
-                                    config,
+                                    profile.config,
                                     configFilter,
                                     &pid);
    if (error)
@@ -400,7 +357,7 @@ r_util::SessionLaunchProfile createSessionLaunchProfile(const r_util::SessionCon
    profile.config = sessionProcessConfig(context, extraArgs);
 
    // pass the profile to any filters we have
-   for (const SessionManager::SessionLaunchProfileFilter& f : sessionManager().getSessionLaunchProfileFilters())
+   for (const SessionManager::SessionLaunchProfileFilter f : sessionManager().getSessionLaunchProfileFilters())
    {
       f(&profile);
    }
@@ -414,35 +371,11 @@ Error launchSession(const r_util::SessionContext& context,
                     PidType* pPid)
 {
    // launch the session
-   // we use a modified configured home directory to provide a reliable temp dir that can be written to
-   // as the server (service) user most likely does not have a home directory configured
    std::string username = context.username;
    std::string rsessionPath = server::options().rsessionPath();
    std::string runAsUser = core::system::realUserIsRoot() ? username : "";
    core::system::ProcessConfig config = sessionProcessConfig(context,
                                                              extraArgs);
-
-   FilePath tmpDir;
-   Error error = FilePath::tempFilePath(tmpDir);
-   if (error)
-   {
-      LOG_ERROR(error);
-   }
-   else
-   {
-      error = tmpDir.ensureDirectory();
-      if (error)
-      {
-         LOG_ERROR(error);
-      }
-      else
-      {
-         FilePath userHome = tmpDir;
-         FilePath xdgConfigHome = tmpDir.completeChildPath(".config");
-         core::system::setenv(&config.environment, "HOME", userHome.getAbsolutePath());
-         core::system::setenv(&config.environment, "XDG_CONFIG_HOME", xdgConfigHome.getAbsolutePath());
-      }
-   }
 
    *pPid = -1;
    return core::system::launchChildProcess(rsessionPath,
@@ -454,3 +387,4 @@ Error launchSession(const r_util::SessionContext& context,
 
 } // namespace server
 } // namespace rstudio
+

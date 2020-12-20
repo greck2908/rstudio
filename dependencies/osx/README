@@ -5,28 +5,14 @@ Install Required Applications
 Building RStudio requires installations of a number of applications 
 (including R). These applications include:
 
-- R:         https://www.r-project.org/
+- R:         http://www.r-project.org/
 - XCode:     https://developer.apple.com/xcode/
-- CMake:     https://www.cmake.org/
+- CMake:     http://www.cmake.org/
 
 Note that after installing XCode you should also be sure to install the XCode
 Command Line Tools (which can be done by running the following:
 
 xcode-select --install
-
-Installing Qt SDK
-=============================================================================
-
-Building RStudio Desktop requires installation of Qt 5.12.8, including
-the macOS and QtWebEngine components.
-
-- https://www.qt.io/
-
-If required version isn't showing up when installing via the Qt online 
-installer click the "Archive" checkbox on the "Select Components" screen, 
-then the Filter button. The list of available versions will expand to include 
-older versions.
-
 
 Satisfy Additional Dependencies
 =============================================================================
@@ -37,4 +23,5 @@ Additional dependencies can be satisfied by running the following script:
 
 Note that this script includes download, extraction, and compilation of
 boost so can take some time (30-60 minutes) to complete.
+
 

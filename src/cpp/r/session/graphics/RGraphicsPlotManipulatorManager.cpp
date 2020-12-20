@@ -1,7 +1,7 @@
 /*
  * RGraphicsPlotManipulatorManager.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,7 +22,7 @@
 #include <boost/function.hpp>
 
 #include <core/Log.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 
 #include <r/RExec.hpp>
 #include <r/RErrorCategory.hpp>
@@ -41,28 +41,22 @@ namespace graphics {
 namespace {
 
 void setManipulatorJsonValue(SEXP manipulatorSEXP,
-                             const std::string& objectName,
-                             const json::Value& objectValue)
+                             const json::Member& object)
 {
    // get the actual value to assign
    r::exec::RFunction setFunction("manipulate:::setManipulatorValue");
    setFunction.addParam(manipulatorSEXP);
-   setFunction.addParam(objectName);
-   setFunction.addParam(objectValue);
+   setFunction.addParam(object.name());
+   setFunction.addParam(object.value());
    Error error = setFunction.call();
    if (error)
       LOG_ERROR(error);
 }
 
-void setManipulatorJsonValue(SEXP manipulatorSEXP,
-                             const json::Object::Member& in_object)
-{
-   setManipulatorJsonValue(manipulatorSEXP, in_object.getName(), in_object.getValue());
-}
-
 void setManipulatorValueToFalse(SEXP manipulatorSEXP, const std::string& name)
 {
-   setManipulatorJsonValue(manipulatorSEXP, name, json::toJsonValue(false));
+   setManipulatorJsonValue(manipulatorSEXP,
+                           json::Member(name, json::toJsonValue(false)));
 }
 
 
@@ -287,7 +281,7 @@ void PlotManipulatorManager::manipulatorPlotClicked(int x, int y)
          double deviceX = x;
          double deviceY = y;
          double userX = x;
-         double userY = y;
+         double userY = y; 
          convert_.deviceToUser(&userX, &userY);
          double ndcX = x;
          double ndcY = y;

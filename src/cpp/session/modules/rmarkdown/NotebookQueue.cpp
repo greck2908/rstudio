@@ -1,7 +1,7 @@
 /*
  * NotebookQueue.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -35,7 +35,6 @@
 #include <r/RExec.hpp>
 #include <r/RJson.hpp>
 #include <r/RSexp.hpp>
-#include <r/session/RSession.hpp>
 
 #include <core/Exec.hpp>
 #include <core/Thread.hpp>
@@ -108,7 +107,7 @@ public:
 
       // defer if R is currently executing code (we'll initiate processing when
       // the console continues)
-      if (!module_context::isPythonReplActive() && r::context::globalContext().nextcontext())
+      if (r::context::globalContext().nextcontext())
          return Success();
 
       // if we have a currently executing unit, execute it; otherwise, pop the
@@ -182,7 +181,7 @@ public:
       const std::string& before)
    {
       // find the document queue corresponding to this unit
-      for (const boost::shared_ptr<NotebookDocQueue>& queue : queue_)
+      for (const boost::shared_ptr<NotebookDocQueue> queue : queue_)
       {
          if (queue->docId() == pUnit->docId())
          {
@@ -261,7 +260,8 @@ private:
       {
          // get the chunk label to see if this is the setup chunk 
          std::string label;
-         json::readObject(execContext_->options().chunkOptions(), "label", label);
+         json::readObject(execContext_->options().chunkOptions(), "label", 
+               &label);
          if (label == "setup")
             saveSetupContext();
       }
@@ -280,7 +280,7 @@ private:
          execContext_->onExprComplete();
          
       ExecRange range;
-      std::string code = execUnit_->popExecRange(&range, mode);
+      std::string code = execUnit_->popExecRange(&range, mode); 
       if (code.empty())
       {
          // no code to evaluate--skip this unit
@@ -288,24 +288,8 @@ private:
       }
       else 
       {
-         // if we're switching the console between languages, call the
-         // appropriate R code to make that happen
-         std::string prefix;
-
-         bool isPythonActive = module_context::isPythonReplActive();
-         if (isPythonActive && (execContext_ == nullptr || execContext_->engine() != "python"))
-         {
-            // switching from Python -> R: deactivate the Python REPL
-            prefix = "quit\n";
-         }
-         else if (!isPythonActive && execContext_ && execContext_->engine() == "python")
-         {
-            // switching from R -> Python: activate the Python REPL
-            prefix = "reticulate::repl_python()\n";
-         }
-
          // send code to console 
-         sendConsoleInput(execUnit_->chunkId(), json::Value(prefix + code));
+         sendConsoleInput(execUnit_->chunkId(), code);
 
          // let client know the range has been sent to R
          json::Object exec;
@@ -321,24 +305,23 @@ private:
       return Success();
    }
 
-   void sendConsoleInput(const std::string& chunkId, const json::Value& jsonInput)
+   void sendConsoleInput(const std::string& chunkId, const json::Value& input)
    {
-      using namespace r::session;
-      
-      std::string input = jsonInput.isString()
-            ? jsonInput.getString()
-            : std::string();
-      
-      json::Array arr = RConsoleInput(input, chunkId).toJsonArray();
+      json::Array arr;
+      ExecRange range(0, 0);
+      arr.push_back(input);
+      arr.push_back(chunkId);
 
       // formulate request body
       json::Object rpc;
-      rpc["method"] = json::Value("console_input");
+      rpc["method"] = "console_input";
       rpc["params"] = arr;
-      rpc["clientId"] = json::Value(clientEventService().clientId());
+      rpc["clientId"] = clientEventService().clientId();
 
       // serialize RPC body and send it to helper thread for submission
-      pInput_->enque(rpc.write());
+      std::ostringstream oss;
+      json::write(rpc, oss);
+      pInput_->enque(oss.str());
    }
 
    Error executeNextUnit(ExpressionMode mode)
@@ -389,7 +372,7 @@ private:
       // if this is the setup chunk, prepare for its execution by switching
       // knitr chunk defaults
       std::string label;
-      json::readObject(chunkOptions, "label", label);
+      json::readObject(chunkOptions, "label", &label);
       if (label == "setup")
          prepareSetupContext();
 
@@ -417,7 +400,7 @@ private:
       if (engine == "R")
          engine = "r";
 
-      if (engine == "r" || engine == "python")
+      if (engine == "r")
       {
          // establish execution context unless we're an inline chunk
          if (unit->execScope() != ExecScopeInline)
@@ -430,11 +413,10 @@ private:
             if (label != "setup")
                workingDir = docQueue->workingDir();
 
-            std::string codeString = string_utils::wideToUtf8(unit->code());
             execContext_ = boost::make_shared<ChunkExecContext>(
-               unit->docId(), unit->chunkId(), codeString, label, ctx, engine,
-               unit->execScope(), workingDir, options,
-               docQueue->pixelWidth(), docQueue->charWidth());
+               unit->docId(), unit->chunkId(), ctx, unit->execScope(), 
+               workingDir, options, docQueue->pixelWidth(), 
+               docQueue->charWidth());
             execContext_->connect();
 
             // if there was an error parsing the options for the chunk, display
@@ -442,7 +424,7 @@ private:
             if (optionsError)
             {
                 execContext_->onConsoleOutput(module_context::ConsoleOutputError,
-                                              optionsError.getSummary());
+                                              optionsError.summary());
             }
          }
          execUnit_ = unit;
@@ -466,7 +448,7 @@ private:
             // actually execute the chunk with the alternate engine; store the error separately
             // and log if necessary
             Error execError = executeAlternateEngineChunk(
-               unit->docId(), unit->chunkId(), label, ctx, docQueue->workingDir(),
+               unit->docId(), unit->chunkId(), ctx, docQueue->workingDir(),
                engine, innerCode, options, execUnit_->execScope(),
                docQueue->pixelWidth(), docQueue->charWidth());
             if (execError)
@@ -480,7 +462,7 @@ private:
       if (error)
          return skipUnit();
 
-      if (engine == "r" || engine == "python")
+      if (engine == "r")
       {
          error = executeCurrentUnit(ExprModeNew);
          if (error)
@@ -520,7 +502,7 @@ private:
             {
                std::stringstream oss;
                oss << "Received unexpected response when submitting console input: "
-                   << response;
+                   << response; 
                LOG_WARNING_MESSAGE(oss.str());
             }
          }
@@ -612,15 +594,15 @@ private:
       {
          json::Value externals;
          r::json::jsonValueFromList(resultSEXP, &externals);
-         if (externals.isObject())
+         if (externals.type() == json::ObjectType)
          {
             error = setChunkValue(docPath, execContext_->docId(), 
-                  kChunkExternals, externals.getObject());
+                  kChunkExternals, externals.get_obj());
             if (error)
                LOG_ERROR(error);
 
             if (!queue_.empty())
-               queue_.front()->setExternalChunks(externals.getObject());
+               queue_.front()->setExternalChunks(externals.get_obj());
          }
       }
 
@@ -666,17 +648,17 @@ private:
       {
          json::Value defaults;
          r::json::jsonValueFromList(resultSEXP, &defaults);
-         if (defaults.isObject())
+         if (defaults.type() == json::ObjectType)
          {
             // write default chunk options to cache
             Error error = setChunkValue(docPath, execContext_->docId(), 
-                  kChunkDefaultOptions, defaults.getObject());
+                  kChunkDefaultOptions, defaults.get_obj());
             if (error)
                LOG_ERROR(error);
 
             // update running queue if present
             if (!queue_.empty())
-               queue_.front()->setDefaultChunkOptions(defaults.getObject());
+               queue_.front()->setDefaultChunkOptions(defaults.get_obj());
          }
       }
    }
@@ -750,10 +732,6 @@ Error executeNotebookChunks(const json::JsonRpcRequest& request,
 
 void onConsolePrompt(const std::string& prompt)
 {
-   // Ignore debug prompts
-   if (r::context::inBrowseContext())
-      return;
-
    if (s_queue)
    {
       s_queue->onConsolePrompt(prompt);

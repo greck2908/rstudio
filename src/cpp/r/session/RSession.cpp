@@ -1,7 +1,7 @@
 /*
  * RSession.cpp
  *
- * Copyright (C) 2020 by RStudio, PBC
+ * Copyright (C) 2009-19 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,7 +22,7 @@
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/algorithm/string/trim.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 #include <core/Settings.hpp>
 #include <core/Scope.hpp>
@@ -117,7 +117,7 @@ SEXP rs_showFile(SEXP titleSEXP, SEXP fileSEXP, SEXP delSEXP)
    try
    {
       std::string file = r::util::fixPath(r::sexp::asString(fileSEXP));
-      FilePath filePath = utils::safeCurrentPath().completePath(file);
+      FilePath filePath = utils::safeCurrentPath().complete(file);
       if (!filePath.exists())
       {
           throw r::exec::RErrorException(
@@ -172,13 +172,13 @@ SEXP rs_browseURL(SEXP urlSEXP)
       else if (URL.find("://") == std::string::npos)
       {
          std::string file = r::util::expandFileName(URL);
-         FilePath filePath = utils::safeCurrentPath().completePath(
-            r::util::fixPath(file));
+         FilePath filePath = utils::safeCurrentPath().complete(
+                                                   r::util::fixPath(file));
          rCallbacks().browseFile(filePath);
       }
       else
       {
-         rCallbacks().browseURL(URL);
+         rCallbacks().browseURL(URL) ;
       }
    }
    CATCH_UNEXPECTED_EXCEPTION
@@ -244,7 +244,7 @@ Error run(const ROptions& options, const RCallbacks& callbacks)
    setRCallbacks(callbacks);
    
    // set to default "C" numeric locale as-per R embedding docs
-   setlocale(LC_NUMERIC, "C");
+   setlocale(LC_NUMERIC, "C") ;
    
    // perform R discovery
    r::session::RLocations rLocations;
@@ -271,14 +271,13 @@ Error run(const ROptions& options, const RCallbacks& callbacks)
      
    // initialize suspended session path
    FilePath userScratch = s_options.userScratchPath;
-   FilePath oldSuspendedSessionPath = userScratch.completePath("suspended-session");
+   FilePath oldSuspendedSessionPath = userScratch.complete("suspended-session");
    FilePath sessionScratch = s_options.sessionScratchPath;
 
    // set suspend paths
-   setSuspendPaths(
-      sessionScratch.completePath("suspended-session-data"),              // session data
-      s_options.userScratchPath.completePath("client-state"),             // client state
-      s_options.scopedScratchPath.completePath("pcs"));                   // project client state
+   setSuspendPaths(sessionScratch.complete("suspended-session-data"), // session data
+      s_options.userScratchPath.complete("client-state"),             // client state
+      s_options.scopedScratchPath.complete("pcs"));                   // project client state
 
    // one time migration of global suspend to default project suspend
    if (!suspendedSessionPath().exists() && oldSuspendedSessionPath.exists())
@@ -377,7 +376,7 @@ Error run(const ROptions& options, const RCallbacks& callbacks)
                             stdInternalCallbacks());
 
    // keep compiler happy
-   return Success();
+   return Success() ;
 }
 
 namespace {
@@ -403,7 +402,7 @@ void setClientMetrics(const RClientMetrics& metrics)
    {
       // report to user
       std::string errMsg = r::endUserErrorMessage(error);
-      REprintf("%s\n", errMsg.c_str());
+      REprintf((errMsg + "\n").c_str());
 
       // restore previous values (but don't fire plotsChanged b/c
       // the reset doesn't result in a change in graphics state)
@@ -560,8 +559,7 @@ FilePath tempDir()
    Error error = r::exec::RFunction("tempdir").call(&tempDir);
    if (error)
       LOG_ERROR(error);
-
-   FilePath filePath(string_utils::systemToUtf8(r::util::fixPath(tempDir)));
+   FilePath filePath(r::util::fixPath(tempDir));
    return filePath;
 }
 
